@@ -270,6 +270,7 @@ export default function AdminDashboardPage() {
 
   const refreshPage = useCallback(async () => {
     if (!currentUser) return;
+    console.log("[admin] Realtime: refreshPage()");
     const { data, count } = await repo.listPageForUser(
       { email: currentUser.email, role: currentUser.role },
       { page: pageRef.current, pageSize }
@@ -290,11 +291,13 @@ export default function AdminDashboardPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "precalificaciones" },
-        (payload: { eventType?: string }) => {
+        (payload: { eventType?: string; new?: { id?: string } }) => {
+          console.log("[admin] postgres_changes", payload.eventType, "id:", payload.new?.id);
           if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
           if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
           debounceRef.timeoutId = setTimeout(() => {
             if (debounceRef.hasInsert) {
+              console.log("[admin] Realtime: INSERT -> setPage(1)");
               setPage(1);
             } else {
               refreshPage();
@@ -304,7 +307,12 @@ export default function AdminDashboardPage() {
           }, 300);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[admin] Realtime channel status:", status);
+        if (status === "SUBSCRIBED") {
+          console.log("[admin] SUBSCRIBED to public.precalificaciones");
+        }
+      });
     return () => {
       if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
       supabase.removeChannel(channel);

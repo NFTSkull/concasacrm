@@ -64,7 +64,7 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
         .from("precalificaciones")
         .select("*", { count: "exact" })
         .eq("asesorId", uid)
-        .order("created_at", { ascending: false })
+        .order("createdAt", { ascending: false })
         .range(from, to);
       if (error) throw new Error(error.message);
       return {
@@ -76,7 +76,7 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
     const { data, error, count } = await supabase
       .from("precalificaciones")
       .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
+      .order("createdAt", { ascending: false })
       .range(from, to);
     if (error) throw new Error(error.message);
     return {
