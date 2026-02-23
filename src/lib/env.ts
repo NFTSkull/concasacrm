@@ -1,23 +1,12 @@
 /**
- * Variables de entorno validadas para ConCasa CRM.
- * Si faltan, se lanza Error con mensaje claro (configurar .env.local).
- * NO hardcodear credenciales en el código.
+ * Variables de entorno para ConCasa CRM.
+ * En local: configurar .env.local con NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.
+ * En Vercel: añadir las mismas variables en Project → Settings → Environment Variables
+ * para que Auth y precalificaciones funcionen. Si faltan en build, el deploy no falla (evita 404).
  */
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-if (!url || typeof url !== "string" || url.trim() === "") {
-  throw new Error(
-    "Falta NEXT_PUBLIC_SUPABASE_URL. Configura .env.local con NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase"
-  );
-}
-
-if (!anonKey || typeof anonKey !== "string" || anonKey.trim() === "") {
-  throw new Error(
-    "Falta NEXT_PUBLIC_SUPABASE_ANON_KEY. Configura .env.local con NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key"
-  );
-}
-
-export const SUPABASE_URL = url.trim();
-export const SUPABASE_ANON_KEY = anonKey.trim();
+export const SUPABASE_URL = typeof url === "string" ? url.trim() : "";
+export const SUPABASE_ANON_KEY = typeof anonKey === "string" ? anonKey.trim() : "";
