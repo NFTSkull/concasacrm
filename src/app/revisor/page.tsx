@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { usePrecalificacionesRepo } from "@/domain/precalificaciones";
 import type { Precalificacion } from "@/domain/precalificaciones";
@@ -17,6 +17,8 @@ import {
 } from "@/lib/filters";
 import type { Decision } from "@/domain/precalificaciones";
 import { NotesFieldWithSuggestions } from "@/components/NotesFieldWithSuggestions";
+import { getAsesorDisplayMap, getAsesorDisplayLabel } from "@/lib/asesorDisplay";
+import { supabase } from "@/lib/supabaseClient";
 
 function computeDecision(montoStr: string, notasStr: string): Decision {
   const montoTrim = montoStr.trim();
@@ -54,6 +56,7 @@ function DecisionBadge({ decision }: { decision?: string }) {
 interface RevisorRowProps {
   p: Precalificacion;
   suggestions: string[];
+  asesorMap: Map<string, string>;
   updatePrecalificacion: (
     id: string,
     data: {
@@ -64,7 +67,7 @@ interface RevisorRowProps {
   ) => void;
 }
 
-function RevisorRow({ p, suggestions, updatePrecalificacion }: RevisorRowProps) {
+function RevisorRow({ p, suggestions, asesorMap, updatePrecalificacion }: RevisorRowProps) {
   type EditingField = "monto" | "notas" | null;
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -128,18 +131,18 @@ function RevisorRow({ p, suggestions, updatePrecalificacion }: RevisorRowProps) 
         {p.telefono_cliente ?? "—"}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-        {p.asesorId}
+        {getAsesorDisplayLabel(p.asesorId, asesorMap)}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
         <DecisionBadge decision={decision} />
       </td>
-      <td className="px-4 py-2">
+      <td className="min-w-[140px] px-4 py-2">
         <input
           type="number"
           min={0}
           step={1}
           placeholder="Monto"
-          className="no-spinner w-full min-w-[100px] max-w-[140px] rounded border border-gray-300 px-2 py-1.5 text-sm font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="no-spinner w-full min-w-[120px] rounded border border-gray-300 px-2 py-1.5 text-sm font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           value={montoStr}
           onChange={(e) =>
             editingField === "monto"
@@ -150,7 +153,7 @@ function RevisorRow({ p, suggestions, updatePrecalificacion }: RevisorRowProps) 
           onBlur={onBlurMonto}
         />
       </td>
-      <td className="max-w-[220px] px-4 py-2">
+      <td className="min-w-[260px] px-4 py-2">
         <NotesFieldWithSuggestions
           value={notasStr}
           onChange={(val) =>
@@ -173,10 +176,12 @@ function RevisorRow({ p, suggestions, updatePrecalificacion }: RevisorRowProps) 
 function RevisorTableBody({
   list,
   suggestions,
+  asesorMap,
   updatePrecalificacion,
 }: {
   list: Precalificacion[];
   suggestions: string[];
+  asesorMap: Map<string, string>;
   updatePrecalificacion: RevisorRowProps["updatePrecalificacion"];
 }) {
   return (
@@ -186,6 +191,7 @@ function RevisorTableBody({
           key={p.id}
           p={p}
           suggestions={suggestions}
+          asesorMap={asesorMap}
           updatePrecalificacion={updatePrecalificacion}
         />
       ))}
@@ -217,10 +223,10 @@ const REVISOR_TABLE_HEAD = (
       <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
         Decisión
       </th>
-      <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+      <th className="min-w-[140px] px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
         Monto aprobado
       </th>
-      <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+      <th className="min-w-[260px] px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
         Notas
       </th>
     </tr>
@@ -233,6 +239,15 @@ export default function RevisorDashboardPage() {
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [groupByDate, setGroupByDate] = useState(false);
   const [list, setList] = useState<Precalificacion[]>([]);
+  const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 50;
+  const pageRef = useRef(page);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
   const fullList = useMemo(
     () => (currentUser ? list : []),
     [currentUser, list]
@@ -241,9 +256,68 @@ export default function RevisorDashboardPage() {
   useEffect(() => {
     if (!currentUser) return;
     repo
-      .listForUser({ email: currentUser.email, role: currentUser.role })
-      .then(setList);
-  }, [currentUser, repo]);
+      .listPageForUser(
+        { email: currentUser.email, role: currentUser.role },
+        { page, pageSize }
+      )
+      .then(({ data, count }) => {
+        setList(data);
+        setTotalCount(count);
+        const newTotalPages = Math.ceil(count / pageSize) || 0;
+        setPage((p) =>
+          newTotalPages > 0 && p > newTotalPages ? newTotalPages : p
+        );
+      });
+  }, [currentUser, repo, page, pageSize]);
+
+  const refreshPage = useCallback(async () => {
+    if (!currentUser) return;
+    const { data, count } = await repo.listPageForUser(
+      { email: currentUser.email, role: currentUser.role },
+      { page: pageRef.current, pageSize }
+    );
+    setList(data);
+    setTotalCount(count);
+    const newTotalPages = Math.ceil(count / pageSize) || 0;
+    setPage((p) =>
+      newTotalPages > 0 && p > newTotalPages ? newTotalPages : p
+    );
+  }, [currentUser, repo, pageSize]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null, hasInsert: false };
+    const channel = supabase
+      .channel("precalificaciones-revisor-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "precalificaciones" },
+        (payload: { eventType?: string }) => {
+          if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+          if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
+          debounceRef.timeoutId = setTimeout(() => {
+            if (debounceRef.hasInsert) {
+              setPage(1);
+            } else {
+              refreshPage();
+            }
+            debounceRef.hasInsert = false;
+            debounceRef.timeoutId = null;
+          }, 300);
+        }
+      )
+      .subscribe();
+    return () => {
+      if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, refreshPage]);
+
+  useEffect(() => {
+    getAsesorDisplayMap()
+      .then(setAsesorMap)
+      .catch(() => setAsesorMap(new Map()));
+  }, []);
 
   const updatePrecalificacion = useCallback(
     (
@@ -254,18 +328,25 @@ export default function RevisorDashboardPage() {
         notas_revision: string;
       }
     ) => {
-      repo.update(id, data).catch((err) => {
-        alert(err instanceof Error ? err.message : "Error al guardar.");
-      });
+      repo
+        .update(id, data)
+        .then((updated) => {
+          setList((prev) =>
+            prev.map((item) => (item.id === id ? updated : item))
+          );
+        })
+        .catch((err) => {
+          alert(err instanceof Error ? err.message : "Error al guardar.");
+        });
     },
     [repo]
   );
   const asesorOptions = useMemo(() => {
     const ids = new Set(fullList.map((p) => p.asesorId));
     return Array.from(ids)
-      .sort()
-      .map((id) => ({ value: id, label: id }));
-  }, [fullList]);
+      .sort((a, b) => getAsesorDisplayLabel(a, asesorMap).localeCompare(getAsesorDisplayLabel(b, asesorMap)))
+      .map((id) => ({ value: id, label: getAsesorDisplayLabel(id, asesorMap) }));
+  }, [fullList, asesorMap]);
 
   const filteredList = useMemo(
     () => applyFilters(fullList, filters),
@@ -285,6 +366,17 @@ export default function RevisorDashboardPage() {
     () => groupByDay(filteredList),
     [filteredList]
   );
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 0;
+  const canPrevious = page > 1;
+  const canNext = page < totalPages;
+
+  const handlePrevious = useCallback(() => {
+    if (canPrevious) setPage((p) => p - 1);
+  }, [canPrevious]);
+  const handleNext = useCallback(() => {
+    if (canNext) setPage((p) => p + 1);
+  }, [canNext]);
 
   if (currentUser === undefined) {
     return (
@@ -347,6 +439,29 @@ export default function RevisorDashboardPage() {
         <h2 className="text-xl font-medium text-gray-900">
           Todas las precalificaciones
         </h2>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <span className="text-sm text-gray-600">
+            Página {page} de {totalPages || 1} · Total: {totalCount}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={!canPrevious}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={!canNext}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+
         {groupByDate ? (
           <div className="space-y-6">
             {groupedByDay.length === 0 ? (
@@ -362,12 +477,13 @@ export default function RevisorDashboardPage() {
                     {formatDateKeyToDisplay(dateKey)} ({dayList.length})
                   </h3>
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="w-full min-w-[960px] divide-y divide-gray-200">
                       {REVISOR_TABLE_HEAD}
                       <tbody className="divide-y divide-gray-200 bg-white">
                         <RevisorTableBody
                         list={dayList}
                         suggestions={notesSuggestions}
+                        asesorMap={asesorMap}
                         updatePrecalificacion={updatePrecalificacion}
                       />
                       </tbody>
@@ -378,8 +494,8 @@ export default function RevisorDashboardPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[960px] divide-y divide-gray-200">
               {REVISOR_TABLE_HEAD}
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredList.length === 0 ? (
@@ -395,6 +511,7 @@ export default function RevisorDashboardPage() {
                   <RevisorTableBody
                   list={filteredList}
                   suggestions={notesSuggestions}
+                  asesorMap={asesorMap}
                   updatePrecalificacion={updatePrecalificacion}
                 />
                 )}

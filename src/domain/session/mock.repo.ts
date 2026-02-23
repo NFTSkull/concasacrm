@@ -53,13 +53,13 @@ export class MockSessionRepo implements SessionRepo {
     return Promise.resolve(null);
   }
 
-  async login(email: string, role: Rol): Promise<UserSession> {
+  async login(email: string, password: string): Promise<UserSession> {
     localStorage.setItem(
       SESSION_KEY,
-      JSON.stringify({ email, role })
+      JSON.stringify({ email, role: "asesor" })
     );
-    this.store.login(email, "", role);
-    return Promise.resolve({ email, role });
+    this.store.login(email, password, "asesor");
+    return Promise.resolve({ email, role: "asesor" });
   }
 
   async logout(): Promise<void> {

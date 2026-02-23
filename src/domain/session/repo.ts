@@ -3,10 +3,10 @@
  * La UI depende de esta interfaz; las implementaciones (mock, Supabase Auth) la cumplen.
  */
 
-import type { UserSession, Rol } from "./types";
+import type { UserSession } from "./types";
 
 export interface SessionRepo {
   getCurrentUser(): Promise<UserSession | null>;
-  login(email: string, role: Rol): Promise<UserSession>;
+  login(email: string, password: string): Promise<UserSession>;
   logout(): Promise<void>;
 }

@@ -12,6 +12,15 @@ export interface PrecalificacionesRepo {
     role: string;
   }): Promise<Precalificacion[]>;
 
+  /**
+   * Lista una página de precalificaciones con orden createdAt DESC y total para paginación.
+   * revisor/super_admin: todas; asesor: solo las suyas.
+   */
+  listPageForUser(
+    user: { email: string; role: string },
+    options: { page: number; pageSize: number }
+  ): Promise<{ data: Precalificacion[]; count: number }>;
+
   /** Obtiene una precalificación por id (para edición en revisor/admin) */
   getById(id: string): Promise<Precalificacion | null>;
 

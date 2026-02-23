@@ -48,6 +48,43 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
     return (data ?? []).map(rowToPrecalificacion);
   }
 
+  async listPageForUser(
+    user: { email: string; role: string },
+    options: { page: number; pageSize: number }
+  ): Promise<{ data: Precalificacion[]; count: number }> {
+    const { page, pageSize } = options;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (user.role === "asesor") {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) return { data: [], count: 0 };
+      const { data, error, count } = await supabase
+        .from("precalificaciones")
+        .select("*", { count: "exact" })
+        .eq("asesorId", uid)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (error) throw new Error(error.message);
+      return {
+        data: (data ?? []).map(rowToPrecalificacion),
+        count: count ?? 0,
+      };
+    }
+
+    const { data, error, count } = await supabase
+      .from("precalificaciones")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (error) throw new Error(error.message);
+    return {
+      data: (data ?? []).map(rowToPrecalificacion),
+      count: count ?? 0,
+    };
+  }
+
   async getById(id: string): Promise<Precalificacion | null> {
     const { data, error } = await supabase
       .from("precalificaciones")

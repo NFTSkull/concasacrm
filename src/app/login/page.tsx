@@ -2,10 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useSessionRepo } from "@/domain/session";
-import type { Rol } from "@/domain/session";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,12 +15,8 @@ export default function LoginPage() {
     const email = (form.elements.namedItem("email") as HTMLInputElement).value;
     const password = (form.elements.namedItem("password") as HTMLInputElement)
       .value;
-    const role = (form.elements.namedItem("rol") as HTMLSelectElement)
-      .value as Rol;
 
-    (window as unknown as { __CONCASA_PASSWORD?: string }).__CONCASA_PASSWORD =
-      password;
-    const session = await sessionRepo.login(email, role);
+    const session = await sessionRepo.login(email, password);
 
     if (session.role === "asesor") router.push("/asesor");
     else if (session.role === "revisor") router.push("/revisor");
@@ -52,15 +46,6 @@ export default function LoginPage() {
             label="Contraseña"
             placeholder="••••••••"
             required
-          />
-          <Select
-            name="rol"
-            label="Rol"
-            options={[
-              { value: "asesor", label: "Asesor" },
-              { value: "revisor", label: "Revisor" },
-              { value: "super_admin", label: "Super Admin" },
-            ]}
           />
           <Button type="submit" variant="primary" className="mt-2 w-full">
             Entrar

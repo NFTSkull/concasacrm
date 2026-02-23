@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { usePrecalificacionesRepo } from "@/domain/precalificaciones";
 import type { Precalificacion } from "@/domain/precalificaciones";
@@ -16,6 +16,8 @@ import {
   DEFAULT_FILTERS,
   type FiltersState,
 } from "@/lib/filters";
+import { getAsesorDisplayMap, getAsesorDisplayLabel } from "@/lib/asesorDisplay";
+import { supabase } from "@/lib/supabaseClient";
 
 function getTodayYMD(): string {
   const t = new Date();
@@ -44,9 +46,11 @@ function DecisionBadge({ decision }: { decision?: string }) {
 function AdminTableBody({
   list,
   editHref,
+  asesorMap,
 }: {
   list: Precalificacion[];
   editHref: (id: string) => string;
+  asesorMap: Map<string, string>;
 }) {
   return (
     <>
@@ -56,7 +60,7 @@ function AdminTableBody({
             {formatDateTimeMx(p.createdAt)}
           </td>
           <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
-            {p.asesorId}
+            {getAsesorDisplayLabel(p.asesorId, asesorMap)}
           </td>
           <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-900">
             {p.programa}
@@ -171,9 +175,11 @@ const ADMIN_DAY_TABLE_HEAD = (
 function AdminDayTableBody({
   list,
   editHref,
+  asesorMap,
 }: {
   list: Precalificacion[];
   editHref: (id: string) => string;
+  asesorMap: Map<string, string>;
 }) {
   return (
     <>
@@ -195,7 +201,7 @@ function AdminDayTableBody({
             {p.telefono_cliente ?? "—"}
           </td>
           <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
-            {p.asesorId}
+            {getAsesorDisplayLabel(p.asesorId, asesorMap)}
           </td>
           <td className="whitespace-nowrap px-3 py-2">
             <DecisionBadge decision={p.decision} />
@@ -231,6 +237,15 @@ export default function AdminDashboardPage() {
   const [daySelected, setDaySelected] = useState<string>(getTodayYMD);
   const vistaDiaRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<Precalificacion[]>([]);
+  const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 50;
+  const pageRef = useRef(page);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
   const fullList = useMemo(
     () => (currentUser ? list : []),
     [currentUser, list]
@@ -239,15 +254,75 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!currentUser) return;
     repo
-      .listForUser({ email: currentUser.email, role: currentUser.role })
-      .then(setList);
-  }, [currentUser, repo]);
+      .listPageForUser(
+        { email: currentUser.email, role: currentUser.role },
+        { page, pageSize }
+      )
+      .then(({ data, count }) => {
+        setList(data);
+        setTotalCount(count);
+        const newTotalPages = Math.ceil(count / pageSize) || 0;
+        setPage((p) =>
+          newTotalPages > 0 && p > newTotalPages ? newTotalPages : p
+        );
+      });
+  }, [currentUser, repo, page, pageSize]);
+
+  const refreshPage = useCallback(async () => {
+    if (!currentUser) return;
+    const { data, count } = await repo.listPageForUser(
+      { email: currentUser.email, role: currentUser.role },
+      { page: pageRef.current, pageSize }
+    );
+    setList(data);
+    setTotalCount(count);
+    const newTotalPages = Math.ceil(count / pageSize) || 0;
+    setPage((p) =>
+      newTotalPages > 0 && p > newTotalPages ? newTotalPages : p
+    );
+  }, [currentUser, repo, pageSize]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null, hasInsert: false };
+    const channel = supabase
+      .channel("precalificaciones-admin-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "precalificaciones" },
+        (payload: { eventType?: string }) => {
+          if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+          if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
+          debounceRef.timeoutId = setTimeout(() => {
+            if (debounceRef.hasInsert) {
+              setPage(1);
+            } else {
+              refreshPage();
+            }
+            debounceRef.hasInsert = false;
+            debounceRef.timeoutId = null;
+          }, 300);
+        }
+      )
+      .subscribe();
+    return () => {
+      if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, refreshPage]);
+
+  useEffect(() => {
+    getAsesorDisplayMap()
+      .then(setAsesorMap)
+      .catch(() => setAsesorMap(new Map()));
+  }, []);
+
   const asesorOptions = useMemo(() => {
     const ids = new Set(fullList.map((p) => p.asesorId));
     return Array.from(ids)
-      .sort()
-      .map((id) => ({ value: id, label: id }));
-  }, [fullList]);
+      .sort((a, b) => getAsesorDisplayLabel(a, asesorMap).localeCompare(getAsesorDisplayLabel(b, asesorMap)))
+      .map((id) => ({ value: id, label: getAsesorDisplayLabel(id, asesorMap) }));
+  }, [fullList, asesorMap]);
 
   const filteredList = useMemo(
     () => applyFilters(fullList, filters),
@@ -300,6 +375,16 @@ export default function AdminDashboardPage() {
       filteredList.filter((p) => toDayKey(p.createdAt) === daySelected),
     [filteredList, daySelected]
   );
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 0;
+  const canPrevious = page > 1;
+  const canNext = page < totalPages;
+  const handlePrevious = useCallback(() => {
+    if (canPrevious) setPage((p) => p - 1);
+  }, [canPrevious]);
+  const handleNext = useCallback(() => {
+    if (canNext) setPage((p) => p + 1);
+  }, [canNext]);
 
   const dayKpis = useMemo(() => {
     let pendientes = 0;
@@ -436,6 +521,7 @@ export default function AdminDashboardPage() {
                   <AdminDayTableBody
                     list={filteredListByDay}
                     editHref={(id) => `/admin/${id}`}
+                    asesorMap={asesorMap}
                   />
                 )}
               </tbody>
@@ -473,7 +559,7 @@ export default function AdminDashboardPage() {
               ) : (
                 top3Asesores.map((r) => (
                   <li key={r.asesorId}>
-                    {r.asesorId}: {r.total}
+                    {getAsesorDisplayLabel(r.asesorId, asesorMap)}: {r.total}
                   </li>
                 ))
               )}
@@ -515,7 +601,7 @@ export default function AdminDashboardPage() {
                   resumenPorAsesor.map((r) => (
                     <tr key={r.asesorId} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                        {r.asesorId}
+                        {getAsesorDisplayLabel(r.asesorId, asesorMap)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                         {r.total}
@@ -546,6 +632,29 @@ export default function AdminDashboardPage() {
           </label>
         </section>
 
+        {/* Paginación */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <span className="text-sm text-gray-600">
+            Página {page} de {totalPages || 1} · Total: {totalCount}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={!canPrevious}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={!canNext}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+
         {/* Tabla(s) */}
         <section>
           <h2 className="mb-4 text-xl font-medium text-gray-900">
@@ -570,6 +679,7 @@ export default function AdminDashboardPage() {
                           <AdminTableBody
                             list={dayList}
                             editHref={(id) => `/admin/${id}`}
+                            asesorMap={asesorMap}
                           />
                         </tbody>
                       </table>
@@ -596,6 +706,7 @@ export default function AdminDashboardPage() {
                     <AdminTableBody
                       list={filteredList}
                       editHref={(id) => `/admin/${id}`}
+                      asesorMap={asesorMap}
                     />
                   )}
                 </tbody>

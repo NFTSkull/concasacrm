@@ -27,6 +27,23 @@ export class MockPrecalificacionesRepo implements PrecalificacionesRepo {
     return Promise.resolve(this.store.getAllPrecalificaciones());
   }
 
+  async listPageForUser(
+    user: { email: string; role: string },
+    options: { page: number; pageSize: number }
+  ): Promise<{ data: Precalificacion[]; count: number }> {
+    const all = await this.listForUser(user);
+    const sorted = [...all].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const { page, pageSize } = options;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize;
+    return {
+      data: sorted.slice(from, to),
+      count: sorted.length,
+    };
+  }
+
   async getById(id: string): Promise<Precalificacion | null> {
     const p = this.store.getPrecalificacionById(id);
     return Promise.resolve(p ?? null);

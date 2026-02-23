@@ -35,18 +35,7 @@ export class SupabaseSessionRepo implements SessionRepo {
     return { email: user.email, role: mapRole(roleData) };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- firma SessionRepo; el rol real viene de get_my_role()
-  async login(email: string, role: Rol): Promise<UserSession> {
-    // El rol real se lee de user_profiles vía get_my_role(), no del argumento.
-    const password = (window as Window & { __CONCASA_PASSWORD?: string })
-      .__CONCASA_PASSWORD;
-
-    if (!password) {
-      throw new Error(
-        "Falta password para login de prueba. (En el siguiente paso lo conectamos a un input del login.)"
-      );
-    }
-
+  async login(email: string, password: string): Promise<UserSession> {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
