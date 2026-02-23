@@ -70,7 +70,9 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
       nss: input.nss,
       cliente_nombre: input.cliente_nombre,
       telefono_cliente: input.telefono_cliente,
-      direccion_opcional: input.direccion_opcional,
+      direccion_opcional: input.direccion_opcional ?? "",
+      notas: "",
+      decision: "pendiente",
       asesorId: uid,
     };
     const { data, error } = await supabase
