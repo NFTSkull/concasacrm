@@ -238,6 +238,9 @@ export default function AdminDashboardPage() {
   const vistaDiaRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<Precalificacion[]>([]);
   const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
+  const [asesorDebug, setAsesorDebug] = useState<
+    { status: "idle" | "loading" | "ok" | "error"; message?: string; sample?: string[] }
+  >({ status: "idle" });
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 50;
@@ -320,9 +323,24 @@ export default function AdminDashboardPage() {
   }, [currentUser, refreshPage]);
 
   useEffect(() => {
+    queueMicrotask(() => setAsesorDebug({ status: "loading" }));
     getAsesorDisplayMap()
-      .then(setAsesorMap)
-      .catch(() => setAsesorMap(new Map()));
+      .then((map) => {
+        setAsesorMap(map);
+        console.log("[asesorMap] size:", map.size);
+        const sample = Array.from(map.entries())
+          .slice(0, 3)
+          .map(([id, email]) => `${id} -> ${email}`);
+        setAsesorDebug({ status: "ok", sample });
+      })
+      .catch((err) => {
+        console.log("[asesorMap] error loading map", err);
+        setAsesorMap(new Map());
+        setAsesorDebug({
+          status: "error",
+          message: String((err as Error)?.message ?? err),
+        });
+      });
   }, []);
 
   const asesorOptions = useMemo(() => {
@@ -668,6 +686,23 @@ export default function AdminDashboardPage() {
           <h2 className="mb-4 text-xl font-medium text-gray-900">
             Todas las precalificaciones
           </h2>
+          {process.env.NODE_ENV !== "production" && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-mono text-xs text-gray-800">
+              <div className="font-semibold text-amber-800">[debug] asesorMap</div>
+              <div>status: {asesorDebug.status}</div>
+              <div>asesorMap.size: {asesorMap.size}</div>
+              {asesorDebug.status === "error" && asesorDebug.message && (
+                <div className="text-red-700">error: {asesorDebug.message}</div>
+              )}
+              {asesorDebug.sample && asesorDebug.sample.length > 0 && (
+                <div className="mt-1">
+                  sample (id → email): {asesorDebug.sample.map((s, i) => (
+                    <div key={i}>{s}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {groupByDate ? (
             <div className="space-y-6">
               {groupedByDay.length === 0 ? (

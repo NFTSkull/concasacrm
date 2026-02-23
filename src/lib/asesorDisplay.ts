@@ -14,17 +14,23 @@ let cache: Map<string, string> | null = null;
  */
 export async function getAsesorDisplayMap(): Promise<Map<string, string>> {
   if (cache) return cache;
+  console.log("[asesorMap] fetching user_profiles...");
   const { data, error } = await supabase
     .from("user_profiles")
     .select("id, email")
     .eq("role", "asesor");
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[asesorMap] supabase error:", error);
+    throw new Error(error.message);
+  }
+  console.log("[asesorMap] rows:", data?.length);
   const map = new Map<string, string>();
   for (const row of data ?? []) {
     const id = row.id != null ? String(row.id) : "";
     const email = row.email != null ? String(row.email) : "";
     if (id) map.set(id, email);
   }
+  console.log("[asesorMap] map size:", map.size);
   cache = map;
   return map;
 }
