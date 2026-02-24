@@ -70,26 +70,25 @@ export default function NuevaPrecalificacionPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
+      <header className="border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/asesor"
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="min-h-[44px] flex items-center text-sm text-gray-500 hover:text-gray-700 touch-manipulation sm:min-h-0"
           >
             ← Volver al dashboard
           </Link>
-          <h1 className="text-lg font-semibold text-gray-900">
+          <h1 className="text-base font-semibold text-gray-900 sm:text-lg">
             ConCasa CRM · Nueva precalificación
           </h1>
-          <span />
         </div>
       </header>
-      <main className="mx-auto max-w-xl px-4 py-8">
+      <main className="mx-auto max-w-xl px-3 py-6 sm:px-4 sm:py-8">
         <form
           onSubmit={handleSubmit}
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
         >
-          <h2 className="mb-6 text-lg font-medium text-gray-900">
+          <h2 className="mb-4 text-lg font-medium text-gray-900 sm:mb-6">
             Datos de precalificación
           </h2>
           <div className="flex flex-col gap-4">
@@ -98,12 +97,14 @@ export default function NuevaPrecalificacionPage() {
               label="Programa"
               options={PROGRAMAS.map((p) => ({ value: p, label: p }))}
               required
+              className="min-h-[44px] sm:min-h-0"
             />
             <Input
               name="cliente_nombre"
               label="Nombre del cliente"
               placeholder="Nombre completo"
               required
+              className="min-h-[44px] sm:min-h-0"
             />
             <Input
               name="telefono_cliente"
@@ -112,6 +113,7 @@ export default function NuevaPrecalificacionPage() {
               required
               maxLength={14}
               inputMode="numeric"
+              className="min-h-[44px] sm:min-h-0"
             />
             <Input
               name="nss"
@@ -120,19 +122,29 @@ export default function NuevaPrecalificacionPage() {
               required
               maxLength={11}
               inputMode="numeric"
+              className="min-h-[44px] sm:min-h-0"
             />
             <Input
               name="direccion_opcional"
               label="Dirección (opcional)"
               placeholder="Calle, número, colonia..."
+              className="min-h-[44px] sm:min-h-0"
             />
           </div>
-          <div className="mt-6 flex gap-3">
-            <Button type="submit" variant="primary">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="submit"
+              variant="primary"
+              className="min-h-[44px] w-full touch-manipulation sm:min-h-0 sm:w-auto"
+            >
               Enviar
             </Button>
-            <Link href="/asesor">
-              <Button type="button" variant="secondary">
+            <Link href="/asesor" className="w-full sm:w-auto">
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-[44px] w-full touch-manipulation sm:min-h-0 sm:w-auto"
+              >
                 Cancelar
               </Button>
             </Link>

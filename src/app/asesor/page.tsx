@@ -89,26 +89,37 @@ export default function AsesorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <h1 className="text-lg font-semibold text-gray-900">
+      <header className="border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-base font-semibold text-gray-900 sm:text-lg">
             ConCasa CRM · Asesor
           </h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">{currentUser.email}</span>
-            <Button variant="outline" onClick={() => sessionRepo.logout()}>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span className="min-w-0 truncate text-sm text-gray-500">
+              {currentUser.email}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => sessionRepo.logout()}
+              className="min-h-[44px] touch-manipulation sm:min-h-0"
+            >
               Cerrar sesión
             </Button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-xl font-medium text-gray-900">
+      <main className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <h2 className="text-lg font-medium text-gray-900 sm:text-xl">
             Mis precalificaciones
           </h2>
-          <Link href="/asesor/nueva">
-            <Button variant="primary">Nueva precalificación</Button>
+          <Link href="/asesor/nueva" className="w-full sm:w-auto">
+            <Button
+              variant="primary"
+              className="min-h-[44px] w-full touch-manipulation sm:min-h-0 sm:w-auto"
+            >
+              Nueva precalificación
+            </Button>
           </Link>
         </div>
 
@@ -120,7 +131,67 @@ export default function AsesorDashboardPage() {
           showProgramaFilter={false}
         />
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        {/* Vista móvil: tarjetas (solo asesor, no afecta web revisor/admin) */}
+        <div className="space-y-3 sm:hidden">
+          {filteredList.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500">
+              No hay precalificaciones. Crea una nueva.
+            </div>
+          ) : (
+            filteredList.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              >
+                <div className="space-y-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                    <span className="text-xs text-gray-500">
+                      {formatDateTimeMx(p.createdAt)}
+                    </span>
+                    <DecisionBadge decision={p.decision} />
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Cliente: </span>
+                    <span className="text-gray-900">{p.cliente_nombre ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Programa: </span>
+                    <span className="text-gray-900">{p.programa}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">NSS: </span>
+                    <span className="text-gray-900">{p.nss}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Teléfono: </span>
+                    <span className="text-gray-900">{p.telefono_cliente ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Monto: </span>
+                    <span className="text-gray-900">
+                      {p.decision === "no_cumple"
+                        ? "—"
+                        : p.monto_aprobado != null
+                          ? `$${p.monto_aprobado.toLocaleString()}`
+                          : "—"}
+                    </span>
+                  </div>
+                  {(p.notas_revision ?? "").trim() && (
+                    <div>
+                      <span className="font-medium text-gray-500">Notas: </span>
+                      <span className="text-gray-600">
+                        {truncateNotas(p.notas_revision)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Vista escritorio: tabla (igual que antes) */}
+        <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
