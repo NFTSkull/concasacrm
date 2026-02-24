@@ -488,7 +488,7 @@ export default function RevisorDashboardPage() {
           </div>
         </div>
 
-        {process.env.NODE_ENV !== "production" && (
+        {(currentUser as { role?: string } | undefined)?.role === "super_admin" && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-mono text-xs text-gray-800">
             <div className="font-semibold text-amber-800">[debug] asesorMap</div>
             <div>status: {asesorDebug.status}</div>

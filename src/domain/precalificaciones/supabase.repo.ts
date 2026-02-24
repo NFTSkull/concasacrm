@@ -140,9 +140,11 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
       .from("precalificaciones")
       .update(updatePayload)
       .eq("id", id)
-      .select()
-      .single();
+      .select("*");
     if (error) throw new Error(error.message);
-    return rowToPrecalificacion(data);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row) return rowToPrecalificacion(row);
+    const merged = { id, ...patch };
+    return rowToPrecalificacion(merged as Record<string, unknown>);
   }
 }

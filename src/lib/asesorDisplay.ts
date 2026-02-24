@@ -19,6 +19,10 @@ export async function getAsesorDisplayMap(): Promise<Map<string, string>> {
     .from("user_profiles")
     .select("id, email")
     .eq("role", "asesor");
+  console.log("[asesorMap] rows recibidas:", data);
+  console.log("[asesorMap] error:", error);
+  const sessionInfo = await supabase.auth.getSession();
+  console.log("[asesorMap] session:", sessionInfo);
   if (error) {
     console.error("[asesorMap] supabase error:", error);
     throw new Error(error.message);
