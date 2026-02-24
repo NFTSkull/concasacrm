@@ -304,6 +304,7 @@ export default function RevisorDashboardPage() {
             if (debounceRef.hasInsert) {
               console.log("[revisor] Realtime: INSERT -> setPage(1)");
               setPage(1);
+              refreshPage();
             } else {
               refreshPage();
             }
