@@ -138,55 +138,71 @@ export default function AsesorDashboardPage() {
               No hay precalificaciones. Crea una nueva.
             </div>
           ) : (
-            filteredList.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-              >
-                <div className="space-y-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
-                    <span className="text-xs text-gray-500">
-                      {formatDateTimeMx(p.createdAt)}
-                    </span>
-                    <DecisionBadge decision={p.decision} />
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500">Cliente: </span>
-                    <span className="text-gray-900">{p.cliente_nombre ?? "—"}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500">Programa: </span>
-                    <span className="text-gray-900">{p.programa}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500">NSS: </span>
-                    <span className="text-gray-900">{p.nss}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500">Teléfono: </span>
-                    <span className="text-gray-900">{p.telefono_cliente ?? "—"}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500">Monto: </span>
-                    <span className="text-gray-900">
-                      {p.decision === "no_cumple"
-                        ? "—"
-                        : p.monto_aprobado != null
-                          ? `$${p.monto_aprobado.toLocaleString()}`
-                          : "—"}
-                    </span>
-                  </div>
-                  {(p.notas_revision ?? "").trim() && (
+            filteredList.map((p) => {
+              const telefono = p.telefono_cliente;
+              const digits = telefono?.replace(/\D/g, "");
+              const waHref = digits ? `https://wa.me/52${digits}` : null;
+              return (
+                <div
+                  key={p.id}
+                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="space-y-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                      <span className="text-xs text-gray-500">
+                        {formatDateTimeMx(p.createdAt)}
+                      </span>
+                      <DecisionBadge decision={p.decision} />
+                    </div>
                     <div>
-                      <span className="font-medium text-gray-500">Notas: </span>
-                      <span className="text-gray-600">
-                        {truncateNotas(p.notas_revision)}
+                      <span className="font-medium text-gray-500">Cliente: </span>
+                      <span className="text-gray-900">{p.cliente_nombre ?? "—"}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Programa: </span>
+                      <span className="text-gray-900">{p.programa}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">NSS: </span>
+                      <span className="text-gray-900">{p.nss}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Teléfono: </span>
+                      {waHref ? (
+                        <a
+                          href={waHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline break-all"
+                        >
+                          {telefono}
+                        </a>
+                      ) : (
+                        <span className="text-gray-900">—</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Monto: </span>
+                      <span className="text-gray-900">
+                        {p.decision === "no_cumple"
+                          ? "—"
+                          : p.monto_aprobado != null
+                            ? `$${p.monto_aprobado.toLocaleString()}`
+                            : "—"}
                       </span>
                     </div>
-                  )}
+                    {(p.notas_revision ?? "").trim() && (
+                      <div>
+                        <span className="font-medium text-gray-500">Notas: </span>
+                        <span className="text-gray-600">
+                          {truncateNotas(p.notas_revision)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -232,38 +248,54 @@ export default function AsesorDashboardPage() {
                   </td>
                 </tr>
               ) : (
-                filteredList.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
-                      {formatDateTimeMx(p.createdAt)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                      {p.programa}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {p.nss}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {p.cliente_nombre ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {p.telefono_cliente ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <DecisionBadge decision={p.decision} />
-                    </td>
-                    <td className="max-w-[200px] truncate px-4 py-3 text-sm text-gray-600">
-                      {truncateNotas(p.notas_revision)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {p.decision === "no_cumple"
-                        ? "—"
-                        : p.monto_aprobado != null
-                          ? `$${p.monto_aprobado.toLocaleString()}`
-                          : "—"}
-                    </td>
-                  </tr>
-                ))
+                filteredList.map((p) => {
+                  const telefono = p.telefono_cliente;
+                  const digits = telefono?.replace(/\D/g, "");
+                  const waHref = digits ? `https://wa.me/52${digits}` : null;
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
+                        {formatDateTimeMx(p.createdAt)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
+                        {p.programa}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                        {p.nss}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                        {p.cliente_nombre ?? "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                        {waHref ? (
+                          <a
+                            href={waHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline break-all"
+                          >
+                            {telefono}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <DecisionBadge decision={p.decision} />
+                      </td>
+                      <td className="max-w-[200px] truncate px-4 py-3 text-sm text-gray-600">
+                        {truncateNotas(p.notas_revision)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                        {p.decision === "no_cumple"
+                          ? "—"
+                          : p.monto_aprobado != null
+                            ? `$${p.monto_aprobado.toLocaleString()}`
+                            : "—"}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
