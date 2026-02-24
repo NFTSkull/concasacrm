@@ -290,7 +290,11 @@ export default function RevisorDashboardPage() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null, hasInsert: false };
+    const debounceRef = {
+      timeoutId: null as ReturnType<typeof setTimeout> | null,
+      hasInsert: false,
+      hasUpdate: false,
+    };
     const channel = supabase
       .channel("precalificaciones-revisor-live")
       .on(
@@ -300,15 +304,18 @@ export default function RevisorDashboardPage() {
           console.log("[revisor] postgres_changes", payload.eventType, "id:", payload.new?.id);
           if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
           if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
+          if (payload.eventType === "UPDATE") debounceRef.hasUpdate = true;
           debounceRef.timeoutId = setTimeout(() => {
             if (debounceRef.hasInsert) {
               console.log("[revisor] Realtime: INSERT -> setPage(1)");
               setPage(1);
               refreshPage();
-            } else {
+            } else if (debounceRef.hasUpdate) {
+              console.log("[revisor] Realtime: UPDATE -> refreshPage()");
               refreshPage();
             }
             debounceRef.hasInsert = false;
+            debounceRef.hasUpdate = false;
             debounceRef.timeoutId = null;
           }, 300);
         }

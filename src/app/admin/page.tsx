@@ -288,7 +288,11 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null, hasInsert: false };
+    const debounceRef = {
+      timeoutId: null as ReturnType<typeof setTimeout> | null,
+      hasInsert: false,
+      hasUpdate: false,
+    };
     const channel = supabase
       .channel("precalificaciones-admin-live")
       .on(
@@ -298,14 +302,18 @@ export default function AdminDashboardPage() {
           console.log("[admin] postgres_changes", payload.eventType, "id:", payload.new?.id);
           if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
           if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
+          if (payload.eventType === "UPDATE") debounceRef.hasUpdate = true;
           debounceRef.timeoutId = setTimeout(() => {
             if (debounceRef.hasInsert) {
               console.log("[admin] Realtime: INSERT -> setPage(1)");
               setPage(1);
-            } else {
+              refreshPage();
+            } else if (debounceRef.hasUpdate) {
+              console.log("[admin] Realtime: UPDATE -> refreshPage()");
               refreshPage();
             }
             debounceRef.hasInsert = false;
+            debounceRef.hasUpdate = false;
             debounceRef.timeoutId = null;
           }, 300);
         }
