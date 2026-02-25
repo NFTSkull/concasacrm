@@ -46,24 +46,7 @@ export interface MockStoreContextValue extends MockStoreState {
 
 const MockStoreContext = createContext<MockStoreContextValue | null>(null);
 
-const PRECALIFICACIONES_INICIALES: Precalificacion[] = [
-  createPrecalificacion({
-    asesorId: "asesor@concasa.com",
-    programa: "Mejoravit",
-    nss: "12345678901",
-    cliente_nombre: "Juan Pérez",
-    telefono_cliente: "5512345678",
-    direccion_opcional: "Calle Ejemplo 123",
-  }),
-  createPrecalificacion({
-    asesorId: "asesor@concasa.com",
-    programa: "Subcuenta",
-    nss: "98765432109",
-    cliente_nombre: "María García",
-    telefono_cliente: "5587654321",
-    direccion_opcional: "",
-  }),
-];
+const PRECALIFICACIONES_INICIALES: Precalificacion[] = [];
 
 export function MockStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<MockStoreState>({

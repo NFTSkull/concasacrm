@@ -37,7 +37,8 @@ export class SupabasePrecalificacionesRepo implements PrecalificacionesRepo {
       const { data, error } = await supabase
         .from("precalificaciones")
         .select("*")
-        .eq("asesorId", uid);
+        .eq("asesorId", uid)
+        .order("createdAt", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map(rowToPrecalificacion);
     }

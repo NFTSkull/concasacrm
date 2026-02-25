@@ -13,6 +13,7 @@ import {
   DEFAULT_FILTERS,
   type FiltersState,
 } from "@/lib/filters";
+import { supabase } from "@/lib/supabaseClient";
 
 const MAX_NOTAS_LEN = 70;
 
@@ -60,6 +61,44 @@ export default function AsesorDashboardPage() {
     repo
       .listForUser({ email: currentUser.email, role: currentUser.role })
       .then(setList);
+  }, [currentUser, repo]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null };
+    const channelRef = { current: null as ReturnType<typeof supabase.channel> | null };
+    (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) return;
+      const ch = supabase
+        .channel("precalificaciones-asesor-live")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "precalificaciones",
+            filter: `asesorId=eq.${uid}`,
+          },
+          (payload: { eventType?: string }) => {
+            if (payload.eventType !== "INSERT" && payload.eventType !== "UPDATE") return;
+            if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+            debounceRef.timeoutId = setTimeout(() => {
+              repo
+                .listForUser({ email: currentUser.email, role: currentUser.role })
+                .then(setList);
+              debounceRef.timeoutId = null;
+            }, 300);
+          }
+        )
+        .subscribe();
+      channelRef.current = ch;
+    })();
+    return () => {
+      if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
   }, [currentUser, repo]);
 
   const filteredList = useMemo(
