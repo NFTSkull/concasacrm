@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { usePrecalificacionesRepo } from "@/domain/precalificaciones";
 import { Button } from "@/components/ui/Button";
@@ -46,11 +46,20 @@ function DecisionBadge({ decision }: { decision?: string }) {
   );
 }
 
+const pageSize = 50;
+
 export default function AsesorDashboardPage() {
   const { sessionRepo, currentUser } = useSessionRepo();
   const repo = usePrecalificacionesRepo();
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [list, setList] = useState<Precalificacion[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageRef = useRef(page);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
   const fullList = useMemo(
     () => (currentUser ? list : []),
     [currentUser, list]
@@ -59,9 +68,29 @@ export default function AsesorDashboardPage() {
   useEffect(() => {
     if (!currentUser) return;
     repo
-      .listForUser({ email: currentUser.email, role: currentUser.role })
-      .then(setList);
-  }, [currentUser, repo]);
+      .listPageForUser(
+        { email: currentUser.email, role: currentUser.role },
+        { page, pageSize }
+      )
+      .then(({ data, count }) => {
+        setList(data);
+        setTotalCount(count);
+        const totalPages = Math.ceil(count / pageSize) || 1;
+        setPage((p) => (totalPages > 0 && p > totalPages ? totalPages : p));
+      });
+  }, [currentUser, repo, page, pageSize]);
+
+  const refreshPage = useCallback(async () => {
+    if (!currentUser) return;
+    const { data, count } = await repo.listPageForUser(
+      { email: currentUser.email, role: currentUser.role },
+      { page: pageRef.current, pageSize }
+    );
+    setList(data);
+    setTotalCount(count);
+    const totalPages = Math.ceil(count / pageSize) || 1;
+    setPage((p) => (totalPages > 0 && p > totalPages ? totalPages : p));
+  }, [currentUser, repo, pageSize]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -83,11 +112,17 @@ export default function AsesorDashboardPage() {
           },
           (payload: { eventType?: string }) => {
             if (payload.eventType !== "INSERT" && payload.eventType !== "UPDATE") return;
+            if (payload.eventType === "INSERT") {
+              if (pageRef.current === 1) {
+                refreshPage();
+              } else {
+                setPage(1);
+              }
+              return;
+            }
             if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
             debounceRef.timeoutId = setTimeout(() => {
-              repo
-                .listForUser({ email: currentUser.email, role: currentUser.role })
-                .then(setList);
+              refreshPage();
               debounceRef.timeoutId = null;
             }, 300);
           }
@@ -99,12 +134,22 @@ export default function AsesorDashboardPage() {
       if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [currentUser, repo]);
+  }, [currentUser, refreshPage]);
 
   const filteredList = useMemo(
     () => applyFilters(fullList, filters),
     [fullList, filters]
   );
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const canPrevious = page > 1;
+  const canNext = page < totalPages;
+  const handlePrevious = useCallback(() => {
+    if (canPrevious) setPage((p) => p - 1);
+  }, [canPrevious]);
+  const handleNext = useCallback(() => {
+    if (canNext) setPage((p) => p + 1);
+  }, [canNext]);
 
   if (currentUser === undefined) {
     return (
@@ -169,6 +214,28 @@ export default function AsesorDashboardPage() {
           showAsesorFilter={false}
           showProgramaFilter={false}
         />
+
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <span className="text-sm text-gray-600">
+            Página {page} de {totalPages} · Total: {totalCount}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={!canPrevious}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={!canNext}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
 
         {/* Vista móvil: tarjetas (solo asesor, no afecta web revisor/admin) */}
         <div className="space-y-3 sm:hidden">
