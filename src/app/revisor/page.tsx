@@ -310,8 +310,8 @@ export default function RevisorDashboardPage() {
               console.log("[revisor] Realtime: INSERT -> setPage(1)");
               setPage(1);
               refreshPage();
-            } else if (debounceRef.hasUpdate) {
-              console.log("[revisor] Realtime: UPDATE -> refreshPage()");
+            } else if (debounceRef.hasUpdate && pageRef.current === 1) {
+              console.log("[revisor] Realtime: UPDATE (página 1) -> refreshPage()");
               refreshPage();
             }
             debounceRef.hasInsert = false;
