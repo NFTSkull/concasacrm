@@ -147,7 +147,7 @@ export default function AsesorDashboardPage() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
+      <main className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:max-w-7xl lg:px-6 xl:max-w-[1400px]">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium text-gray-900 sm:text-xl">
             Mis precalificaciones
@@ -248,7 +248,7 @@ export default function AsesorDashboardPage() {
         {/* Vista escritorio: tabla con scroll horizontal si no cabe */}
         <div className="hidden sm:block">
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-[1100px] divide-y divide-gray-200">
+            <table className="w-full min-w-[1100px] divide-y divide-gray-200 lg:min-w-0">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">

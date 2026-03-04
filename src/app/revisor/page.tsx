@@ -447,7 +447,7 @@ export default function RevisorDashboardPage() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+      <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 lg:max-w-7xl xl:max-w-[1400px]">
         <FiltersBar
           filters={filters}
           setFilters={setFilters}
@@ -529,7 +529,7 @@ export default function RevisorDashboardPage() {
                     {formatDateKeyToDisplay(dateKey)} ({dayList.length})
                   </h3>
                   <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <table className="w-full min-w-[1100px] divide-y divide-gray-200">
+                    <table className="w-full min-w-[1100px] divide-y divide-gray-200 lg:min-w-0">
                       {REVISOR_TABLE_HEAD}
                       <tbody className="divide-y divide-gray-200 bg-white">
                         <RevisorTableBody
@@ -547,7 +547,7 @@ export default function RevisorDashboardPage() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[1100px] divide-y divide-gray-200">
+            <table className="w-full min-w-[1100px] divide-y divide-gray-200 lg:min-w-0">
               {REVISOR_TABLE_HEAD}
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredList.length === 0 ? (
