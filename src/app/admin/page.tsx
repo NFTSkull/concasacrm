@@ -235,6 +235,12 @@ export default function AdminDashboardPage() {
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [groupByDate, setGroupByDate] = useState(false);
   const [daySelected, setDaySelected] = useState<string>(getTodayYMD);
+  const [dayKpis, setDayKpis] = useState({
+    total: 0,
+    pendientes: 0,
+    aprobadas: 0,
+    noCumple: 0,
+  });
   const vistaDiaRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<Precalificacion[]>([]);
   const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
@@ -420,23 +426,81 @@ export default function AdminDashboardPage() {
     if (canNext) setPage((p) => p + 1);
   }, [canNext]);
 
-  const dayKpis = useMemo(() => {
-    let pendientes = 0;
-    let aprobadas = 0;
-    let noCumple = 0;
-    for (const p of filteredListByDay) {
-      const d = p.decision ?? "pendiente";
-      if (d === "pendiente") pendientes++;
-      else if (d === "aprobado") aprobadas++;
-      else noCumple++;
-    }
-    return {
-      total: filteredListByDay.length,
-      pendientes,
-      aprobadas,
-      noCumple,
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let cancelled = false;
+
+    const fetchDayKpis = async () => {
+      try {
+        const baseDate = new Date(`${daySelected}T00:00:00.000Z`);
+        if (Number.isNaN(baseDate.getTime())) {
+          if (!cancelled) {
+            setDayKpis({ total: 0, pendientes: 0, aprobadas: 0, noCumple: 0 });
+          }
+          return;
+        }
+
+        const start = baseDate.toISOString();
+        const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+        const [totalRes, pendientesRes, aprobadasRes, noCumpleRes] = await Promise.all([
+          supabase
+            .from("precalificaciones")
+            .select("id", { count: "exact", head: true })
+            .gte("createdAt", start)
+            .lt("createdAt", end),
+          supabase
+            .from("precalificaciones")
+            .select("id", { count: "exact", head: true })
+            .gte("createdAt", start)
+            .lt("createdAt", end)
+            .or("decision.is.null,decision.eq.pendiente"),
+          supabase
+            .from("precalificaciones")
+            .select("id", { count: "exact", head: true })
+            .gte("createdAt", start)
+            .lt("createdAt", end)
+            .eq("decision", "aprobado"),
+          supabase
+            .from("precalificaciones")
+            .select("id", { count: "exact", head: true })
+            .gte("createdAt", start)
+            .lt("createdAt", end)
+            .eq("decision", "no_cumple"),
+        ]);
+
+        if (cancelled) return;
+
+        if (totalRes.error || pendientesRes.error || aprobadasRes.error || noCumpleRes.error) {
+          console.error("[admin] Error fetching day KPIs", {
+            totalError: totalRes.error,
+            pendientesError: pendientesRes.error,
+            aprobadasError: aprobadasRes.error,
+            noCumpleError: noCumpleRes.error,
+          });
+          return;
+        }
+
+        setDayKpis({
+          total: totalRes.count ?? 0,
+          pendientes: pendientesRes.count ?? 0,
+          aprobadas: aprobadasRes.count ?? 0,
+          noCumple: noCumpleRes.count ?? 0,
+        });
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[admin] Exception fetching day KPIs", err);
+        }
+      }
     };
-  }, [filteredListByDay]);
+
+    fetchDayKpis();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, daySelected]);
 
   if (currentUser === undefined) {
     return (
