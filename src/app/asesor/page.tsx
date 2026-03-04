@@ -245,99 +245,101 @@ export default function AsesorDashboardPage() {
           )}
         </div>
 
-        {/* Vista escritorio: tabla (igual que antes) */}
-        <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:block">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
-                  Creada
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Programa
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  NSS
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Cliente
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Teléfono
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Decisión
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Notas
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Monto aprobado
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {filteredList.length === 0 ? (
+        {/* Vista escritorio: tabla con scroll horizontal si no cabe */}
+        <div className="hidden sm:block">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+            <table className="min-w-[1100px] divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td
-                    colSpan={9}
-                    className="px-4 py-8 text-center text-sm text-gray-500"
-                  >
-                    No hay precalificaciones. Crea una nueva.
-                  </td>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                    Creada
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Programa
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    NSS
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Cliente
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Teléfono
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Decisión
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Notas
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                    Monto aprobado
+                  </th>
                 </tr>
-              ) : (
-                filteredList.map((p) => {
-                  const telefono = p.telefono_cliente;
-                  const digits = telefono?.replace(/\D/g, "");
-                  const waHref = digits ? `https://wa.me/52${digits}` : null;
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
-                        {formatDateTimeMx(p.createdAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                        {p.programa}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {p.nss}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {p.cliente_nombre ?? "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {waHref ? (
-                          <a
-                            href={waHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline break-all"
-                          >
-                            {telefono}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <DecisionBadge decision={p.decision} />
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-sm text-gray-600">
-                        {truncateNotas(p.notas_revision)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {p.decision === "no_cumple"
-                          ? "—"
-                          : p.monto_aprobado != null
-                            ? `$${p.monto_aprobado.toLocaleString()}`
-                            : "—"}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {filteredList.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="px-4 py-8 text-center text-sm text-gray-500"
+                    >
+                      No hay precalificaciones. Crea una nueva.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredList.map((p) => {
+                    const telefono = p.telefono_cliente;
+                    const digits = telefono?.replace(/\D/g, "");
+                    const waHref = digits ? `https://wa.me/52${digits}` : null;
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
+                          {formatDateTimeMx(p.createdAt)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
+                          {p.programa}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          {p.nss}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          {p.cliente_nombre ?? "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          {waHref ? (
+                            <a
+                              href={waHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {telefono}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <DecisionBadge decision={p.decision} />
+                        </td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-sm text-gray-600">
+                          {truncateNotas(p.notas_revision)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          {p.decision === "no_cumple"
+                            ? "—"
+                            : p.monto_aprobado != null
+                              ? `$${p.monto_aprobado.toLocaleString()}`
+                              : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>

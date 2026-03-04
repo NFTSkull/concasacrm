@@ -528,16 +528,16 @@ export default function RevisorDashboardPage() {
                   <h3 className="mb-2 text-sm font-semibold text-gray-800">
                     {formatDateKeyToDisplay(dateKey)} ({dayList.length})
                   </h3>
-                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <table className="w-full min-w-[960px] divide-y divide-gray-200">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <table className="w-full min-w-[1100px] divide-y divide-gray-200">
                       {REVISOR_TABLE_HEAD}
                       <tbody className="divide-y divide-gray-200 bg-white">
                         <RevisorTableBody
-                        list={dayList}
-                        suggestions={notesSuggestions}
-                        asesorMap={asesorMap}
-                        updatePrecalificacion={updatePrecalificacion}
-                      />
+                          list={dayList}
+                          suggestions={notesSuggestions}
+                          asesorMap={asesorMap}
+                          updatePrecalificacion={updatePrecalificacion}
+                        />
                       </tbody>
                     </table>
                   </div>
@@ -547,7 +547,7 @@ export default function RevisorDashboardPage() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[960px] divide-y divide-gray-200">
+            <table className="w-full min-w-[1100px] divide-y divide-gray-200">
               {REVISOR_TABLE_HEAD}
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredList.length === 0 ? (
@@ -561,11 +561,11 @@ export default function RevisorDashboardPage() {
                   </tr>
                 ) : (
                   <RevisorTableBody
-                  list={filteredList}
-                  suggestions={notesSuggestions}
-                  asesorMap={asesorMap}
-                  updatePrecalificacion={updatePrecalificacion}
-                />
+                    list={filteredList}
+                    suggestions={notesSuggestions}
+                    asesorMap={asesorMap}
+                    updatePrecalificacion={updatePrecalificacion}
+                  />
                 )}
               </tbody>
             </table>
