@@ -255,6 +255,10 @@ export default function AdminDashboardPage() {
     pageRef.current = page;
   }, [page]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [daySelected]);
+
   const fullList = useMemo(
     () => (currentUser ? list : []),
     [currentUser, list]
@@ -262,12 +266,21 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!currentUser) return;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    console.log("[admin][table] before listPageForUser", { page, pageSize, from, to });
     repo
       .listPageForUser(
         { email: currentUser.email, role: currentUser.role },
         { page, pageSize }
       )
       .then(({ data, count }) => {
+        console.log("[admin][table] listPageForUser result", { page, pageSize, rowsLength: data.length, count });
+        if (data.length > 0) {
+          const first = data[0].createdAt;
+          const last = data[data.length - 1].createdAt;
+          console.log("[admin][table] rows createdAt range", { first, last });
+        }
         setList(data);
         setTotalCount(count);
         const newTotalPages = Math.ceil(count / pageSize) || 0;
@@ -410,11 +423,15 @@ export default function AdminDashboardPage() {
     [filteredList]
   );
 
-  const filteredListByDay = useMemo(
-    () =>
-      filteredList.filter((p) => toDayKey(p.createdAt) === daySelected),
-    [filteredList, daySelected]
-  );
+  const filteredListByDay = useMemo(() => {
+    const out = filteredList.filter((p) => toDayKey(p.createdAt) === daySelected);
+    console.log("[admin][table] filteredListByDay", {
+      daySelected,
+      filteredListLength: filteredList.length,
+      filteredListByDayLength: out.length,
+    });
+    return out;
+  }, [filteredList, daySelected]);
 
   const totalPages = Math.ceil(totalCount / pageSize) || 0;
   const canPrevious = page > 1;
@@ -443,6 +460,7 @@ export default function AdminDashboardPage() {
 
         const start = baseDate.toISOString();
         const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+        console.log("[admin][cards] daySelected (raw)=", daySelected, "startISO=", start, "endISO=", end);
 
         const [totalRes, pendientesRes, aprobadasRes, noCumpleRes] = await Promise.all([
           supabase
@@ -471,6 +489,13 @@ export default function AdminDashboardPage() {
         ]);
 
         if (cancelled) return;
+
+        console.log("[admin][cards] counts", {
+          total: totalRes.count ?? 0,
+          pendientes: pendientesRes.count ?? 0,
+          aprobadas: aprobadasRes.count ?? 0,
+          noCumple: noCumpleRes.count ?? 0,
+        });
 
         if (totalRes.error || pendientesRes.error || aprobadasRes.error || noCumpleRes.error) {
           console.error("[admin] Error fetching day KPIs", {
