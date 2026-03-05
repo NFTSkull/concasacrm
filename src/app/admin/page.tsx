@@ -244,6 +244,7 @@ export default function AdminDashboardPage() {
   const [dayRows, setDayRows] = useState<Precalificacion[]>([]);
   const [dayRowsLoading, setDayRowsLoading] = useState(false);
   const [dayRowsCount, setDayRowsCount] = useState(0);
+  const [dayPage, setDayPage] = useState(1);
   const vistaDiaRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<Precalificacion[]>([]);
   const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
@@ -260,7 +261,12 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setPage(1);
+    setDayPage(1);
   }, [daySelected]);
+
+  useEffect(() => {
+    setDayPage(1);
+  }, [filters.asesorId, filters.programa]);
 
   const fullList = useMemo(
     () => (currentUser ? list : []),
@@ -452,6 +458,12 @@ export default function AdminDashboardPage() {
     if (canNext) setPage((p) => p + 1);
   }, [canNext]);
 
+  const dayTotalPages = Math.max(1, Math.ceil(dayRowsCount / pageSize));
+
+  useEffect(() => {
+    if (dayPage > dayTotalPages) setDayPage(dayTotalPages);
+  }, [dayPage, dayTotalPages]);
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -554,14 +566,19 @@ export default function AdminDashboardPage() {
         }
         const start = baseDate.toISOString();
         const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+        const from = (dayPage - 1) * pageSize;
+        const to = from + pageSize - 1;
 
-        const { data, error, count } = await supabase
+        let query = supabase
           .from("precalificaciones")
           .select("*", { count: "exact" })
           .gte("createdAt", start)
-          .lt("createdAt", end)
+          .lt("createdAt", end);
+        if (filters.asesorId) query = query.eq("asesorId", filters.asesorId);
+        if (filters.programa) query = query.eq("programa", filters.programa);
+        const { data, error, count } = await query
           .order("createdAt", { ascending: false })
-          .range(0, pageSize - 1);
+          .range(from, to);
 
         if (cancelled) return;
         if (error) {
@@ -586,7 +603,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected]);
+  }, [currentUser, daySelected, dayPage, filters.asesorId, filters.programa]);
 
   if (currentUser === undefined) {
     return (
@@ -719,6 +736,27 @@ export default function AdminDashboardPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <span className="text-sm text-gray-600">
+              Mostrando {dayRows.length} de {dayRowsCount} · Página {dayPage} de {dayTotalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setDayPage((p) => p - 1)}
+                disabled={dayPage === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setDayPage((p) => p + 1)}
+                disabled={dayPage >= dayTotalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
           </div>
         </section>
 
