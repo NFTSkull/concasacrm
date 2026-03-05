@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { FiltersBar } from "@/components/FiltersBar";
 import {
   applyFilters,
-  groupByDay,
-  toDayKey,
   formatDateTimeMx,
-  formatDateKeyToDisplay,
   DEFAULT_FILTERS,
   type FiltersState,
 } from "@/lib/filters";
@@ -267,7 +264,6 @@ export default function AdminDashboardPage() {
   const { sessionRepo, currentUser } = useSessionRepo();
   const repo = usePrecalificacionesRepo();
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
-  const [groupByDate, setGroupByDate] = useState(false);
   const [daySelected, setDaySelected] = useState<string>(getTodayYMD);
   const [dayKpis, setDayKpis] = useState({
     total: 0,
@@ -430,57 +426,6 @@ export default function AdminDashboardPage() {
     () => applyFilters(fullList, filters),
     [fullList, filters]
   );
-
-  const resumenPorAsesor = useMemo(() => {
-    const byAsesor = new Map<
-      string,
-      { total: number; ultimaCreatedAt: string }
-    >();
-    for (const p of filteredList) {
-      const prev = byAsesor.get(p.asesorId);
-      const ultima = !prev
-        ? p.createdAt
-        : p.createdAt > prev.ultimaCreatedAt
-          ? p.createdAt
-          : prev.ultimaCreatedAt;
-      byAsesor.set(p.asesorId, {
-        total: (prev?.total ?? 0) + 1,
-        ultimaCreatedAt: ultima,
-      });
-    }
-    return Array.from(byAsesor.entries())
-      .map(([asesorId, data]) => ({ asesorId, ...data }))
-      .sort((a, b) => b.total - a.total);
-  }, [filteredList]);
-
-  const kpiUltimaActividad = useMemo(() => {
-    if (filteredList.length === 0) return null;
-    const max = filteredList.reduce(
-      (acc, p) => (p.createdAt > acc ? p.createdAt : acc),
-      filteredList[0].createdAt
-    );
-    return max;
-  }, [filteredList]);
-
-  const top3Asesores = useMemo(
-    () => resumenPorAsesor.slice(0, 3),
-    [resumenPorAsesor]
-  );
-
-  const groupedByDay = useMemo(
-    () => groupByDay(filteredList),
-    [filteredList]
-  );
-
-  const filteredListByDay = useMemo(() => {
-    const out = filteredList.filter((p) => toDayKey(p.createdAt) === daySelected);
-    console.log("[admin][table] filteredListByDay", {
-      daySelected,
-      filteredListLength: filteredList.length,
-      filteredListByDayLength: out.length,
-    });
-    return out;
-  }, [filteredList, daySelected]);
 
   const totalPages = Math.ceil(totalCount / pageSize) || 0;
   const canPrevious = page > 1;
@@ -787,109 +732,6 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
-        {/* KPI */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium uppercase text-gray-500">
-              Total precalificaciones
-            </div>
-            <div className="mt-1 text-2xl font-semibold text-gray-900">
-              {filteredList.length}
-            </div>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium uppercase text-gray-500">
-              Última actividad
-            </div>
-            <div className="mt-1 text-lg text-gray-900">
-              {kpiUltimaActividad
-                ? formatDateTimeMx(kpiUltimaActividad)
-                : "—"}
-            </div>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium uppercase text-gray-500">
-              Top 3 asesores
-            </div>
-            <ul className="mt-1 space-y-0.5 text-sm text-gray-900">
-              {top3Asesores.length === 0 ? (
-                <li>—</li>
-              ) : (
-                top3Asesores.map((r) => (
-                  <li key={r.asesorId}>
-                    {getAsesorDisplayLabel(r.asesorId, asesorMap)}: {r.total}
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        </section>
-
-        {/* Resumen por asesor (filtrado) */}
-        <section>
-          <h2 className="mb-4 text-xl font-medium text-gray-900">
-            Precalificaciones por asesor
-          </h2>
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Asesor (asesorId)
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Total precalificaciones
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Última precalificación
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {resumenPorAsesor.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={3}
-                      className="px-4 py-8 text-center text-sm text-gray-500"
-                    >
-                      No hay datos.
-                    </td>
-                  </tr>
-                ) : (
-                  resumenPorAsesor.map((r) => (
-                    <tr key={r.asesorId} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                        {getAsesorDisplayLabel(r.asesorId, asesorMap)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {r.total}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {formatDateTimeMx(r.ultimaCreatedAt)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Toggle agrupar por fecha */}
-        <section className="flex flex-wrap items-center gap-4">
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={groupByDate}
-              onChange={(e) => setGroupByDate(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium text-gray-700">
-              Agrupar por fecha
-            </span>
-          </label>
-        </section>
-
         {/* Paginación */}
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
           <span className="text-sm text-gray-600">
@@ -918,76 +760,29 @@ export default function AdminDashboardPage() {
           <h2 className="mb-4 text-xl font-medium text-gray-900">
             Todas las precalificaciones
           </h2>
-          {(currentUser as { role?: string } | undefined)?.role === "super_admin" && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-mono text-xs text-gray-800">
-              <div className="font-semibold text-amber-800">[debug] asesorMap</div>
-              <div>status: {asesorDebug.status}</div>
-              <div>asesorMap.size: {asesorMap.size}</div>
-              {asesorDebug.status === "error" && asesorDebug.message && (
-                <div className="text-red-700">error: {asesorDebug.message}</div>
-              )}
-              {asesorDebug.sample && asesorDebug.sample.length > 0 && (
-                <div className="mt-1">
-                  sample (id → email): {asesorDebug.sample.map((s, i) => (
-                    <div key={i}>{s}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {groupByDate ? (
-            <div className="space-y-6">
-              {groupedByDay.length === 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-white py-8 text-center text-sm text-gray-500">
-                  No hay precalificaciones.
-                </div>
-              ) : (
-                groupedByDay.map(([dateKey, dayList]) => (
-                  <div key={dateKey}>
-                    <h3 className="mb-2 text-sm font-semibold text-gray-800">
-                      {formatDateKeyToDisplay(dateKey)} ({dayList.length})
-                    </h3>
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        {ADMIN_TABLE_HEAD}
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          <AdminTableBody
-                            list={dayList}
-                            editHref={(id) => `/admin/${id}`}
-                            asesorMap={asesorMap}
-                          />
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-              <table className="min-w-full divide-y divide-gray-200">
-                {ADMIN_TABLE_HEAD}
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {filteredList.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={11}
-                        className="px-4 py-8 text-center text-sm text-gray-500"
-                      >
-                        No hay precalificaciones.
-                      </td>
-                    </tr>
-                  ) : (
-                    <AdminTableBody
-                      list={filteredList}
-                      editHref={(id) => `/admin/${id}`}
-                      asesorMap={asesorMap}
-                    />
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200">
+              {ADMIN_TABLE_HEAD}
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {filteredList.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={11}
+                      className="px-4 py-8 text-center text-sm text-gray-500"
+                    >
+                      No hay precalificaciones.
+                    </td>
+                  </tr>
+                ) : (
+                  <AdminTableBody
+                    list={filteredList}
+                    editHref={(id) => `/admin/${id}`}
+                    asesorMap={asesorMap}
+                  />
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
