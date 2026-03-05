@@ -241,6 +241,9 @@ export default function AdminDashboardPage() {
     aprobadas: 0,
     noCumple: 0,
   });
+  const [dayRows, setDayRows] = useState<Precalificacion[]>([]);
+  const [dayRowsLoading, setDayRowsLoading] = useState(false);
+  const [dayRowsCount, setDayRowsCount] = useState(0);
   const vistaDiaRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<Precalificacion[]>([]);
   const [asesorMap, setAsesorMap] = useState<Map<string, string>>(new Map());
@@ -275,12 +278,18 @@ export default function AdminDashboardPage() {
         { page, pageSize }
       )
       .then(({ data, count }) => {
-        console.log("[admin][table] listPageForUser result", { page, pageSize, rowsLength: data.length, count });
-        if (data.length > 0) {
-          const first = data[0].createdAt;
-          const last = data[data.length - 1].createdAt;
-          console.log("[admin][table] rows createdAt range", { first, last });
-        }
+        const first = data.length > 0 ? data[0].createdAt : null;
+        const last = data.length > 0 ? data[data.length - 1].createdAt : null;
+        console.log("[admin][table] listPageForUser result", {
+          page,
+          pageSize,
+          from: (page - 1) * pageSize,
+          to: (page - 1) * pageSize + pageSize - 1,
+          dataLength: data.length,
+          count,
+          firstCreatedAt: first,
+          lastCreatedAt: last,
+        });
         setList(data);
         setTotalCount(count);
         const newTotalPages = Math.ceil(count / pageSize) || 0;
@@ -460,7 +469,7 @@ export default function AdminDashboardPage() {
 
         const start = baseDate.toISOString();
         const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
-        console.log("[admin][cards] daySelected (raw)=", daySelected, "startISO=", start, "endISO=", end);
+        console.log("[admin][cards]", { daySelected, startISO: start, endISO: end });
 
         const [totalRes, pendientesRes, aprobadasRes, noCumpleRes] = await Promise.all([
           supabase
@@ -522,6 +531,58 @@ export default function AdminDashboardPage() {
 
     fetchDayKpis();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, daySelected]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let cancelled = false;
+    setDayRowsLoading(true);
+
+    const fetchDayRows = async () => {
+      try {
+        const baseDate = new Date(`${daySelected}T00:00:00.000Z`);
+        if (Number.isNaN(baseDate.getTime())) {
+          if (!cancelled) {
+            setDayRows([]);
+            setDayRowsCount(0);
+          }
+          return;
+        }
+        const start = baseDate.toISOString();
+        const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+        const { data, error, count } = await supabase
+          .from("precalificaciones")
+          .select("*", { count: "exact" })
+          .gte("createdAt", start)
+          .lt("createdAt", end)
+          .order("createdAt", { ascending: false })
+          .range(0, pageSize - 1);
+
+        if (cancelled) return;
+        if (error) {
+          console.error("[admin] Error fetching day rows", error);
+          setDayRows([]);
+          setDayRowsCount(0);
+          return;
+        }
+        setDayRows((data ?? []) as Precalificacion[]);
+        setDayRowsCount(count ?? 0);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[admin] Exception fetching day rows", err);
+          setDayRows([]);
+        }
+      } finally {
+        if (!cancelled) setDayRowsLoading(false);
+      }
+    };
+
+    fetchDayRows();
     return () => {
       cancelled = true;
     };
@@ -631,18 +692,27 @@ export default function AdminDashboardPage() {
             <table className="min-w-full divide-y divide-gray-200">
               {ADMIN_DAY_TABLE_HEAD}
               <tbody className="divide-y divide-gray-200 bg-white">
-                {filteredListByDay.length === 0 ? (
+                {dayRowsLoading ? (
                   <tr>
                     <td
                       colSpan={10}
                       className="px-4 py-8 text-center text-sm text-gray-500"
                     >
-                      No hay precalificaciones en este día (con filtros actuales).
+                      Cargando…
+                    </td>
+                  </tr>
+                ) : dayRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      className="px-4 py-8 text-center text-sm text-gray-500"
+                    >
+                      No hay precalificaciones en este día.
                     </td>
                   </tr>
                 ) : (
                   <AdminDayTableBody
-                    list={filteredListByDay}
+                    list={dayRows}
                     editHref={(id) => `/admin/${id}`}
                     asesorMap={asesorMap}
                   />
