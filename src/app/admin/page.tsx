@@ -517,30 +517,22 @@ export default function AdminDashboardPage() {
         const end = endISO;
         console.log("[admin][cards]", { daySelected, startISO: start, endISO: end });
 
+        const buildBaseQuery = () => {
+          let q = supabase
+            .from("precalificaciones")
+            .select("id", { count: "exact", head: true })
+            .gte("createdAt", start)
+            .lt("createdAt", end);
+          if (filters.asesorId) q = q.eq("asesorId", filters.asesorId);
+          if (filters.programa) q = q.eq("programa", filters.programa);
+          return q;
+        };
+
         const [totalRes, pendientesRes, aprobadasRes, noCumpleRes] = await Promise.all([
-          supabase
-            .from("precalificaciones")
-            .select("id", { count: "exact", head: true })
-            .gte("createdAt", start)
-            .lt("createdAt", end),
-          supabase
-            .from("precalificaciones")
-            .select("id", { count: "exact", head: true })
-            .gte("createdAt", start)
-            .lt("createdAt", end)
-            .or("decision.is.null,decision.eq.pendiente"),
-          supabase
-            .from("precalificaciones")
-            .select("id", { count: "exact", head: true })
-            .gte("createdAt", start)
-            .lt("createdAt", end)
-            .eq("decision", "aprobado"),
-          supabase
-            .from("precalificaciones")
-            .select("id", { count: "exact", head: true })
-            .gte("createdAt", start)
-            .lt("createdAt", end)
-            .eq("decision", "no_cumple"),
+          buildBaseQuery(),
+          buildBaseQuery().or("decision.is.null,decision.eq.pendiente"),
+          buildBaseQuery().eq("decision", "aprobado"),
+          buildBaseQuery().eq("decision", "no_cumple"),
         ]);
 
         if (cancelled) return;
@@ -580,7 +572,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected, filters.desde, filters.hasta]);
+  }, [currentUser, daySelected, filters.desde, filters.hasta, filters.asesorId, filters.programa]);
 
   useEffect(() => {
     if (!currentUser) return;
