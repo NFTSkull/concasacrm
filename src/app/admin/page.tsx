@@ -24,6 +24,40 @@ function getTodayYMD(): string {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Calcula start/end en UTC ISO para Vista del día/período.
+ * Si desde o hasta tienen valor → rango (mode "range"); si no → un solo día (mode "day").
+ * endISO es exclusivo (lt) por eso hasta + 1 día a 00:00Z.
+ */
+function getPeriodStartEndISO(
+  daySelected: string,
+  filters: FiltersState
+): { startISO: string; endISO: string; mode: "day" | "range" } {
+  const hasDesde = Boolean(filters.desde?.trim());
+  const hasHasta = Boolean(filters.hasta?.trim());
+  if (hasDesde || hasHasta) {
+    const startDate = hasDesde
+      ? new Date(`${filters.desde!.trim()}T00:00:00.000Z`)
+      : new Date(`${filters.hasta!.trim()}T00:00:00.000Z`);
+    const endDate = hasHasta
+      ? new Date(`${filters.hasta!.trim()}T00:00:00.000Z`)
+      : new Date(`${filters.desde!.trim()}T00:00:00.000Z`);
+    const endExclusive = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+    return {
+      startISO: startDate.toISOString(),
+      endISO: endExclusive.toISOString(),
+      mode: "range",
+    };
+  }
+  const baseDate = new Date(`${daySelected}T00:00:00.000Z`);
+  const endExclusive = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    startISO: baseDate.toISOString(),
+    endISO: endExclusive.toISOString(),
+    mode: "day",
+  };
+}
+
 function DecisionBadge({ decision }: { decision?: string }) {
   const d = decision ?? "pendiente";
   const styles =
@@ -266,7 +300,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setDayPage(1);
-  }, [filters.asesorId, filters.programa]);
+  }, [filters.asesorId, filters.programa, filters.desde, filters.hasta]);
 
   const fullList = useMemo(
     () => (currentUser ? list : []),
@@ -471,16 +505,16 @@ export default function AdminDashboardPage() {
 
     const fetchDayKpis = async () => {
       try {
-        const baseDate = new Date(`${daySelected}T00:00:00.000Z`);
-        if (Number.isNaN(baseDate.getTime())) {
+        const { startISO, endISO } = getPeriodStartEndISO(daySelected, filters);
+        const startDate = new Date(startISO);
+        if (Number.isNaN(startDate.getTime())) {
           if (!cancelled) {
             setDayKpis({ total: 0, pendientes: 0, aprobadas: 0, noCumple: 0 });
           }
           return;
         }
-
-        const start = baseDate.toISOString();
-        const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+        const start = startISO;
+        const end = endISO;
         console.log("[admin][cards]", { daySelected, startISO: start, endISO: end });
 
         const [totalRes, pendientesRes, aprobadasRes, noCumpleRes] = await Promise.all([
@@ -546,7 +580,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected]);
+  }, [currentUser, daySelected, filters.desde, filters.hasta]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -556,16 +590,17 @@ export default function AdminDashboardPage() {
 
     const fetchDayRows = async () => {
       try {
-        const baseDate = new Date(`${daySelected}T00:00:00.000Z`);
-        if (Number.isNaN(baseDate.getTime())) {
+        const { startISO, endISO } = getPeriodStartEndISO(daySelected, filters);
+        const startDate = new Date(startISO);
+        if (Number.isNaN(startDate.getTime())) {
           if (!cancelled) {
             setDayRows([]);
             setDayRowsCount(0);
           }
           return;
         }
-        const start = baseDate.toISOString();
-        const end = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+        const start = startISO;
+        const end = endISO;
         const from = (dayPage - 1) * pageSize;
         const to = from + pageSize - 1;
 
@@ -603,7 +638,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected, dayPage, filters.asesorId, filters.programa]);
+  }, [currentUser, daySelected, dayPage, filters.asesorId, filters.programa, filters.desde, filters.hasta]);
 
   if (currentUser === undefined) {
     return (
