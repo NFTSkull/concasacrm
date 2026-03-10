@@ -296,7 +296,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setDayPage(1);
-  }, [filters.asesorId, filters.programa, filters.desde, filters.hasta]);
+  }, [filters.asesorId, filters.programa, filters.desde, filters.hasta, filters.buscar]);
 
   const fullList = useMemo(
     () => (currentUser ? list : []),
@@ -470,6 +470,13 @@ export default function AdminDashboardPage() {
             .lt("createdAt", end);
           if (filters.asesorId) q = q.eq("asesorId", filters.asesorId);
           if (filters.programa) q = q.eq("programa", filters.programa);
+          if (filters.buscar.trim()) {
+            const searchQ = filters.buscar.trim().replace(/,/g, " ");
+            const like = `%${searchQ}%`;
+            q = q.or(
+              `nss.ilike.${like},cliente_nombre.ilike.${like},telefono_cliente.ilike.${like},direccion_opcional.ilike.${like},notas.ilike.${like}`
+            );
+          }
           return q;
         };
 
@@ -517,7 +524,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected, filters.desde, filters.hasta, filters.asesorId, filters.programa]);
+  }, [currentUser, daySelected, filters.desde, filters.hasta, filters.asesorId, filters.programa, filters.buscar]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -548,6 +555,13 @@ export default function AdminDashboardPage() {
           .lt("createdAt", end);
         if (filters.asesorId) query = query.eq("asesorId", filters.asesorId);
         if (filters.programa) query = query.eq("programa", filters.programa);
+        if (filters.buscar.trim()) {
+          const searchQ = filters.buscar.trim().replace(/,/g, " ");
+          const like = `%${searchQ}%`;
+          query = query.or(
+            `nss.ilike.${like},cliente_nombre.ilike.${like},telefono_cliente.ilike.${like},direccion_opcional.ilike.${like},notas.ilike.${like}`
+          );
+        }
         const { data, error, count } = await query
           .order("createdAt", { ascending: false })
           .range(from, to);
@@ -575,7 +589,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, daySelected, dayPage, filters.asesorId, filters.programa, filters.desde, filters.hasta]);
+  }, [currentUser, daySelected, dayPage, filters.asesorId, filters.programa, filters.desde, filters.hasta, filters.buscar]);
 
   if (currentUser === undefined) {
     return (
