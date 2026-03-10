@@ -416,11 +416,11 @@ export default function AdminDashboardPage() {
   }, []);
 
   const asesorOptions = useMemo(() => {
-    const ids = new Set(fullList.map((p) => p.asesorId));
-    return Array.from(ids)
+    const ids = Array.from(asesorMap.keys());
+    return ids
       .sort((a, b) => getAsesorDisplayLabel(a, asesorMap).localeCompare(getAsesorDisplayLabel(b, asesorMap)))
       .map((id) => ({ value: id, label: getAsesorDisplayLabel(id, asesorMap) }));
-  }, [fullList, asesorMap]);
+  }, [asesorMap]);
 
   const filteredList = useMemo(
     () => applyFilters(fullList, filters),
