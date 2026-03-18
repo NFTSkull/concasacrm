@@ -293,7 +293,7 @@ export default function AsesorDashboardPage() {
                         {p.decision === "no_cumple"
                           ? "—"
                           : p.monto_aprobado != null
-                            ? `$${p.monto_aprobado.toLocaleString()}`
+                            ? `$${p.monto_aprobado.toLocaleString("es-MX")}`
                             : "—"}
                       </span>
                     </div>
@@ -400,7 +400,7 @@ export default function AsesorDashboardPage() {
                           {p.decision === "no_cumple"
                             ? "—"
                             : p.monto_aprobado != null
-                              ? `$${p.monto_aprobado.toLocaleString()}`
+                              ? `$${p.monto_aprobado.toLocaleString("es-MX")}`
                               : "—"}
                         </td>
                       </tr>
