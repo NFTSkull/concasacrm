@@ -110,7 +110,7 @@ function AdminTableBody({
           </td>
           <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
             {p.monto_aprobado != null
-              ? `$${p.monto_aprobado.toLocaleString()}`
+              ? `$${p.monto_aprobado.toLocaleString("es-MX")}`
               : "—"}
           </td>
           <td className="max-w-[180px] truncate px-3 py-2 text-sm text-gray-600">
@@ -241,7 +241,7 @@ function AdminDayTableBody({
             {p.decision === "no_cumple"
               ? "—"
               : p.monto_aprobado != null
-                ? `$${p.monto_aprobado.toLocaleString()}`
+                ? `$${p.monto_aprobado.toLocaleString("es-MX")}`
                 : "—"}
           </td>
           <td className="max-w-[180px] truncate px-3 py-2 text-sm text-gray-600">
