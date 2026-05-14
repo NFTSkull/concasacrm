@@ -1,45 +1,118 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useSessionRepo } from "@/domain/session";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { persistMockUser } from "@/lib/mockUser";
+
+/** Roles que se ofrecen en el login mock (sin `admin` ni `mesa_control` legacy). */
+const MOCK_LOGIN_ROLES = [
+  "super_admin",
+  "editor",
+  "asesor",
+  "mesa_control_admin",
+  "mesa_control_interno",
+  "mesa_control_externo",
+] as const;
+
+type MockLoginRole = (typeof MOCK_LOGIN_ROLES)[number];
+
+const VISION_OPTIONS: { value: MockLoginRole; label: string }[] = [
+  { value: "super_admin", label: "Super Admin" },
+  { value: "editor", label: "Editor" },
+  { value: "asesor", label: "Asesor" },
+  { value: "mesa_control_admin", label: "Mesa Control - Admin (Cynthia)" },
+  { value: "mesa_control_interno", label: "Mesa Control - Interno" },
+  { value: "mesa_control_externo", label: "Mesa Control - Externo" },
+];
+
+function defaultNameForVision(vision: MockLoginRole, emailLocal: string): string {
+  if (vision === "mesa_control_admin") return emailLocal ? `Cynthia (${emailLocal})` : "Cynthia";
+  if (vision.startsWith("mesa_control")) return emailLocal || "Operador mesa";
+  return emailLocal || "Usuario";
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const { sessionRepo } = useSessionRepo();
+  const [vision, setVision] = useState<MockLoginRole>("asesor");
+  const [nombre, setNombre] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const visionLabel = useMemo(
+    () => VISION_OPTIONS.find((o) => o.value === vision)?.label ?? vision,
+    [vision],
+  );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setLoginError(null);
     const form = e.currentTarget;
-    const email = (form.elements.namedItem("email") as HTMLInputElement).value;
-    const password = (form.elements.namedItem("password") as HTMLInputElement)
-      .value;
+    const email = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
+    void (form.elements.namedItem("password") as HTMLInputElement).value;
 
-    const session = await sessionRepo.login(email, password);
+    if (!email) {
+      setLoginError("Indica un correo válido.");
+      return;
+    }
 
-    if (session.role === "asesor") router.push("/asesor");
-    else if (session.role === "revisor") router.push("/revisor");
-    else router.push("/admin");
+    const emailLocal = email.includes("@") ? email.split("@")[0] ?? "" : email;
+    const nameFinal =
+      nombre.trim() ||
+      defaultNameForVision(vision, emailLocal);
+
+    if (typeof window !== "undefined") {
+      persistMockUser({
+        email,
+        role: vision,
+        name: nameFinal,
+      });
+    }
+
+    if (vision === "asesor") {
+      router.push("/asesor");
+    } else if (vision.startsWith("mesa_control")) {
+      router.push("/mesa-control");
+    } else if (vision === "super_admin") {
+      router.push("/admin");
+    } else if (vision === "editor") {
+      router.push("/editor");
+    } else {
+      router.push("/admin");
+    }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-md">
-        <h1 className="mb-2 text-xl font-semibold text-gray-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-100 to-slate-200/80 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-6 shadow-lg">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
           ConCasa CRM
         </h1>
-        <p className="mb-6 text-sm text-gray-500">
-          Inicia sesión con tu cuenta
+        <p className="mt-1 text-sm text-slate-500">
+          Entorno mock · sesión guardada en este navegador
         </p>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <Input
             name="email"
             type="email"
-            label="Email"
-            placeholder="tu@email.com"
+            label="Correo"
+            placeholder="cynthia@concasa.test"
             required
           />
+          <div>
+            <Input
+              name="nombre"
+              type="text"
+              label="Nombre para mostrar"
+              placeholder="Ej. Cynthia López"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+            />
+            <p className="mt-1 text-[10px] text-slate-500">
+              Opcional · si lo dejas vacío usamos un nombre según el perfil y tu correo.
+            </p>
+          </div>
           <Input
             name="password"
             type="password"
@@ -47,9 +120,23 @@ export default function LoginPage() {
             placeholder="••••••••"
             required
           />
-          <Button type="submit" variant="primary" className="mt-2 w-full">
+          <Select
+            label="Perfil (mock)"
+            name="vision"
+            value={vision}
+            onChange={(e) => setVision(e.target.value as MockLoginRole)}
+            options={VISION_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          />
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
+            Perfil seleccionado: <span className="font-medium text-slate-800">{visionLabel}</span>.
+            Los datos se guardan en <code className="text-[10px]">mock_user</code> (correo, rol y nombre)
+            y se sincronizan las claves legacy <code className="text-[10px]">mock_role</code> /{" "}
+            <code className="text-[10px]">mock_email</code>.
+          </p>
+          <Button type="submit" variant="primary" className="mt-1 w-full">
             Entrar
           </Button>
+          {loginError ? <p className="text-xs text-red-600">{loginError}</p> : null}
         </form>
       </div>
     </div>

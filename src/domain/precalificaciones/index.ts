@@ -1,18 +1,25 @@
 "use client";
 
 import { useMemo } from "react";
-import { SupabasePrecalificacionesRepo } from "./supabase.repo";
 import type { PrecalificacionesRepo } from "./repo";
+import { MockPrecalificacionesRepo } from "./mock.repo";
+import { useMockStore } from "@/context/MockStoreContext";
 
-export type { Precalificacion, Programa, Decision, CreatePrecalificacionInput } from "./types";
+export type {
+  Precalificacion,
+  Programa,
+  Decision,
+  CreatePrecalificacionInput,
+} from "./types";
 export type { PrecalificacionesRepo } from "./repo";
 export { MockPrecalificacionesRepo } from "./mock.repo";
 export { SupabasePrecalificacionesRepo } from "./supabase.repo";
 
 /**
  * Hook que devuelve el repositorio de precalificaciones.
- * Usa Supabase (public.precalificaciones) como fuente de verdad.
+ * En este proyecto copiado, usamos el mock store en memoria.
  */
 export function usePrecalificacionesRepo(): PrecalificacionesRepo {
-  return useMemo(() => new SupabasePrecalificacionesRepo(), []);
+  const store = useMockStore();
+  return useMemo(() => new MockPrecalificacionesRepo(store), [store]);
 }

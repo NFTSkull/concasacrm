@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3004",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/domain/expediente-archivos/columna-documentacion-asesor.test.ts src/domain/expediente-archivos/derive-resumen-documental.test.ts src/domain/expediente-cliente-datos/mock-localstorage.repo.test.ts src/domain/expedientes/asesor-monto-revisor.test.ts src/domain/expedientes/etapa-validacion-mesa.test.ts src/domain/agenda-biometricos/booking-mutations.test.ts src/lib/adminDashboardStats.test.ts src/lib/agenda-biometricos-mock.test.ts src/lib/agendaFirmasBookingsGuard.test.ts src/lib/asesorTipoMesaMock.test.ts src/lib/clienteDatosFormCompleteness.test.ts src/lib/mesaControlAccess.test.ts src/lib/mesaControlInboxMock.test.ts src/lib/mockUser.test.ts src/lib/subestadoOperativoUi.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
@@ -16,13 +18,14 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "3.4.15",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "postcss": "^8.4.49",
+    "tailwindcss": "3.4.15",
+    "tsx": "^4.19.3",
     "typescript": "^5"
   }
 }

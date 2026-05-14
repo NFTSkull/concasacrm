@@ -1,0 +1,71 @@
+diff --git a/src/domain/session/index.ts b/src/domain/session/index.ts
+index 8447379..8a38726 100644
+--- a/src/domain/session/index.ts
++++ b/src/domain/session/index.ts
+@@ -20,16 +20,61 @@ export function useSessionRepo(): {
+   currentUser: UserSession | null | undefined;
+ } {
+   const sessionRepo = useMemo(() => new SupabaseSessionRepo(), []);
+-  const [currentUser, setCurrentUser] = useState<
+-    UserSession | null | undefined
+-  >(undefined);
++  const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(() => {
++    if (typeof window === "undefined") return undefined;
++
++    const mockEmail = window.localStorage.getItem("mock_email");
++    const mockRole = window.localStorage.getItem("mock_role");
++    if (!mockEmail || !mockRole) return undefined;
++
++    switch (mockRole) {
++      case "asesor":
++      case "revisor":
++      case "super_admin":
++      case "admin":
++      case "editor":
++        return { email: mockEmail, role: mockRole };
++      case "mesa_control":
++        // En modo mock, usamos revisor como rol efectivo para permitir operación.
++        return { email: mockEmail, role: "revisor" };
++      default:
++        return undefined;
++    }
++  });
+ 
+   useEffect(() => {
++    // Si ya tenemos sesión "mock" (resuelta en el inicializador), no volvemos a consultar.
++    if (currentUser !== undefined) return;
++
+     sessionRepo
+       .getCurrentUser()
+-      .then(setCurrentUser)
++      .then((user) => {
++        if (!user) {
++          setCurrentUser(null);
++          return;
++        }
++        if (typeof window === "undefined") {
++          setCurrentUser(user);
++          return;
++        }
++
++        const mockRole = window.localStorage.getItem("mock_role");
++        if (
++          mockRole === "asesor" ||
++          mockRole === "revisor" ||
++          mockRole === "super_admin" ||
++          mockRole === "admin" ||
++          mockRole === "editor"
++        ) {
++          setCurrentUser({ ...user, role: mockRole });
++        } else if (mockRole === "mesa_control") {
++          setCurrentUser({ ...user, role: "revisor" });
++        } else {
++          setCurrentUser(user);
++        }
++      })
+       .catch(() => setCurrentUser(null));
+-  }, [sessionRepo]);
++  }, [currentUser, sessionRepo]);
+ 
+   return { sessionRepo, currentUser };
+ }

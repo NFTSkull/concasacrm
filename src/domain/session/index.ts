@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SupabaseSessionRepo } from "./supabase.repo";
+import { getEffectiveMockEmail, getEffectiveMockRole } from "@/lib/mockUser";
 import type { UserSession } from "./types";
 import type { SessionRepo } from "./repo";
 
@@ -20,15 +21,88 @@ export function useSessionRepo(): {
   currentUser: UserSession | null | undefined;
 } {
   const sessionRepo = useMemo(() => new SupabaseSessionRepo(), []);
-  const [currentUser, setCurrentUser] = useState<
-    UserSession | null | undefined
-  >(undefined);
+  /**
+   * Siempre `undefined` en el primer render (SSR + hidratación) para evitar mismatch:
+   * no leer localStorage en el inicializador de useState (solo existe en cliente).
+   * La sesión mock o Supabase se resuelve en useEffect tras montar.
+   */
+  const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
-    sessionRepo
-      .getCurrentUser()
-      .then(setCurrentUser)
-      .catch(() => setCurrentUser(null));
+    let cancelled = false;
+
+    const resolveSession = async () => {
+      const mockEmail = getEffectiveMockEmail();
+      const mockRole = getEffectiveMockRole();
+
+      const mesaMockRoles = [
+        "mesa_control",
+        "mesa_control_admin",
+        "mesa_control_interno",
+        "mesa_control_externo",
+      ] as const;
+
+      if (mockEmail && mockRole) {
+        let mockSession: UserSession | null = null;
+        if (mesaMockRoles.includes(mockRole as (typeof mesaMockRoles)[number])) {
+          mockSession = { email: mockEmail, role: "revisor" };
+        } else {
+          switch (mockRole) {
+            case "asesor":
+            case "revisor":
+            case "super_admin":
+            case "admin":
+            case "editor":
+              mockSession = { email: mockEmail, role: mockRole };
+              break;
+            default:
+              mockSession = null;
+          }
+        }
+        if (mockSession && !cancelled) {
+          setCurrentUser(mockSession);
+          return;
+        }
+      }
+
+      try {
+        const user = await sessionRepo.getCurrentUser();
+        if (cancelled) return;
+        if (!user) {
+          setCurrentUser(null);
+          return;
+        }
+        const roleOverride = getEffectiveMockRole();
+        const mesaOverride = [
+          "mesa_control",
+          "mesa_control_admin",
+          "mesa_control_interno",
+          "mesa_control_externo",
+        ];
+        if (
+          roleOverride === "asesor" ||
+          roleOverride === "revisor" ||
+          roleOverride === "super_admin" ||
+          roleOverride === "admin" ||
+          roleOverride === "editor"
+        ) {
+          setCurrentUser({ ...user, role: roleOverride });
+        } else if (roleOverride && mesaOverride.includes(roleOverride)) {
+          setCurrentUser({ ...user, role: "revisor" });
+        } else {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (!cancelled) setCurrentUser(null);
+      }
+    };
+
+    void resolveSession();
+    return () => {
+      cancelled = true;
+    };
   }, [sessionRepo]);
 
   return { sessionRepo, currentUser };

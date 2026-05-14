@@ -36,15 +36,13 @@ export class SupabaseSessionRepo implements SessionRepo {
   }
 
   async login(email: string, password: string): Promise<UserSession> {
-    const { error } = await supabase.auth.signInWithPassword({
+    // Modo mock en el proyecto copiado:
+    // no llamamos realmente a Supabase; devolvemos una sesión mínima y
+    // dejamos que la capa de UI sobreescriba el rol con mock_role.
+    return Promise.resolve({
       email,
-      password,
-    });
-    if (error) throw new Error(error.message);
-
-    const session = await this.getCurrentUser();
-    if (!session) throw new Error("Login exitoso pero no hay sesión.");
-    return session;
+      role: "asesor",
+    } as UserSession);
   }
 
   async logout(): Promise<void> {

@@ -1,0 +1,293 @@
+diff --git a/src/app/mesa-control/[id]/page.tsx b/src/app/mesa-control/[id]/page.tsx
+new file mode 100644
+index 0000000..b673599
+--- /dev/null
++++ b/src/app/mesa-control/[id]/page.tsx
+@@ -0,0 +1,287 @@
++"use client";
++
++import Link from "next/link";
++import { useParams } from "next/navigation";
++import { useCallback, useEffect, useMemo, useState } from "react";
++import { useSessionRepo } from "@/domain/session";
++import { Button } from "@/components/ui/Button";
++import {
++  SeguimientoOperativoMock,
++  type SeguimientoOperativoMockSummary,
++} from "@/components/seguimiento/SeguimientoOperativoMock";
++import { ETAPAS_LABELS } from "../mockData";
++import { MockExpedientesRepo, type ExpedienteMock } from "@/domain/expedientes/mock.repo";
++
++function formatDateTime(iso: string): string {
++  try {
++    const d = new Date(iso);
++    if (Number.isNaN(d.getTime())) return "—";
++    return d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
++  } catch {
++    return "—";
++  }
++}
++
++function subestadoLabel(s: string): string {
++  switch (s) {
++    case "en_proceso":
++      return "En proceso";
++    case "aprobado":
++      return "Aprobado";
++    case "rechazado":
++      return "Rechazado";
++    default:
++      return "Pendiente";
++  }
++}
++
++export default function MesaControlExpedientePage() {
++  const { id } = useParams<{ id: string }>();
++  const { sessionRepo, currentUser } = useSessionRepo();
++
++  const repo = useMemo(() => new MockExpedientesRepo(), []);
++  const [expediente, setExpediente] = useState<ExpedienteMock | null | undefined>(undefined);
++  const [summary, setSummary] = useState<SeguimientoOperativoMockSummary | null>(null);
++
++  const load = useCallback(() => {
++    void repo
++      .getById(String(id))
++      .then((exp) => setExpediente(exp))
++      .catch(() => setExpediente(null));
++  }, [id, repo]);
++
++  useEffect(() => {
++    load();
++  }, [load]);
++
++  useEffect(() => {
++    if (typeof window === "undefined") return;
++    const storageHandler = (e: StorageEvent) => {
++      if (e.key === "mesa_control_inbox") load();
++    };
++    const customHandler = () => load();
++    window.addEventListener("storage", storageHandler);
++    window.addEventListener("mesa_control_inbox_updated", customHandler);
++    return () => {
++      window.removeEventListener("storage", storageHandler);
++      window.removeEventListener("mesa_control_inbox_updated", customHandler);
++    };
++  }, [load]);
++
++  const handleChangeSummary = useCallback(
++    (next: SeguimientoOperativoMockSummary) => {
++      setSummary(next);
++
++      // Evita persistir si el expediente real aún NO está en mesa.
++      if (!expediente?.operativo.submittedToMesa) return;
++
++      const patch: Parameters<MockExpedientesRepo["updateOperativo"]>[1] = {
++        etapaActual: next.etapaActualId,
++        subestado: next.subestado,
++        submittedToMesa: true,
++        ...(next.subestado === "rechazado" && next.motivo !== undefined
++          ? { motivoRechazo: next.motivo }
++          : {}),
++        ...(next.fechaCita !== undefined ? { fechaCita: next.fechaCita } : {}),
++      };
++
++      void repo.updateOperativo(String(id), patch).catch((err) => {
++        console.error("[mesa-control] error updateOperativo:", err);
++      });
++    },
++    [expediente?.operativo.submittedToMesa, id, repo],
++  );
++
++  if (currentUser === undefined) {
++    return (
++      <div className="flex min-h-screen items-center justify-center bg-gray-100">
++        <p className="text-gray-500">Cargando...</p>
++      </div>
++    );
++  }
++  if (!currentUser) {
++    return (
++      <div className="flex min-h-screen items-center justify-center bg-gray-100">
++        <p className="text-gray-600">
++          <Link href="/login" className="text-blue-600 underline">
++            Inicia sesión
++          </Link>
++        </p>
++      </div>
++    );
++  }
++
++  if (expediente === undefined) {
++    return (
++      <div className="min-h-screen bg-gray-50">
++        <header className="border-b border-gray-200 bg-white px-4 py-3">
++          <div className="mx-auto flex max-w-3xl items-center justify-between">
++            <Link href="/mesa-control" className="text-sm text-gray-500 hover:text-gray-700">
++              ← Volver a Mesa de control
++            </Link>
++          </div>
++        </header>
++        <main className="mx-auto max-w-xl px-4 py-8">
++          <p className="text-gray-500">Cargando expediente...</p>
++        </main>
++      </div>
++    );
++  }
++
++  if (expediente === null) {
++    return (
++      <div className="min-h-screen bg-gray-50">
++        <header className="border-b border-gray-200 bg-white px-4 py-3">
++          <div className="mx-auto flex max-w-3xl items-center justify-between">
++            <Link href="/mesa-control" className="text-sm text-gray-500 hover:text-gray-700">
++              ← Volver a Mesa de control
++            </Link>
++          </div>
++        </header>
++        <main className="mx-auto max-w-xl px-4 py-8">
++          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
++            Caso no encontrado.
++          </p>
++          <Link href="/mesa-control" className="mt-4 inline-block">
++            <Button variant="secondary">Volver al tablero</Button>
++          </Link>
++        </main>
++      </div>
++    );
++  }
++
++  return (
++    <div className="min-h-screen bg-gray-50">
++      <header className="border-b border-gray-200 bg-white px-4 py-3">
++        <div className="mx-auto flex max-w-4xl items-center justify-between">
++          <Link href="/mesa-control" className="text-sm text-gray-500 hover:text-gray-700">
++            ← Volver a Mesa de control
++          </Link>
++          <h1 className="text-lg font-semibold text-gray-900">
++            ConCasa CRM · Expediente
++          </h1>
++          <div className="flex items-center gap-3">
++            <span className="text-sm text-gray-500">{currentUser.email}</span>
++            <Button
++              variant="outline"
++              onClick={async () => {
++                try {
++                  await sessionRepo.logout();
++                } catch (err) {
++                  console.error("[logout] mesa-control:", err);
++                }
++                if (typeof window !== "undefined") {
++                  window.localStorage.removeItem("mock_role");
++                  window.localStorage.removeItem("mock_email");
++                  window.location.href = "/login";
++                }
++              }}
++            >
++              Cerrar sesión
++            </Button>
++          </div>
++        </div>
++      </header>
++
++      <main className="mx-auto max-w-4xl space-y-6 px-4 py-6">
++        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
++          <h2 className="mb-4 text-base font-semibold text-gray-900">Datos del caso</h2>
++          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Cliente</dt>
++              <dd className="mt-0.5 text-sm font-medium text-gray-900">
++                {expediente.base.cliente_nombre}
++              </dd>
++            </div>
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Teléfono</dt>
++              <dd className="mt-0.5 text-sm text-gray-700">
++                {expediente.base.telefono_cliente}
++              </dd>
++            </div>
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Programa</dt>
++              <dd className="mt-0.5 text-sm text-gray-700">{expediente.base.programa}</dd>
++            </div>
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Asesor</dt>
++              <dd className="mt-0.5 text-sm text-gray-700">{expediente.base.asesorId}</dd>
++            </div>
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Etapa actual</dt>
++              <dd className="mt-0.5 text-sm text-gray-700">
++                {(summary?.etapaActualId ?? expediente.operativo.etapaActual ?? 1)}.{" "}
++                {ETAPAS_LABELS[summary?.etapaActualId ?? expediente.operativo.etapaActual ?? 1]}
++              </dd>
++            </div>
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Subestado</dt>
++              <dd className="mt-0.5">
++                {(summary?.subestado ?? expediente.operativo.subestado ?? "pendiente") === "rechazado" ? (
++                  <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
++                    Rechazado
++                  </span>
++                ) : (
++                  <span className="text-sm text-gray-700">
++                    {subestadoLabel(summary?.subestado ?? expediente.operativo.subestado ?? "pendiente")}
++                  </span>
++                )}
++              </dd>
++            </div>
++            {(summary?.motivo ?? expediente.operativo.motivoRechazo) && (
++              <div className="sm:col-span-2">
++                <dt className="text-xs font-medium uppercase text-gray-500">Motivo rechazo</dt>
++                <dd className="mt-0.5 text-sm text-gray-700">
++                  {summary?.motivo ?? expediente.operativo.motivoRechazo}
++                </dd>
++              </div>
++            )}
++            {(summary?.fechaCita ?? expediente.operativo.fechaCita) && (
++              <div>
++                <dt className="text-xs font-medium uppercase text-gray-500">Fecha cita</dt>
++                <dd className="mt-0.5 text-sm text-gray-700">
++                  {formatDateTime(
++                    summary?.fechaCita ?? expediente.operativo.fechaCita ?? "",
++                  )}
++                </dd>
++              </div>
++            )}
++            <div>
++              <dt className="text-xs font-medium uppercase text-gray-500">Última actualización</dt>
++              <dd className="mt-0.5 text-sm text-gray-600">
++                {formatDateTime(expediente.operativo.updatedAt ?? new Date().toISOString())}
++              </dd>
++            </div>
++          </dl>
++        </div>
++
++        <SeguimientoOperativoMock
++          contextPrecalId={expediente.id}
++          contextClienteNombre={expediente.base.cliente_nombre}
++          contextTelefono={expediente.base.telefono_cliente}
++          contextPrograma={expediente.base.programa}
++          contextAsesorId={expediente.base.asesorId}
++          onEnviarAMesa={async (payload) => {
++            await repo.enviarAMesa(payload.id, {
++              cliente_nombre: payload.cliente_nombre,
++              telefono_cliente: payload.telefono_cliente,
++              programa: payload.programa,
++              asesorNombre: payload.asesorNombre,
++              fechaCita: payload.fechaCita,
++              etapaActual: payload.etapaActual,
++              subestado: payload.subestado,
++              docs: payload.docs,
++            });
++          }}
++          initialSubmittedToMesa={expediente.operativo.submittedToMesa}
++          initialEtapaActualId={expediente.operativo.etapaActual ?? undefined}
++          initialSubestado={expediente.operativo.subestado ?? undefined}
++          initialMotivo={expediente.operativo.motivoRechazo ?? undefined}
++          initialFechaCita={expediente.operativo.fechaCita ?? undefined}
++          initialUpdatedAt={expediente.operativo.updatedAt ?? undefined}
++          onChangeSummary={handleChangeSummary}
++        />
++      </main>
++    </div>
++  );
++}

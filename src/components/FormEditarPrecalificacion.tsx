@@ -9,6 +9,7 @@ import type { Precalificacion, Decision } from "@/domain/precalificaciones";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { NotesFieldWithSuggestions } from "@/components/NotesFieldWithSuggestions";
+import { SeguimientoOperativoMock } from "@/components/seguimiento/SeguimientoOperativoMock";
 
 function computeDecision(montoStr: string, notasStr: string): Decision {
   const montoTrim = montoStr.trim();
@@ -87,7 +88,18 @@ export function FormEditarPrecalificacion({
           <h1 className="text-lg font-semibold text-gray-900">
             ConCasa CRM · Editar precalificación
           </h1>
-          <span />
+          <button
+            type="button"
+            className="text-xs font-medium text-blue-600 hover:underline"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.localStorage.removeItem("mock_role");
+              }
+              window.location.href = "/login";
+            }}
+          >
+            Cambiar visión
+          </button>
         </div>
       </header>
       <main className="mx-auto max-w-xl px-4 py-8">
@@ -112,6 +124,13 @@ export function FormEditarPrecalificacion({
             {precal.asesorId}
           </p>
         </div>
+        <SeguimientoOperativoMock
+          contextPrecalId={id}
+          contextClienteNombre={precal.cliente_nombre ?? ""}
+          contextTelefono={precal.telefono_cliente ?? ""}
+          contextPrograma={precal.programa}
+          contextAsesorId={precal.asesorId}
+        />
         <form
           onSubmit={handleSubmit}
           className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"

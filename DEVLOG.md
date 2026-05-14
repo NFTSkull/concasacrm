@@ -1,0 +1,822 @@
+# Devlog
+
+## 2026-05-07 - Mesa-control: documentos cliente no desaparecen en etapas 9–12
+
+### Decisiones
+
+- Se separa explícitamente etapa operativa vs etapa documental para el panel visual de mesa-control.
+- Se agrega helper `getChecklistDocumentosClientePermanente(expedienteId)` en `checklist.ts`:
+  - usa etapa documental base fija `2`,
+  - restringe a `ownerRole: "cliente"`,
+  - respeta `pendienteRevisionCuentaComoCompleto` para progreso visual.
+- En `mesa-control/[id]`, el checklist del panel deja de llamar `getChecklistDocumentos(..., etapaActualDisplay)` y usa el helper permanente.
+- No se cambia la lógica de guards de avance por etapa en seguimiento operativo.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/checklist.ts`
+- `src/app/mesa-control/[id]/page.tsx`
+- `src/domain/expediente-archivos/derive-resumen-documental.test.ts`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Agendas configuradas por Cynthia: biométricos + firmas
+
+### Decisiones
+
+- Se mantiene separación estricta de fuentes:
+  - biométricos: `agenda_config_v1` + `agenda_bookings_v1`
+  - firmas: `agenda_firmas_config_v1` + `agenda_firmas_bookings_v1`
+- Se extiende el panel de Cynthia en `/mesa-control` a “Configuración de agendas” con dos bloques funcionales (biométricos y firmas), ambos con ubicación, días, horarios, cupos y activo/inactivo.
+- Para firma se agrega configuración formal (`agenda_firmas_config_v1`) y cálculo de disponibilidad por slot con cupos restantes; ya no se reserva firma con fecha/hora libre sin agenda.
+- En asesor expediente se agrega `AgendaFirmasAsesorCard` para etapa 9:
+  - muestra horarios según configuración de Cynthia,
+  - valida cupo,
+  - escribe booking activo (cancelando booking previo del mismo expediente),
+  - persiste operativo a etapa 10 con `fechaCita`.
+- `updateOperativo` en etapas 9–10 mantiene validación fuerte de reserva activa en `agenda_firmas_bookings_v1`, pero permite actor `asesor` además de `mesa_control_admin` para habilitar el flujo solicitado.
+- Mesa-control detalle expone resumen explícito de cita biométricos/firma (ubicación, fecha/hora, actor, estado) a partir de bookings activos por expediente.
+
+### Impacto técnico
+
+- `src/components/mesa-control/AgendaBiometricosConfigPanel.tsx`
+- `src/lib/agendaFirmasMock.ts`
+- `src/lib/agendaFirmasBookingsGuard.ts`
+- `src/components/asesor/AgendaFirmasAsesorCard.tsx`
+- `src/components/mesa-control/AgendaFirmasCard.tsx`
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `src/app/mesa-control/[id]/page.tsx`
+- `src/domain/expedientes/mock.repo.ts`
+- `src/lib/dev/clearMockData.ts`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Agenda biométricos: panel de configuración para Cynthia
+
+### Decisiones
+
+- Se conserva la fuente única de configuración en `agenda_config_v1` y de ocupación en `agenda_bookings_v1` (sin Supabase, sin tablas nuevas).
+- Se usa el repo existente `MockAgendaBiometricosLocalStorageRepo` para lectura/escritura, reutilizando el evento `agenda_config_updated` para refresco reactivo.
+- La edición se centraliza en `/mesa-control` con un panel dedicado:
+  - solo `mesa_control_admin` puede editar/guardar,
+  - interno/externo ven resumen en solo lectura.
+- Para soportar ubicaciones dinámicas (Monterrey, Apodaca, Guadalupe, San Nicolás, etc.) el `locationId` deja de ser unión cerrada y pasa a `string`.
+- Se añade estado opcional `active` en ubicación/slot dentro de `AgendaBiometricosConfigV1`; disponibilidad ignora ubicaciones o slots inactivos.
+- En `mesa-control/[id]`, biométricos ya no dependen del guard de firmas: se habilita para todos los roles de mesa; firmas sigue admin-only.
+
+### Impacto técnico
+
+- `src/components/mesa-control/AgendaBiometricosConfigPanel.tsx`
+- `src/app/mesa-control/page.tsx`
+- `src/components/asesor/AgendaBiometricosCard.tsx`
+- `src/domain/agenda-biometricos/types.ts`
+- `src/domain/agenda-biometricos/availability.ts`
+- `src/lib/agendaFirmasBookingsGuard.ts`
+- `src/lib/agendaFirmasBookingsGuard.test.ts`
+- `src/app/mesa-control/[id]/page.tsx`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Fix flujo “Enviar a mesa de control” (mock/localStorage)
+
+### Decisiones
+
+- El estado de “enviado” en UI del asesor no puede ser optimista antes de persistir. Se cambió el orden en `SeguimientoOperativoMock`: primero callback de persistencia (`onEnviarAMesa`), luego actualización local (`submittedToMesa`, timeline etapa 1→2).
+- Se formalizó contrato de callback con retorno booleano opcional (`false` = no persistido/no continuar), para que validaciones del padre bloqueen el cambio visual sin lanzar side effects.
+- En `asesor/expediente/[id]`, el callback devuelve `false` en cada guard de validación previa, y tras `repo.enviarAMesa` hace lectura de confirmación (`getById`) para evitar “enviado fantasma”.
+- En el repo mock, la escritura de `mesa_control_inbox` para envío es upsert por expediente (`idPrecal`/`id`) y deja un registro único actualizado.
+- Temporal de producto: todos los envíos nuevos a mesa se normalizan como `origenMesa: "interno"` y `tipoMesa: "interno"`; además, cualquier origen faltante en lectura/acceso cae a interno para no ocultar expedientes en bandeja.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `src/domain/expedientes/mock.repo.ts`
+- `src/lib/mesaControlAccess.ts`
+- `src/lib/mesaControlAccess.test.ts`
+- `src/app/mesa-control/page.tsx`
+- `src/app/asesor/page.tsx`
+- `src/app/mesa-control/[id]/page.tsx`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Mesa-control sin documentos (0/0) pese a archivos cargados
+
+### Decisiones
+
+- Se confirma una sola fuente de verdad de archivos en mock: IndexedDB (`concasa-crm-files` / store `expediente_archivos`), no `localStorage`.
+- El problema no era pérdida de blobs ni del envío a mesa: `mesa-control/[id]` calculaba checklist en etapa 2, pero `DOCUMENTO_CATALOGO` marcaba documentos obligatorios (base + `cliente_*`) solo en etapa 1.
+- Para mantener compatibilidad y no crear estructuras nuevas, se amplían `etapasRequeridas` de documentos obligatorios a `[1, 2]`.
+- En panel de mesa, `getChecklistDocumentos(..., { pendienteRevisionCuentaComoCompleto: true })` para que documentos `subido`/`resubido` cuenten como presentes en progreso (6/6) sin perder revisión posterior (validar/rechazar).
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`
+- `src/app/mesa-control/[id]/page.tsx`
+- `src/domain/expediente-archivos/derive-resumen-documental.test.ts`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Validación/Rechazo de Datos Generales (mesa-control)
+
+### Decisiones
+
+- Se mantiene la misma fuente mock: `localStorage` key `expediente_cliente_datos` + evento `expediente_cliente_datos_updated`.
+- Se añade estado `validado` (además de `pendiente`, `completo`, `rechazado`) para distinguir claramente “capturado por asesor” vs “aprobado por mesa”.
+- Metadata de auditoría en la entidad:
+  - validación: `validatedAt`, `validatedBy`
+  - rechazo: `rejectedAt`, `rejectedBy`, `comentarioRechazo`
+  - siempre: `updatedAt`, `updatedBy`
+- En mesa-control se reemplaza `prompt` por modal con textarea obligatorio para rechazo; validar limpia metadata/comentario de rechazo previo.
+- En asesor se agregan mensajes explícitos para estados `validado` y `rechazado` con detalle de fecha/usuario y motivo.
+
+### Impacto técnico
+
+- `src/domain/expediente-cliente-datos/types.ts`
+- `src/domain/expediente-cliente-datos/mock-localstorage.repo.ts`
+- `src/domain/expediente-cliente-datos/mock-localstorage.repo.test.ts`
+- `src/app/mesa-control/[id]/page.tsx`
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Mesa-control: avance operativo 2→3 con bloqueos explícitos
+
+### Decisiones
+
+- Causa principal detectada:
+  1) El handler de “Aprobar y pasar a siguiente” tenía una rama temprana para `en_validacion_mesa` que solo pasaba a `en_proceso` en la misma etapa y hacía `return`.
+  2) La validación de datos generales comparaba contra `estado === "completo"` (desalineado con el nuevo estado de mesa `validado`), bloqueando el avance aunque mesa ya hubiera validado.
+- Se agrega helper local `getBloqueosAvanceMesa(expedienteId, etapaActual)` para centralizar bloqueos y evitar fallos silenciosos.
+- Si hay bloqueos, se muestra mensaje claro en UI (`operativoWarning`) y `alert` con listado:
+  - datos generales no validados por mesa,
+  - documentos obligatorios pendientes/rechazados.
+- Si no hay bloqueos, el flujo avanza etapa y persiste vía `onChangeSummary` → `updateOperativo` en `mesa_control_inbox`.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+- `src/app/mesa-control/[id]/page.tsx`
+- `CHANGELOG.md`
+
+## 2026-05-07 - Guard documental mesa: cliente_* vs legacy sistema
+
+### Decisiones
+
+- Se detectó desalineación entre:
+  - UI de mesa (`Documentos requeridos` y `Revisión`) que filtra checklist por `ownerRole: "cliente"`.
+  - guard de avance (`getBloqueosAvanceMesa`) que evaluaba `checklist.completos` global e incluía obligatorios legacy `sistema` (`ine`, `nss`, `estado_cuenta`, `direccion`).
+- Se corrige el guard para evaluar solo `faltantes` del subconjunto cliente con `filterChecklistDocumentoItemsPorOwnerRole(..., "cliente")`.
+- Se mantiene el criterio de avance solicitado: solo `estatus_revision === "validado"` cuenta como completo (no se usa `pendienteRevisionCuentaComoCompleto` en el guard).
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+- `CHANGELOG.md`
+
+## 2026-04-21 - Admin: KPIs operativos y funnel (stats puras)
+
+### Decisiones
+
+- Una sola carga `listForAdmin()` → estado `expedientesMock`; KPIs/funnel leen ese array; `mockList` es `map` derivado para filtros/tablas existentes.
+- Funnel excluyente con prioridad documentada en código; KPIs operativos no excluyentes (pueden solaparse entre sí).
+- “Firmados” = `etapaActual >= 11`; rechazos separados: operativo (`subestado === "rechazado"`) vs editor (`decision === "no_cumple"`).
+
+### Impacto técnico
+
+- `src/lib/adminDashboardStats.ts`, `src/lib/adminDashboardStats.test.ts`, `src/app/admin/page.tsx`, `package.json`
+
+## 2026-04-21 - Admin: métricas por asesor (solo ExpedienteMock)
+
+### Decisiones
+
+- Sin fuente de “oportunidades” ni métricas inventadas: todo sale de `ExpedienteMock` ya cargado en admin.
+- Agrupación por `base.asesorId` normalizado; vacío → clave literal `(sin asesor)` para filas estables en tabla.
+- Mismas reglas de conteo que KPIs globales para biométricos (mesa + etapa 3–5), firma (mesa + 9–10), firmados (≥11) y rechazos.
+- Conversión explícita `firmados / enviadosMesa` por asesor; si `enviadosMesa === 0`, `null` en datos y “—” en UI (no dividir).
+
+### Impacto técnico
+
+- `src/lib/adminDashboardStats.ts`, `src/lib/adminDashboardStats.test.ts`, `src/app/admin/page.tsx`, `CHANGELOG.md`
+
+## 2026-04-21 - Admin: tiempos del proceso (sin tramos estimados)
+
+### Decisiones
+
+- Solo cuatro campos: `base.createdAt`, `operativo.updatedAt`, `operativo.etapaActual`, `operativo.submittedToMesa`; el boolean solo se muestra en el top 10, no alimenta promedios por etapa.
+- Intervalo único `updatedAt - createdAt`; excluir si falta timestamp o si `updatedAt < createdAt`.
+- “Antigüedad por etapa” = media de ese intervalo agrupada por el valor **actual** de `etapaActual` (incluye bucket sin etapa).
+- Cuello de botella: entre filas con `sampleSize >= 3`, la de mayor media; empate en media → menor número de etapa (clave de ordenación estable).
+- No se implementa tiempo hasta mesa ni duración por tramo real.
+
+### Impacto técnico
+
+- `src/lib/adminDashboardStats.ts`, `src/lib/adminDashboardStats.test.ts`, `src/app/admin/page.tsx`, `CHANGELOG.md`
+
+## 2026-04-21 - Mock usuario (`mock_user`) y bandeja mesa (Cynthia)
+
+### Decisiones
+
+- `mock_user` como JSON único con `email`, `role`, `name`; se mantienen `mock_role` y `mock_email` en paralelo para no tocar reglas existentes en repos (solo lectura centralizada vía `getEffectiveMockRole` / `getEffectiveMockEmail`).
+- `useSessionRepo` trata todos los roles `mesa_control_*` y legacy `mesa_control` como sesión mock con `UserSession.role = "revisor"` (igual que antes con solo `mesa_control`).
+- Filtro Internos/Externos solo para admin o legacy `mesa_control`; datos de `origenMesa` en tarjetas desde `ExpedienteMock.base`.
+
+### Impacto técnico
+
+- `src/lib/mockUser.ts`, `src/lib/mockUser.test.ts`, `src/app/login/page.tsx`, `src/domain/session/index.ts`, `src/lib/dev/clearMockData.ts`, `src/app/mesa-control/mockData.ts`, `src/app/mesa-control/page.tsx`, `src/app/mesa-control/[id]/page.tsx`, `src/components/asesor/AgendaBiometricosCard.tsx`, `src/components/mesa-control/AgendaFirmasCard.tsx`, `package.json`
+
+## 2026-04-21 - Firma: `fechaCita` acoplada a `agenda_firmas_bookings_v1`
+
+### Decisiones
+
+- Opción **B** para el rol en `updateOperativo`: leer `localStorage.getItem("mock_role")` (sin tercer argumento al repo), coherente con el resto del mock de mesa.
+- La validación se aplica al **estado final** tras merge (`merged.etapaActual` / `merged.fechaCita`), no solo al patch entrante.
+- UI: solo `mesa_control_admin` monta `AgendaFirmasCard` y puede ejecutar `tryWriteFirmasBooking` (doble chequeo en escritura).
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `src/lib/agendaFirmasBookingsGuard.ts`, `src/lib/agendaFirmasMock.ts`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `src/components/mesa-control/AgendaFirmasCard.tsx`, `src/app/mesa-control/[id]/page.tsx`, `src/lib/dev/clearMockData.ts`, `src/lib/agendaFirmasBookingsGuard.test.ts`, `package.json`
+
+## 2026-04-21 - `origenMesa` desde `tipoAsesor` al `enviarAMesa`
+
+### Decisiones
+
+- Resolución central en `MockExpedientesRepo.enviarAMesa`: `origenMesa` = `normalizeOrigenMesa(payload.origenMesa)` si viene válido; si no, `origenMesaDesdeEmailAsesor(precal.asesorId)` (email del dueño en `precalificaciones_mock`).
+- Catálogo `asesores_tipo_mesa_v1`: mapa email → `interno` | `externo`; ausencia de clave ⇒ **interno** (nunca `null` en inbox para envíos nuevos).
+- Las páginas no duplican la derivación: basta con el repo (opcionalmente pueden seguir pasando `origenMesa` en payload si hiciera falta un override explícito).
+
+### Impacto técnico
+
+- `src/lib/asesorTipoMesaMock.ts`, `src/lib/asesorTipoMesaMock.test.ts`, `src/domain/expedientes/mock.repo.ts`, `src/lib/dev/clearMockData.ts`, `package.json`
+
+## 2026-04-21 - Mesa de control: helpers de acceso por `origenMesa`
+
+### Decisiones
+
+- Un solo archivo `mesaControlAccess.ts`: `canUserAccessExpediente({ mockRole }, expediente)` y `filterExpedientesByRole`; no duplicar condiciones en páginas.
+- `mock_role` se lee en cliente desde `localStorage` (no `UserSession.role` para mesa).
+- `mesa_control` legacy se trata como acceso total (igual que admin) para no vaciar la bandeja hasta que exista catálogo `tipoAsesor` + envío con `origenMesa`.
+- `origenMesa: null` niega acceso a interno/externo (fuerza datos completos o rol admin/legacy).
+
+### Impacto técnico
+
+- `src/lib/mesaControlAccess.ts`, `src/lib/mesaControlAccess.test.ts`, `src/domain/expedientes/mock.repo.ts`, `src/app/mesa-control/page.tsx`, `src/app/mesa-control/[id]/page.tsx`, `package.json`
+
+## 2026-04-20 - Persistencia de reservas biométricos (`agenda_bookings_v1`)
+
+### Decisiones
+
+- La ocupación de cupo debe materializarse al agendar: función pura `planBookBiometricosSlot` (cancelar `booked` del expediente + validar cupo con `getAgendaBiometricosDisponibilidad` + append de la nueva fila).
+- Los rechazos operativos desde mesa llaman `cancelBiometricosBookingsForExpediente` **después** de `updateOperativo` con éxito, para no liberar cupo si el inbox no se actualizó.
+- En asesor, orden efectivo: validar slot → escribir bookings → `updateOperativo`; si el inbox falla, `rollback` del documento de bookings previo.
+- `createdBy.role` admite `asesor` y `mesa_control` además de `mesa_control_admin` para reflejar `mock_role` real.
+
+### Impacto técnico
+
+- `src/domain/agenda-biometricos/booking-mutations.ts`, `booking-mutations.test.ts`, `types.ts`, `index.ts`
+- `src/lib/agendaBiometricosMock.ts`
+- `src/components/asesor/AgendaBiometricosCard.tsx`
+- `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-09 - Mesa control: orden por subestado
+
+### Decisiones
+
+- Tras `exps.map(mapExpToCaso)`, enriquecer con `fechaEnvioMesa` opcional desde fila del inbox (si existe en JSON); orden: `getPrioridad(subestado)` y `getFechaUrgenciaBandejaMesa` (`fechaEnvioMesa` → `createdAt` base → `updatedAt` operativo). SSR: sin `window`, inbox vacío y mismo fallback.
+- `enviarAMesa` escribe `fechaEnvioMesa` en la fila del inbox (mismo ISO que `updatedAt` de ese evento); `updateOperativo` no la borra al hacer spread de `nextEntry`.
+
+### Impacto técnico
+
+- `src/app/mesa-control/page.tsx`
+
+## 2026-04-09 - Columna Documentación (dashboard asesor)
+
+### Decisiones
+
+- La celda no debe depender solo de `deriveResumenDocumental`, que solo mira `DOCUMENTO_TIPOS` (4 filas base): si el mock guarda `cliente_*`, los base quedan `faltante` y la categoría era siempre «Faltantes» aun con archivos subidos.
+- Nueva derivación `deriveEstadoDocumentacionColumnaAsesor` en `checklist.ts`: mismos obligatorios por etapa que `deriveChecklistDocumentosFromResumen`, y por cada tipo se usa `estatus_revision` del resumen (`faltante`/`rechazado` → bucket faltante; `subido`/`resubido` → pendiente aprobación; `validado` → OK).
+- **Equivalencias base ↔ cliente**: se agrupan `ine` + `cliente_ine_frente` + `cliente_ine_reverso`, `estado_cuenta` + `cliente_estado_cuenta`, `direccion` + `cliente_comprobante_domicilio`; el estatus del grupo es el mejor entre filas del grupo. `nss` no tiene `cliente_*` en catálogo. Grupos deduplicados para no evaluar INE tres veces.
+- **NSS y columna DOCUMENTACIÓN**: `nss` se filtra antes del loop de `deriveEstadoDocumentacionColumnaAsesor` (no bloquea Faltantes/Pendiente/Completos en dashboard); catálogo y otros flujos intactos.
+- El dashboard guarda `listResumenByExpediente` por id y deriva en `useMemo` la categoría antigua para KPIs/filtros; la tabla usa solo la nueva terna para la columna.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/checklist.ts`, `src/domain/expediente-archivos/columna-documentacion-asesor.test.ts`, `src/app/asesor/page.tsx`, `package.json` (entrada `npm test`)
+
+## 2026-04-09 - Utilidad `clearMockData` (solo desarrollo)
+
+### Decisiones
+
+- Centralizar claves reales del repo (`precalificaciones_mock`, `decisions_mock`, `mesa_control_inbox`, `expediente_cliente_datos`, `mock_role`, `mock_email`, `concasa_session`). No existe `expedientes_mock` ni `cliente_datos_mock` en código; expedientes mock viven dentro de `precalificaciones_mock` + inbox.
+- IndexedDB única para mocks de archivos: `concasa-crm-files`. Tras `deleteDatabase`, exportar `resetMockArchivosIndexedDbConnection()` para anular `dbPromise` en memoria y evitar reusar una conexión cerrada sin recargar.
+- `window.clearMockData` solo si `NODE_ENV !== "production"`; registro vía componente cliente `DevClearMockGlobal` montado desde `layout` en desarrollo.
+
+### Impacto técnico
+
+- `src/lib/dev/clearMockData.ts`, `src/lib/dev/DevClearMockGlobal.tsx`, `src/app/layout.tsx`, `src/domain/expediente-archivos/mock-indexeddb.repo.ts`
+
+## 2026-04-09 - `clearMockData`: clave `agenda_biometricos_config`
+
+### Decisiones
+
+- Incluir en `MOCK_LOCAL_STORAGE_KEYS` la clave de configuración mock de agenda biométricos para que un reset dev borre también cupo/horarios persistidos manualmente en consola.
+
+### Impacto técnico
+
+- `src/lib/dev/clearMockData.ts`
+
+## 2026-04-20 - Agenda biométricos: fuente única `agenda_config_v1`
+
+### Decisiones
+
+- Se cierra la integración de agenda biométricos para que la disponibilidad dependa **solo** de configuración persistida y no de inferencias desde `mesa_control_inbox`.
+- Se definen dos keys nuevas:
+  - `agenda_config_v1`: config flexible por día/ubicación con slots y cupo.
+  - `agenda_bookings_v1`: reservas por slot con status (`booked`/`cancelled`).
+- La función central de disponibilidad es `getAgendaBiometricosDisponibilidad(config, bookings, date, locationId, excludeExpedienteId?)` y toda validación/UI delega a ella (sin fallback).
+- Se elimina la lógica anterior de “slots 9–17 cada 30min” y la ocupación basada en `mesa_control_inbox` dentro de `agendaBiometricosMock`.
+- `clearMockData` borra también `agenda_config_v1` y `agenda_bookings_v1` para reiniciar pruebas desde cero.
+
+### Impacto técnico
+
+- `src/domain/agenda-biometricos/*`
+- `src/lib/agendaBiometricosMock.ts`
+- `src/components/asesor/AgendaBiometricosCard.tsx`
+- `src/lib/dev/clearMockData.ts`
+- `src/lib/agenda-biometricos-mock.test.ts`
+
+## 2026-04-09 - Etapa operativa 2 con `en_validacion_mesa` (reemplaza modelo `etapaActual: null`)
+
+### Decisiones
+
+- El avance de etapa no se infiere solo con `subestado`: con `en_validacion_mesa`, `etapaActual` persistido y expuesto en dominio es **siempre 2** (Registro / validación documental por mesa). Integración (1) queda reflejada como aprobada en el timeline al enviar.
+- `enviarAMesa` escribe `etapaActual: 2`. `toExpedienteMock` y el cierre de `updateOperativo` aplican `etapaActualParaOperativo` para corregir JSON antiguo (`null` o `1` con `en_validacion_mesa`). Se elimina el guard que anulaba `patch.etapaActual` en validación.
+- En `SeguimientoOperativoMock`, salir de validación con “Aprobar y pasar a siguiente” pone `en_proceso` en la **misma** etapa operativa (2), sin avanzar a la 3; el checklist previo usa la etapa operativa actual.
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `src/domain/expedientes/etapa-validacion-mesa.test.ts`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `package.json` (`npm test`)
+
+## 2026-04-09 - Asesor dashboard: subestado desde `operativo`
+
+### Decisiones
+
+- El modelo local de fila (`PrecalificacionMockLocal`) incluye `operativo: ExpedienteMock["operativo"]` para que la UI lea explícitamente `operativo.subestado` en “Estatus op.” y en el filtro de estatus operativo, alineado con el repo. Se elimina el duplicado `subestadoOperativo` en esa vista.
+- Log temporal `[diag dashboard asesor]` antes del badge por fila.
+
+### Impacto técnico
+
+- `src/app/asesor/page.tsx`
+
+## 2026-04-09 - Inbox duplicado: `subestado` perdido en dashboard
+
+### Decisiones
+
+- El síntoma (“`enviarAMesa` guarda `en_validacion_mesa` pero el dashboard sigue en Pendiente”) no era solo el merge `op?.subestado`: con varias filas en `mesa_control_inbox` para el mismo `idPrecal`, el `Map` se construía con **última fila del array gana**. Tras `unshift` del envío, una entrada vieja al final podía quedarse con `subestado` ausente o `pendiente` y sobrescribir la nueva.
+- Fusión explícita: por cada clave (`idPrecal` o `id`), conservar la fila con `updatedAt` ISO más reciente (`mergeMesaControlInboxByLatestUpdated`).
+- `toExpedienteMock` deja el subestado como `normalizeSubestado(op?.subestado ?? "pendiente") ?? "pendiente"` y un solo `console.log("[diag subestado final]", …)` temporal.
+
+### Impacto técnico
+
+- `src/lib/mesaControlInboxMock.ts`, `src/lib/mesaControlInboxMock.test.ts`, `src/domain/expedientes/mock.repo.ts`
+
+## 2026-04-08 - `toExpedienteMock`: subestado desde inbox + trim
+
+### Decisiones
+
+- El merge ya no deja `operativo.subestado` en `null` cuando falta valor en inbox: se usa `op?.subestado ?? "pendiente"` y luego `normalizeSubestado(... ) ?? "pendiente"` para el campo expuesto al dashboard.
+- `normalizeSubestado` normaliza strings con `trim` para que valores persistidos con espacios no caigan en `null` y el UI muestre “Pendiente”.
+- Log `[diag subestado final]` (temporal) para contrastar `op?.subestado` crudo vs el normalizado en `[diag merge operativo]`.
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`
+
+## 2026-04-08 - Dashboards: etiqueta única para `en_validacion_mesa`
+
+### Decisiones
+
+- Centralizar mapeo texto + clases Tailwind en `subestadoOperativoUi` para que bandejas no caigan en “Pendiente” por ramas duplicadas o valores con espacios; badge de validación mesa en tono sky (revisión), sin verde.
+
+### Impacto técnico
+
+- `src/lib/subestadoOperativoUi.ts`, `src/lib/subestadoOperativoUi.test.ts`, `package.json` (script test), `src/app/asesor/page.tsx`, `src/app/mesa-control/page.tsx`, `src/app/mesa-control/[id]/page.tsx`, `src/app/admin/page.tsx`
+
+## 2026-04-08 - Subestado tras enviar a mesa: `en_validacion_mesa`
+
+### Decisiones
+
+- Tras envío asesor, el inbox no debe reflejar trabajo operativo iniciado (`en_proceso`); se introduce `en_validacion_mesa` como estado explícito “en validación por mesa” en etapa 1. Mesa sigue poniendo `en_proceso` al avanzar/operar (p. ej. `handleAprobarYSiguiente` → etapa siguiente en proceso).
+- Se amplía `OperativoSubestado`, `normalizeSubestado`, UI de etiquetas (SeguimientoOperativoMock, mesa-control, asesor, admin) y mock de bandeja.
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `src/app/asesor/expediente/[id]/page.tsx`, `src/app/asesor/page.tsx`, `src/app/mesa-control/page.tsx`, `src/app/mesa-control/[id]/page.tsx`, `src/app/mesa-control/mockData.ts`, `src/app/admin/page.tsx`
+
+## 2026-04-08 - Asesor enviar a mesa: solo checklist cliente_* (sin DOCUMENTO_TIPOS)
+
+### Decisiones
+
+- Criterio de habilitación del botón: `faltantesCliente !== null && faltantesCliente.length === 0`, donde `faltantesCliente` sale de `getChecklistDocumentos` + filtro cliente; `null` si el checklist aún no cargó (no confundir con cero faltantes).
+- Quitar `useMemo` basados en `DOCUMENTO_TIPOS`, el `if (operativoEtapaId === 1) docsNoValidados` en mesa, UI legacy del paquete de 4 y componentes solo usados ahí (`ChecklistItem`, `RevisionBadge`, preview/descarga). El estado `docs` + sync contra IndexedDB con `DOCUMENTO_TIPOS` se mantiene solo para el payload `onEnviarAMesa` (`docs`).
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-08 - Diagnóstico: traza submittedToMesa (envío → merge → expediente final)
+
+### Decisiones
+
+- Añadir logs explícitos en `enviarAMesa` (`nextEntry`), en `toExpedienteMock` (`inboxMatch` + `Boolean(op?.submittedToMesa)`) y en `getById` (objeto `ExpedienteMock` completo tras merge), sin cambiar lógica de negocio.
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`
+
+## 2026-04-08 - Enviar a mesa: autosave directo al repo (sin pasar por el botón Guardar)
+
+### Decisiones
+
+- Tras validar completitud con `getClienteDatosCamposFaltantes` sobre el estado local, el flujo de envío llama directamente a `clienteDatosRepo.save({ expedienteId, datos: clienteDatos, updatedBy })` y luego checklist + `enviarAMesa`. Así el `localStorage` de `expediente_cliente_datos` queda alineado con lo que el usuario escribió aunque nunca pulse **Guardar borrador**.
+- El botón **Guardar borrador** sigue usando `handleSaveClienteDatos` (mismo repo y forma de `save`).
+
+### Impacto técnico
+
+- `src/app/asesor/expediente/[id]/page.tsx`
+
+## 2026-04-07 - Enviar a mesa: guardado automático de datos cliente
+
+### Decisiones
+
+- Orden efectivo histórico: validar campos → persistencia → checklist → `enviarAMesa` (desde 2026-04-08 el envío usa `clienteDatosRepo.save` inline; ver entrada 2026-04-08).
+- La validación de completitud vive en `src/lib/clienteDatosFormCompleteness.ts` con pruebas unitarias; el botón **Guardar borrador** sigue usando `handleSaveClienteDatos`.
+
+### Impacto técnico
+
+- `src/app/asesor/expediente/[id]/page.tsx`, `src/lib/clienteDatosFormCompleteness.ts`, `src/lib/clienteDatosFormCompleteness.test.ts`, `package.json` (script `test`)
+
+## 2026-04-07 - Asesor: quitar lista legacy tras envío a mesa
+
+### Decisiones
+
+- Opción **A**: eliminar el bloque que hacía `(DOCUMENTO_TIPOS).map` bajo “Enviado a mesa de control”; la fuente de verdad de documentos cliente sigue en el checklist / flujo previo al envío, y la lista duplicada generaba estados incorrectos.
+- No se tocó repos ni el paquete legacy opcional (`showLegacyPaqueteIntegracionEnAsesor`).
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-07 - Mesa-control: lista de revisión alineada con checklist cliente
+
+### Decisiones
+
+- La opción A (quitar la lista) dejaría el panel de revisión sin selector local; se eligió **opción B**: misma fuente que “Documentos requeridos” (`filterChecklistDocumentoItemsPorOwnerRole(..., "cliente")`) y `findRowPorTipoDocumento` por `it.tipo_documento`.
+- KPIs, “validar todos” y lógica de paquete de 4 no se tocaron; solo UI del listbox y estado `selectedTipo` ampliado a catálogo completo.
+
+### Impacto técnico
+
+- `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-07 - enviarAMesa: pendiente hasta acción mesa
+
+### Decisiones
+
+- Tras envío asesor, inbox no debe marcar `en_proceso` (eso implicaba trabajo mesa ya iniciado); se usa `subestado: "pendiente"` con `submittedToMesa: true` y etapa 1.
+- Timeline optimista etapa 1 y `onEnviarAMesa` payload alineados; mesa sigue poniendo `en_proceso` al aprobar/pasar etapa (`handleAprobarYSiguiente` + `onChangeSummary` → `updateOperativo`).
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-07 - Checklist envío asesor: subido ≠ validado
+
+### Decisiones
+
+- El checklist marcaba obligatorio solo si `estatus_revision === "validado"`; las subidas del asesor quedan en `subido`/`resubido`, así que `completos` nunca era true antes de mesa.
+- Opción `pendienteRevisionCuentaComoCompleto` solo en flujos de integración/envío asesor; avance mesa (`handleAprobarYSiguiente`) sigue usando el default (solo `validado`).
+- `getChecklistDocumentos` ya usaba `listByExpediente`; no había bug de resumen vs lista.
+- Refresco explícito: `archivosChecklistNonce` tras sync exitoso + deps del efecto.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/checklist.ts`, `derive-resumen-documental.test.ts`
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `src/app/asesor/expediente/[id]/page.tsx`
+
+## 2026-04-07 - Bloqueo envío a mesa sin documentos cliente (checklist)
+
+### Decisiones
+
+- Con `showLegacyPaqueteIntegracionEnAsesor === false` no corría la validación por `DOCUMENTO_TIPOS` / `docsMissing` en el botón; la validación solo vivía en el padre y la UI permitía click optimista.
+- Fuente única en el componente: `getChecklistDocumentos(id, 1)` recargado al cambiar `archivosResumen` / evento sync; `faltantesCliente` = filtro `filterChecklistDocumentoItemsPorOwnerRole(..., "cliente")`; `puedeEnviar` exige checklist cargado y cero faltantes cliente.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-07 - Bandeja mesa: match precal ↔ inbox (ids string)
+
+### Decisiones
+
+- **Causa**: `getInboxKey` solo aceptaba `id`/`idPrecal` con `typeof === "string"`; filas con id numérico (JSON) o mezcla number/string no entraban al `Map` → `submittedToMesa` falso en `toExpedienteMock`.
+- **Fix**: clave inbox = `String(v).trim()` con preferencia `idPrecal` luego `id`; escritura en `enviarAMesa`/`updateOperativo` con `idStr` en ambos campos; lectura precal con `id` string o number → `String(rid)`.
+- Logs de diagnóstico en creación precal, `enviarAMesa`, `listForMesa` (remover cuando ya no hagan falta).
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `src/app/asesor/nueva/page.tsx`
+
+## 2026-04-07 - Mesa: carga cliente por URL + normalización de ids
+
+### Decisiones
+
+- **Bug**: `loadClienteDatos` hacía early return con `!expediente?.id`, así que al abrir mesa tras enviar, la lectura de `expediente_cliente_datos` esperaba a que terminara `getById` del mock (o fallaba el orden respecto a datos ya en LS).
+- **Fix**: `routeExpedienteId = String(id)` desde `useParams`; `getByExpedienteId(routeExpedienteId)` y un `useEffect` único `[routeExpedienteId, loadClienteDatos, loadArchivos]` para montaje/cambio de ruta.
+- Eventos: si viene `expedienteId` en el `detail`, comparar con `String(...)`; broadcasts sin id siguen refrescando (no filtrar cuando `changedId` es ausente).
+- Logs `console.log` temporales en `loadClienteDatos` para diagnóstico.
+
+### Impacto técnico
+
+- `src/app/mesa-control/[id]/page.tsx`, `src/app/asesor/expediente/[id]/page.tsx`
+
+## 2026-04-07 - Evento `expediente_enviado_a_mesa` (mesa-control en vivo)
+
+### Decisiones
+
+- El evento se dispara **solo después** de `await repo.enviarAMesa` en los callbacks `onEnviarAMesa` (asesor y mesa), no dentro de `SeguimientoOperativoMock`, para no emitir si el asesor sale por `return` tras validaciones (checklist / integración deshabilitada) sin persistir.
+- Un solo `useEffect` en `mesa-control/[id]` con cleanup `removeEventListener`; dependencias `[id, loadClienteDatos, loadArchivos]` (callbacks ya memoizados con `useCallback`).
+
+### Impacto técnico
+
+- `src/app/asesor/expediente/[id]/page.tsx`, `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-07 - Bloqueo asesor hasta monto aprobado por revisor
+
+### Decisiones
+
+- Fuente de verdad: `exp.editorDecision` que ya arma `getById` desde `decisions_mock` vía `buildDecisionMap` (sin cambiar contratos del repo).
+- Funciones puras nuevas en `mock.repo.ts`: `estatusPrecalificacionDesdeEditor`, `asesorPuedeIntegrarTrasMontoRevisor`.
+- Página asesor: `fieldset disabled` + banner; primer guard en `onEnviarAMesa`; refetch al evento `decisions_mock_updated`.
+- `SeguimientoOperativoMock`: prop `asesorIntegracionHabilitada`; si es `boolean`, sustituye el fallback `aprobadoConMonto` en rol asesor; uploads post–envío a mesa por rechazo documental no se tocan.
+
+### Impacto técnico
+
+- `src/domain/expedientes/mock.repo.ts`, `asesor-monto-revisor.test.ts`, `package.json`
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-07 - Filtros documentos: solo helpers de dominio en UI
+
+### Decisiones
+
+- `filterItemsPorOwnerRoleCatalogo` centraliza el criterio `DOCUMENTO_CATALOGO_MAP[tipo].ownerRole`; `filterResumenPorOwnerRole` lo reutiliza.
+- Paneles que listan solo documentos del cliente usan `filterChecklistDocumentoItemsPorOwnerRole(..., "cliente")` sobre el checklist ya acotado por etapa; no se repite lógica de `etapasRequeridas` en JSX (el checklist se cargó con la misma `etapaActual`).
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`, `checklist.ts`, `derive-resumen-documental.test.ts`
+- `src/app/mesa-control/[id]/page.tsx`, `src/app/asesor/expediente/[id]/page.tsx`
+
+## 2026-04-07 - Resumen: filtros por paquete / rol y orden de checklist
+
+### Decisiones
+
+- Fuente única de orden: índice en `TIPO_DOCUMENTO_CATALOGO` vía `Map` (`MAP_INDICE_TIPO_DOCUMENTO_CATALOGO` + `ordenarPorTipoDocumentoCatalogo`); el checklist aplica orden al devolver `faltantes` y `completosLista` para que la UI no dependa del orden de iteración.
+- Mesa: `archivosResumenPaquete` + `filterResumenPaqueteDocumental` para estadísticas de revisión documental y bulk “validar pendientes” (solo los 4 del paquete); `getLatestDocByTipo` sigue usando el resumen completo para `cliente_*`.
+- `isTipoPaqueteDocumental` vive en dominio (`types.ts`); se elimina el duplicado local en mesa-control.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`, `checklist.ts`, `derive-resumen-documental.test.ts`
+- `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-07 - `listResumenByExpediente`: catálogo completo
+
+### Decisiones
+
+- Una fila por cada clave de `TIPO_DOCUMENTO_CATALOGO`, en ese orden: mantiene índices 0–3 = paquete documental histórico.
+- `deriveResumenDocumental` no cambia: solo evalúa `DOCUMENTO_TIPOS`; se añadió test de regresión con filas `cliente_*` extra.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/mock-indexeddb.repo.ts`
+- `src/domain/expediente-archivos/derive-resumen-documental.test.ts`
+
+## 2026-04-07 - Resumen archivos: `tipo_documento` como catálogo
+
+### Decisiones
+
+- Unificar el tipo de `ExpedienteArchivoResumen.tipo_documento` con el del store (`TipoDocumentoCatalogo`) para que comparaciones como `a.tipo_documento === tipo` sean válidas sin `as string`.
+- Las etiquetas en UI que antes usaban `TIPO_DOCUMENTO_LABEL` (solo 4 tipos) pasan a `labelTipoDocumentoCatalogo` vía `DOCUMENTO_CATALOGO_MAP`.
+- Tras validar/rechazar, `afterRevisionPersist` recibe cualquier clave de catálogo; la lógica de “siguiente documento pendiente” sigue acotada al paquete de 4 con guard `isTipoPaqueteDocumental`.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`, `mock-indexeddb.repo.ts`, `derive-resumen-documental.test.ts`
+- `src/app/mesa-control/[id]/page.tsx`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`
+
+## 2026-04-07 - Mesa-control: preview modal en “Documentos requeridos”
+
+### Decisiones
+
+- Solo documentos **cliente** marcados como completos en el checklist: botón que abre modal con `URL.createObjectURL` tras `archivosRepo.getArchivoBlob(id)` (mismo patrón que la revisión documental).
+- Si hubiera más de un registro con el mismo `tipo_documento` en `archivosResumen`, el preview usa el de **`created_at` más reciente** (`getLatestDocByTipo`: `filter` + `sort`), reutilizado en el preview y en `canOpen` del panel.
+- Imagen → `<img>`; PDF → `<iframe>`; otros tipos → mensaje en modal.
+
+### Impacto técnico
+
+- `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-07 - Validación MIME en subida `cliente_*` (solo UI)
+
+### Decisiones
+
+- La comprobación vive en el **handler `onFile`** del `FileUploadButton` del panel “Documentos del cliente”, **antes** de `archivosRepo.replaceArchivo`, sin tocar el repo ni IndexedDB.
+- Se respeta el criterio pedido: `file.type` debe contener `"image"` o ser exactamente `application/pdf`.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`.
+
+## 2026-04-07 - Panel “Documentos requeridos”: solo `cliente_*`
+
+### Decisiones
+
+- El checklist completo sigue viniendo de `getChecklistDocumentos`; en las páginas asesor y mesa-control el panel filtra por `ownerRole === "cliente"` **y** que `etapasRequeridas` incluya la etapa mostrada (mesa: `etapaActualDisplay`; asesor: `1`).
+- Progreso del panel: `completosCliente / (faltantesCliente + completosCliente)`.
+
+### Impacto técnico
+
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `src/app/mesa-control/[id]/page.tsx`
+
+## 2026-04-07 - Rechazo: siempre limpiar `fechaCita` en persistencia
+
+### Decisiones
+
+- **`onChangeSummary`**: si `estado === "rechazado"`, `fechaCita` del summary es siempre `null` (no solo etapa 3 “sin cita” ni implícito etapa 4). Así `handleChangeSummary` en mesa-control incluye `{ fechaCita: null }` y el inbox queda alineado.
+- **Timeline al rechazar** (rama genérica): se deja de copiar cita en etapas 3/9 al marcar rechazado; la etapa actual queda sin `fechaCita` en estado local.
+- **Sync desde props**: si `initialSubestado === "rechazado"`, la etapa actual no asigna `initialFechaCita` al nodo del timeline (evita UI con cita si el padre aún enviara fecha obsoleta).
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`.
+
+## 2026-04-07 - Catálogo de documentos (expediente-archivos)
+
+### Decisiones
+
+- **Sin cambio de arquitectura**: el “paquete documental” actual sigue siendo `DOCUMENTO_TIPOS` (4 tipos) y es el que consume `deriveResumenDocumental` y la UI existente.
+- **Catálogo extendido**: se define `TIPO_DOCUMENTO_CATALOGO` + `DOCUMENTO_CATALOGO` con:
+  - **ownerRole** (`cliente`/`asesor`/`sistema`)
+  - **obligatorio/opcional**
+  - **etapasRequeridas** (ids del flujo operativo)
+- **Uso previsto**: nuevas pantallas/validaciones pueden listar requisitos por etapa/rol con `listDocumentosCatalogoForStage` sin tocar la lógica actual.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`.
+
+## 2026-04-07 - Checklist documental por etapa (sin romper paquete actual)
+
+### Decisiones
+
+- **Capa adicional**: se agrega `getChecklistDocumentos(expedienteId, etapaActual)` como validación por etapa usando `DOCUMENTO_CATALOGO` + `listResumenByExpediente` (IndexedDB).
+- **Compatibilidad**: la checklist solo considera como “requeribles hoy” los tipos base (`DOCUMENTO_TIPOS`) porque el repo IndexedDB actual valida/guarda únicamente esos tipos. Los tipos extendidos (cliente/asesor) quedan como catálogo opcional para evolución sin romper UI/unique keys actuales.
+- **Criterio de completo**: un documento requerido cuenta como completo solo si su `estatus_revision === "validado"`.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/checklist.ts`
+- `src/domain/expediente-archivos/derive-resumen-documental.test.ts`
+- `src/domain/expediente-archivos/index.ts`
+
+## 2026-04-07 - Entidad datos generales del cliente (mock)
+
+### Decisiones
+
+- **Nueva entidad**: `expediente_cliente_datos` se persiste fuera de `ExpedienteMock.operativo` y fuera de `expediente-archivos` para permitir evolución, estado propio y auditoría.
+- **Persistencia**: repo mock en `localStorage` (key `expediente_cliente_datos`) con upsert por `expedienteId`.
+- **Sincronización**: evento `expediente_cliente_datos_updated` con `{ expedienteId }` para refresco reactivo de UI (futuro).
+
+### Impacto técnico
+
+- `src/domain/expediente-cliente-datos/*`
+
+## 2026-03-23 - Biométricos: cita en etapa 4 y rechazo con liberación de slot
+
+### Decisiones
+
+- **Slots vigentes**: ocupación = inbox etapa 3 o 4 con `fechaCita` y `subestado !== "rechazado"` (`inboxItemCountsAsBiometricOccupied`). Rechazo mesa en etapa 4 → `updateOperativo` con etapa 3, rechazado, `fechaCita: null` vía `onChangeSummary` (etapa 3 rechazada sin cita en timeline fuerza `null`).
+- **Rechazo etapa 4**: mismo modal **Rechazar**; rama especial en `handleConfirmarRechazo` que limpia etapa 4, marca etapa 3 rechazada y mueve `operativoEtapaId` a 3.
+- **UI etapa 4**: bloque de cita en detalle y resumen superior incluyen etapa 4 cuando hay `fechaCita`.
+
+### Impacto técnico
+
+- `src/lib/agendaBiometricosMock.ts`, `agenda-biometricos-mock.test.ts`, `SeguimientoOperativoMock.tsx`, `AgendaBiometricosCard.tsx`, `asesor/expediente/[id]/page.tsx`.
+
+## 2026-03-23 - Agenda biométricos mock (asesor → etapa 4)
+
+### Decisiones
+
+- **Fuente de verdad de ocupación**: lectura de `mesa_control_inbox` para expedientes en etapas 3 o 4 con `fechaCita` (sin segundo almacén dedicado). Fechas solo-YYYY-MM-DD legacy expanden a todos los slots del día como ocupados para no duplicar huecos.
+- **Persistencia del agendado**: `MockExpedientesRepo.updateOperativo` (misma vía que mesa); evento `mesa_control_inbox_updated` para refresco en pestaña.
+- **Mesa**: `citaEditable` solo en etapa 9 (firma); biométricos 3–4 los agenda el asesor.
+
+### Impacto técnico
+
+- `src/lib/agendaBiometricosMock.ts`, `src/lib/agenda-biometricos-mock.test.ts`, `src/components/asesor/AgendaBiometricosCard.tsx`, `src/app/asesor/expediente/[id]/page.tsx`, `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `package.json` (script `test`).
+
+## 2026-03-23 - UX mesa: sin toggle de rol ni “Marcar En proceso”
+
+### Decisiones
+
+- El switch Asesor/Mesa era ruido en mesa-control: el contexto ya viene del login mock (`localStorage.mock_role`); no se expone UI para cambiar rol en caliente.
+- **Marcar En proceso** era redundante frente a `en_proceso` al enviar a mesa, al aprobar (siguiente etapa) y al regresar etapa; quitar el botón no altera esas rutas.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`.
+
+## 2026-03-23 - Regresar etapa operativa (mesa)
+
+### Decisiones
+
+- El timeline sigue siendo **solo selección**; el retroceso real es explícito con **Regresar a etapa anterior**, mismas guardas que aprobar (`panelOperativoEditable`).
+- La **representación visual** de etapas futuras respecto a `operativoEtapaId` usa `getStageVisualStatus`: al bajar la etapa real, la etapa dejada atrás deja de mostrarse como “completada” sin borrar entradas del `timeline` innecesariamente.
+- Sobre el objeto `timeline` de la etapa que se abandona (si no era `rechazado`): `estado: pendiente` y se limpian motivo/comentario de rechazo, conservando notas/citas; si era `rechazado`, se conserva el registro (solo `ultimaActualizacion`). La etapa destino se reutiliza con `en_proceso` + `ultimaActualizacion`.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`.
+
+## 2026-03-23 - Ciclo de vida de blob URL en preview mesa-control
+
+### Decisiones
+
+- No revocar el `blob:` de la preview en un `useEffect` cuyo cleanup dependa de `preview.url`: en React 18 Strict Mode el cleanup puede ejecutarse mientras el estado sigue referenciando la misma URL, dejando la miniatura y la pestaña nueva sin recurso válido.
+- La revocación queda **solo** en transiciones explícitas: al sustituir preview en `openPreview` y al cerrar en `closePreview` (sustituye “cambio de documento” + cierre manual).
+- Abrir en nueva pestaña **no** revoca; se usa el mismo string URL; si `window.open` devuelve `null`, se intenta navegación equivalente con un `<a>` programático (`noopener noreferrer`).
+
+### Impacto técnico
+
+- `src/app/mesa-control/[id]/page.tsx`.
+
+## 2026-03-23 - Timeline vs etapa real y comentario de rechazo
+
+### Decisiones
+
+- El timeline en mesa-control es **navegación de detalle**: `selectedStageId` no debe mutar `operativoEtapaId` ni disparar `updateOperativo`; la persistencia sigue vía `onChangeSummary` alineado **solo** al estado de `operativoEtapaId` en `timeline`.
+- Las acciones **Marcar en proceso / Aprobar / Rechazar** actúan exclusivamente sobre la etapa operativa real; si el usuario inspecciona una etapa pasada, el panel entra en modo lectura (botones e inputs deshabilitados + aviso).
+- La **cita** (etapas 3 y 9) solo es editable si la etapa operativa real es 3 o 9 **y** la selección coincide con esa etapa; si se selecciona 3/9 como histórico mientras el expediente está en otra etapa, la cita se muestra en solo lectura.
+- El rechazo operativo separa **motivo categórico** (`motivoRechazo`) y **texto libre** (`comentarioRechazo`); no se reutiliza `notasInternas` como sustituto del comentario de rechazo.
+- La sincronización prop → estado del componente **no** depende de `initialUpdatedAt` para no resetear `selectedStageId` en cada persistencia que solo actualice timestamp.
+
+### Impacto técnico
+
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`, `src/app/mesa-control/[id]/page.tsx`, `src/app/asesor/expediente/[id]/page.tsx`, `src/domain/expedientes/mock.repo.ts`, `src/lib/mesaControlInboxMock.ts`.
+
+## 2026-03-19 - Resubido y resumen documental derivado
+
+### Decisiones
+
+- Revisión documental mesa-control `[id]`: la UI ya no expone `Ver`/`Validar`/`Rechazar` por fila; la fila solo selecciona. “Pendiente revisión” persiste como `subido` o `resubido` usando el último estatus pendiente guardado en estado local (`pendienteKindById`) para no perder la señal `correccion_enviada` al revertir desde `validado`.
+- `mesa-control/[id]` (bloque Revisión documental): se elimina patrón `select + Guardar` por acción directa. `Validar` persiste inmediato con `updateRevision`; `Rechazar` abre editor inline y exige comentario no vacío para guardar.
+- Se agrega acción masiva `Validar todos los pendientes` (solo `subido`/`resubido`) con `Promise.allSettled`, feedback resumido y actualización por listeners existentes (`expediente_archivos_updated`).
+- Preview documental pasa a panel lateral sticky en desktop (2 columnas). `Ver` actualiza panel, la tarjeta activa se resalta; mobile mantiene flujo apilado sin cambiar contratos de datos.
+- Bandeja `mesa-control/page`: solo presentación y derivación en pantalla; `loadCasos`, listeners y `deriveResumenDocumental` intactos. KPI “Nuevos por revisar” = etapas 1–2 con subestado pendiente o en proceso (misma noción que el tercer nivel del sort). “Bloqueados / rechazados” = unión visual de rechazo operativo o `correccion_requerida` (un expediente cuenta una vez).
+- `submittedToMesa` en seguimiento: un `useEffect` dependiente solo de `initialSubmittedToMesa` alinea estado local con el padre al cambiar la prop; el optimistic `true` tras “Enviar a mesa” no se revierte porque la prop no cambia hasta que persiste el inbox (sigue en `false` y el efecto no se re-ejecuta).
+- Filtro rápido “Corrección enviada” en dashboard asesor: misma categoría que `deriveResumenDocumental` / columna Documentación; contador en el chip desde `kpis.correccionEnviada` sin añadir quinta tarjeta KPI.
+
+- Refuerzo visual solo en capa UI: bandeja prioriza lectura de correcciones reenviadas; en expediente, conteos se derivan de `archivosResumen` en pantalla (sin tocar dominio ni repos).
+- En UI de mesa (expediente), `subido` y `resubido` no son valores del `<select>`: mesa solo confirma **validado** o **rechazado**; el estado automático se lee en el badge.
+- El rechazo **operativo** de etapa (modal “Rechazar” en seguimiento) sigue separado del rechazo **documental** (`estatus_revision === rechazado` + `comentario_mesa` en archivos). No se usa el subestado del expediente para correcciones documentales.
+- `resubido` indica “corrección enviada por asesor, pendiente de nueva revisión en mesa”. Si el asesor vuelve a subir mientras sigue `resubido`, se mantiene `resubido` para no perder la señal de “corrección en tránsito” hasta que mesa valide o rechace de nuevo.
+- `deriveResumenDocumental` aplica el orden acordado: faltantes → rechazados → resubidos → subidos → todos validados.
+- Bandeja mesa-control ordena primero `correccion_enviada`, luego `correccion_requerida`, luego `updatedAt` descendente; fila resaltada en tono sky para `correccion_enviada`.
+
+### Impacto técnico
+
+- `src/domain/expediente-archivos/types.ts`, `mock-indexeddb.repo.ts`, tests del helper.
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx` (badges y criterio de rechazo en paquete pre-envío).
+- `src/app/mesa-control/page.tsx`, `[id]/page.tsx`.
+- `package.json`: script `test` con `tsx --test`; devDependency `tsx`.
+
+## 2026-03-18 - Cierre fase documental mock
+
+### Decisiones
+
+- Revisión documental mesa-control `[id]`: la UI ya no expone `Ver`/`Validar`/`Rechazar` por fila; la fila solo selecciona. “Pendiente revisión” persiste como `subido` o `resubido` usando el último estatus pendiente guardado en estado local (`pendienteKindById`) para no perder la señal `correccion_enviada` al revertir desde `validado`.
+- `mesa-control/[id]` (bloque Revisión documental): se elimina patrón `select + Guardar` por acción directa. `Validar` persiste inmediato con `updateRevision`; `Rechazar` abre editor inline y exige comentario no vacío para guardar.
+- Se agrega acción masiva `Validar todos los pendientes` (solo `subido`/`resubido`) con `Promise.allSettled`, feedback resumido y actualización por listeners existentes (`expediente_archivos_updated`).
+- Preview documental pasa a panel lateral sticky en desktop (2 columnas). `Ver` actualiza panel, la tarjeta activa se resalta; mobile mantiene flujo apilado sin cambiar contratos de datos.
+- Se define para el mock que "revision documental completa" en Integracion significa: los 4 tipos requeridos (`ine`, `estado_cuenta`, `nss`, `direccion`) en estatus `validado`.
+- La obligatoriedad de comentario al rechazar se implementa en doble capa:
+  - UI mesa-control (validacion antes de guardar).
+  - Repositorio IndexedDB (`updateRevision`) como guardia de dominio local.
+- El reemplazo de archivo se mantiene con id deterministico `expedienteId::tipo_documento` para garantizar un unico archivo activo por tipo.
+- El reemplazo conserva tipo, sobrescribe blob/metadata y reinicia revision a `subido` con `comentario_mesa = null`.
+- Se conserva la arquitectura mock/local (sin Supabase, sin backend, sin localStorage para binarios).
+
+### Impacto tecnico
+
+- `src/domain/expediente-archivos/mock-indexeddb.repo.ts`: guardia de comentario obligatorio al rechazar.
+- `src/app/mesa-control/[id]/page.tsx`: validacion y manejo de error al guardar revision rechazada sin comentario.
+- `src/components/seguimiento/SeguimientoOperativoMock.tsx`:
+  - bloqueo de avance en etapa 1 si documentos no estan todos `validado`;
+  - bloqueo de envio desde asesor cuando haya faltantes o rechazados;
+  - visibilidad de estatus documental para asesor tambien despues de enviado a mesa.

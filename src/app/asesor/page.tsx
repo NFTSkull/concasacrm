@@ -1,155 +1,399 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
-import { usePrecalificacionesRepo } from "@/domain/precalificaciones";
 import { Button } from "@/components/ui/Button";
-import { FiltersBar } from "@/components/FiltersBar";
-import type { Precalificacion } from "@/domain/precalificaciones";
+import { formatDateTimeMx } from "@/lib/filters";
 import {
-  applyFilters,
-  formatDateTimeMx,
-  DEFAULT_FILTERS,
-  type FiltersState,
-} from "@/lib/filters";
-import { supabase } from "@/lib/supabaseClient";
+  MockExpedientesRepo,
+  type ExpedienteMock,
+  deriveResultadoRealExpediente,
+  type ResultadoRealExpediente,
+} from "@/domain/expedientes/mock.repo";
+import {
+  deriveEstadoDocumentacionColumnaAsesor,
+  deriveResumenDocumental,
+  MockExpedienteArchivosIndexedDbRepo,
+  type CategoriaResumenDocumental,
+  type EstadoDocumentacionColumnaAsesor,
+  type ExpedienteArchivoResumen,
+} from "@/domain/expediente-archivos";
+import {
+  subestadoOperativoBadgeClass,
+  subestadoOperativoLabel,
+} from "@/lib/subestadoOperativoUi";
 
-const MAX_NOTAS_LEN = 70;
-
-function truncateNotas(s: string | undefined): string {
-  const t = (s ?? "").trim();
-  if (t.length <= MAX_NOTAS_LEN) return t || "—";
-  return t.slice(0, MAX_NOTAS_LEN) + "…";
+function documentacionColumnaBadgeClass(c?: EstadoDocumentacionColumnaAsesor): string {
+  if (c === "completos") {
+    return "inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800";
+  }
+  if (c === "pendiente_aprobacion") {
+    return "inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800 ring-1 ring-blue-200";
+  }
+  if (c === "faltantes") {
+    return "inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700";
+  }
+  return "text-xs text-gray-400";
 }
 
-function DecisionBadge({ decision }: { decision?: string }) {
-  const d = decision ?? "pendiente";
-  const styles =
-    d === "aprobado"
-      ? "bg-green-100 text-green-800"
-      : d === "no_cumple"
-        ? "bg-red-100 text-red-800"
-        : "bg-amber-100 text-amber-800";
-  const label =
-    d === "aprobado"
-      ? "Aprobado"
-      : d === "no_cumple"
-        ? "No cumple"
-        : "Pendiente";
+function documentacionColumnaLabel(c?: EstadoDocumentacionColumnaAsesor): string {
+  if (!c) return "—";
+  const map: Record<EstadoDocumentacionColumnaAsesor, string> = {
+    faltantes: "Faltantes",
+    pendiente_aprobacion: "Pendiente de aprobación",
+    completos: "Completos",
+  };
+  return map[c];
+}
+
+function SubestadoBadge({ subestado }: { subestado?: string | null }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${subestadoOperativoBadgeClass(subestado)}`}
     >
-      {label}
+      {subestadoOperativoLabel(subestado)}
     </span>
   );
 }
 
-const pageSize = 50;
+interface PrecalificacionMockLocal {
+  id: string;
+  programa: string;
+  nss: string;
+  cliente_nombre: string;
+  telefono_cliente: string;
+  direccion_opcional: string;
+  asesorId: string;
+  createdAt: string;
+  decision: string;
+  monto_aprobado: number | null;
+  notas_revision: string;
+  submittedToMesa: boolean;
+  resultadoReal: ResultadoRealExpediente;
+  etapaActual?: number | null;
+  /** Copia del bloque operativo del repo; el subestado de UI sale de `operativo.subestado`. */
+  operativo: ExpedienteMock["operativo"];
+  fechaCita?: string | null;
+  updatedAtOperativo?: string | null;
+}
+
+const DECISION_OPTIONS = [
+  { value: "", label: "Todas" },
+  { value: "pendiente", label: "Pendiente" },
+  { value: "aprobado", label: "Aprobado" },
+  { value: "no_cumple", label: "No cumple" },
+] as const;
+
+const ESTATUS_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "pendiente", label: "Pendiente" },
+  { value: "en_validacion_mesa", label: "En validación por mesa" },
+  { value: "en_proceso", label: "En proceso" },
+  { value: "aprobado", label: "Aprobado" },
+  { value: "rechazado", label: "Rechazado" },
+] as const;
+
+const RESULTADO_REAL_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "aprobado_editor", label: "Aprobado (editor)" },
+  { value: "no_cumple_editor", label: "No cumple (editor)" },
+  { value: "pendiente_editor", label: "Pendiente (editor)" },
+  { value: "en_tramite", label: "En trámite" },
+  { value: "rechazado_mesa", label: "Rechazado (mesa)" },
+] as const;
+
+const ETAPA_EXACTA_OPTIONS = [
+  { value: "", label: "Todas" },
+  { value: "1", label: "1. Integración" },
+  { value: "2", label: "2. Registro" },
+  { value: "3", label: "3. Listo para cita de biométricos" },
+  { value: "4", label: "4. Cita agendada (biométricos)" },
+  { value: "5", label: "5. Biometría (resultado)" },
+  { value: "6", label: "6. Inscripción" },
+  { value: "7", label: "7. Notificación" },
+  { value: "8", label: "8. Acuse / Aviso de retención" },
+  { value: "9", label: "9. Listo para agendar firma" },
+  { value: "10", label: "10. Cita para firma" },
+  { value: "11", label: "11. Firmado" },
+  { value: "12", label: "12. Pago a ConCasa" },
+] as const;
+
+function etapaActualToTexto(etapaActual?: number | null): string {
+  if (etapaActual == null) return "—";
+  const etapa = Number(etapaActual);
+  if (!Number.isFinite(etapa)) return "—";
+
+  const found = ETAPA_EXACTA_OPTIONS.find((o) => o.value === String(etapa));
+  return found?.label ?? "—";
+}
+
+interface AsesorFiltersState {
+  buscar: string;
+  decision: string;
+  estatusOperativo: string;
+  resultadoReal: string;
+  programa: string;
+  etapaExacta: string;
+  fechaDesde: string;
+  fechaHasta: string;
+}
+
+const INITIAL_FILTERS: AsesorFiltersState = {
+  buscar: "",
+  decision: "",
+  estatusOperativo: "",
+  resultadoReal: "",
+  programa: "",
+  etapaExacta: "",
+  fechaDesde: "",
+  fechaHasta: "",
+};
+
+type QuickFilterAsesor =
+  | "todos"
+  | "en_tramite"
+  | "correccion_requerida"
+  | "correccion_enviada"
+  | "rechazados_mesa";
 
 export default function AsesorDashboardPage() {
   const { sessionRepo, currentUser } = useSessionRepo();
-  const repo = usePrecalificacionesRepo();
-  const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
-  const [list, setList] = useState<Precalificacion[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const pageRef = useRef(page);
-  useEffect(() => {
-    pageRef.current = page;
-  }, [page]);
+  const router = useRouter();
+  const [filters, setFilters] = useState<AsesorFiltersState>(INITIAL_FILTERS);
+  const [quickFilter, setQuickFilter] = useState<QuickFilterAsesor>("todos");
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const repo = useMemo(() => new MockExpedientesRepo(), []);
+  const archivosRepo = useMemo(() => new MockExpedienteArchivosIndexedDbRepo(), []);
+  const [mockPrecalList, setMockPrecalList] = useState<
+    PrecalificacionMockLocal[]
+  >([]);
+  const [resumenArchivosPorId, setResumenArchivosPorId] = useState<
+    Record<string, ExpedienteArchivoResumen[] | undefined>
+  >({});
+  const expedienteIdsRef = useRef<string[]>([]);
 
-  const fullList = useMemo(
-    () => (currentUser ? list : []),
-    [currentUser, list]
-  );
+  const resumenDocumentalPorId = useMemo(() => {
+    const out: Record<string, CategoriaResumenDocumental | undefined> = {};
+    for (const p of mockPrecalList) {
+      const r = resumenArchivosPorId[p.id];
+      if (!r) continue;
+      out[p.id] = deriveResumenDocumental(r);
+    }
+    return out;
+  }, [mockPrecalList, resumenArchivosPorId]);
 
-  useEffect(() => {
-    if (!currentUser) return;
-    repo
-      .listPageForUser(
-        { email: currentUser.email, role: currentUser.role },
-        { page, pageSize }
-      )
-      .then(({ data, count }) => {
-        setList(data);
-        setTotalCount(count);
-        const totalPages = Math.ceil(count / pageSize) || 1;
-        setPage((p) => (totalPages > 0 && p > totalPages ? totalPages : p));
-      });
-  }, [currentUser, repo, page, pageSize]);
-
-  const refreshPage = useCallback(async () => {
-    if (!currentUser) return;
-    const { data, count } = await repo.listPageForUser(
-      { email: currentUser.email, role: currentUser.role },
-      { page: pageRef.current, pageSize }
-    );
-    setList(data);
-    setTotalCount(count);
-    const totalPages = Math.ceil(count / pageSize) || 1;
-    setPage((p) => (totalPages > 0 && p > totalPages ? totalPages : p));
-  }, [currentUser, repo, pageSize]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    const debounceRef = { timeoutId: null as ReturnType<typeof setTimeout> | null };
-    const channelRef = { current: null as ReturnType<typeof supabase.channel> | null };
-    (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) return;
-      const ch = supabase
-        .channel("precalificaciones-asesor-live")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "precalificaciones",
-            filter: `asesorId=eq.${uid}`,
-          },
-          (payload: { eventType?: string }) => {
-            if (payload.eventType !== "INSERT" && payload.eventType !== "UPDATE") return;
-            if (payload.eventType === "INSERT") {
-              if (pageRef.current === 1) {
-                refreshPage();
-              } else {
-                setPage(1);
-              }
-              return;
-            }
-            if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
-            debounceRef.timeoutId = setTimeout(() => {
-              refreshPage();
-              debounceRef.timeoutId = null;
-            }, 300);
-          }
-        )
-        .subscribe();
-      channelRef.current = ch;
-    })();
-    return () => {
-      if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+  const mapExpedienteToLegacy = useCallback((e: ExpedienteMock): PrecalificacionMockLocal => {
+    return {
+      id: e.id,
+      programa: e.base.programa,
+      nss: e.base.nss,
+      cliente_nombre: e.base.cliente_nombre,
+      telefono_cliente: e.base.telefono_cliente,
+      direccion_opcional: e.base.direccion_opcional,
+      asesorId: e.base.asesorId,
+      createdAt: e.base.createdAt,
+      decision: e.editorDecision.decision,
+      monto_aprobado: e.editorDecision.monto_aprobado,
+      notas_revision: e.editorDecision.notas_revision,
+      submittedToMesa: e.operativo.submittedToMesa,
+      resultadoReal: deriveResultadoRealExpediente(e),
+      etapaActual: e.operativo.etapaActual,
+      operativo: e.operativo,
+      fechaCita: e.operativo.fechaCita,
+      updatedAtOperativo: e.operativo.updatedAt,
     };
-  }, [currentUser, refreshPage]);
+  }, []);
 
-  const filteredList = useMemo(
-    () => applyFilters(fullList, filters),
-    [fullList, filters]
+  const fetchResumenArchivosPorIds = useCallback(
+    async (ids: string[]) => {
+      if (typeof window === "undefined" || ids.length === 0) return;
+      const entries = await Promise.all(
+        ids.map(async (expId) => {
+          try {
+            const r = await archivosRepo.listResumenByExpediente(expId);
+            return [expId, r] as const;
+          } catch {
+            return [expId, [] as ExpedienteArchivoResumen[]] as const;
+          }
+        }),
+      );
+      setResumenArchivosPorId((prev) => {
+        const next = { ...prev };
+        for (const [id, rows] of entries) {
+          next[id] = rows;
+        }
+        return next;
+      });
+    },
+    [archivosRepo],
   );
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const canPrevious = page > 1;
-  const canNext = page < totalPages;
-  const handlePrevious = useCallback(() => {
-    if (canPrevious) setPage((p) => p - 1);
-  }, [canPrevious]);
-  const handleNext = useCallback(() => {
-    if (canNext) setPage((p) => p + 1);
-  }, [canNext]);
+  const reloadPrecalificaciones = useCallback(() => {
+    if (!currentUser) return;
+    void repo
+      .listForAsesor(currentUser.email)
+      .then((list) => {
+        const mapped = list.map(mapExpedienteToLegacy);
+        setMockPrecalList(mapped);
+        expedienteIdsRef.current = mapped.map((p) => p.id);
+        void fetchResumenArchivosPorIds(mapped.map((p) => p.id));
+      })
+      .catch(() => {
+        setMockPrecalList([]);
+        expedienteIdsRef.current = [];
+      });
+  }, [currentUser, repo, mapExpedienteToLegacy, fetchResumenArchivosPorIds]);
+
+  const programasUnicos = useMemo(() => {
+    const set = new Set(mockPrecalList.map((p) => (p.programa ?? "").trim()).filter(Boolean));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [mockPrecalList]);
+
+  const filteredMockList = useMemo(() => {
+    let list = mockPrecalList;
+
+    const term = (filters.buscar ?? "").trim().toLowerCase();
+    if (term) {
+      list = list.filter(
+        (p) =>
+          (p.cliente_nombre ?? "").toLowerCase().includes(term) ||
+          (p.telefono_cliente ?? "")
+            .replace(/\D/g, "")
+            .includes(term.replace(/\D/g, "")) ||
+          (p.programa ?? "").toLowerCase().includes(term)
+      );
+    }
+
+    if (filters.decision) {
+      list = list.filter((p) => (p.decision ?? "pendiente") === filters.decision);
+    }
+    if (filters.estatusOperativo) {
+      list = list.filter(
+        (p) =>
+          (p.operativo?.subestado ?? "pendiente") === filters.estatusOperativo
+      );
+    }
+    if (filters.resultadoReal) {
+      list = list.filter((p) => p.resultadoReal === filters.resultadoReal);
+    }
+    if (filters.etapaExacta) {
+      const etapa = Number(filters.etapaExacta);
+      list = list.filter((p) => p.etapaActual === etapa);
+    }
+    if (filters.programa) {
+      list = list.filter((p) => (p.programa ?? "").trim() === filters.programa);
+    }
+
+    if (filters.fechaDesde) {
+      const desde = new Date(filters.fechaDesde);
+      desde.setHours(0, 0, 0, 0);
+      list = list.filter((p) => new Date(p.createdAt) >= desde);
+    }
+    if (filters.fechaHasta) {
+      const hasta = new Date(filters.fechaHasta);
+      hasta.setHours(23, 59, 59, 999);
+      list = list.filter((p) => new Date(p.createdAt) <= hasta);
+    }
+
+    if (quickFilter === "en_tramite") {
+      list = list.filter((p) => p.resultadoReal === "en_tramite");
+    } else if (quickFilter === "correccion_requerida") {
+      list = list.filter(
+        (p) => resumenDocumentalPorId[p.id] === "correccion_requerida",
+      );
+    } else if (quickFilter === "correccion_enviada") {
+      list = list.filter(
+        (p) => resumenDocumentalPorId[p.id] === "correccion_enviada",
+      );
+    } else if (quickFilter === "rechazados_mesa") {
+      list = list.filter((p) => p.resultadoReal === "rechazado_mesa");
+    }
+
+    return list;
+  }, [mockPrecalList, filters, quickFilter, resumenDocumentalPorId]);
+
+  const kpis = useMemo(() => {
+    const total = mockPrecalList.length;
+    const aprobadosEditor = mockPrecalList.filter((p) => p.resultadoReal === "aprobado_editor").length;
+    const noCumple = mockPrecalList.filter((p) => p.resultadoReal === "no_cumple_editor").length;
+    const enTramite = mockPrecalList.filter((p) => p.resultadoReal === "en_tramite").length;
+    const rechazadosMesa = mockPrecalList.filter((p) => p.resultadoReal === "rechazado_mesa").length;
+    let correccionRequerida = 0;
+    let correccionEnviada = 0;
+    for (const p of mockPrecalList) {
+      const doc = resumenDocumentalPorId[p.id];
+      if (doc === "correccion_requerida") correccionRequerida += 1;
+      if (doc === "correccion_enviada") correccionEnviada += 1;
+    }
+    return {
+      total,
+      aprobadosEditor,
+      noCumple,
+      enTramite,
+      rechazadosMesa,
+      correccionRequerida,
+      correccionEnviada,
+    };
+  }, [mockPrecalList, resumenDocumentalPorId]);
+
+  const hasActiveFilters =
+    quickFilter !== "todos" ||
+    filters.buscar !== "" ||
+    filters.decision !== "" ||
+    filters.estatusOperativo !== "" ||
+    filters.resultadoReal !== "" ||
+    filters.etapaExacta !== "" ||
+    filters.programa !== "" ||
+    filters.fechaDesde !== "" ||
+    filters.fechaHasta !== "";
+
+  const handleClearFilters = () => {
+    setFilters(INITIAL_FILTERS);
+    setQuickFilter("todos");
+  };
+
+  useEffect(() => {
+    reloadPrecalificaciones();
+  }, [reloadPrecalificaciones]);
+
+  useEffect(() => {
+    const storageHandler = (e: StorageEvent) => {
+      if (
+        e.key === "precalificaciones_mock" ||
+        e.key === "decisions_mock" ||
+        e.key === "mesa_control_inbox"
+      ) {
+        reloadPrecalificaciones();
+      }
+    };
+    const customHandler = () => {
+      reloadPrecalificaciones();
+    };
+    const archivosHandler = (e: Event) => {
+      const ce = e as CustomEvent<{ expedienteId?: string | null }>;
+      const expId = ce.detail?.expedienteId;
+      if (expId) {
+        void fetchResumenArchivosPorIds([expId]);
+      } else {
+        void fetchResumenArchivosPorIds(expedienteIdsRef.current);
+      }
+    };
+    window.addEventListener("storage", storageHandler);
+    window.addEventListener("decisions_mock_updated", customHandler);
+    window.addEventListener("mesa_control_inbox_updated", customHandler);
+    window.addEventListener("expediente_archivos_updated", archivosHandler as EventListener);
+    return () => {
+      window.removeEventListener("storage", storageHandler);
+      window.removeEventListener("decisions_mock_updated", customHandler);
+      window.removeEventListener("mesa_control_inbox_updated", customHandler);
+      window.removeEventListener(
+        "expediente_archivos_updated",
+        archivosHandler as EventListener,
+      );
+    };
+  }, [reloadPrecalificaciones, fetchResumenArchivosPorIds]);
 
   if (currentUser === undefined) {
     return (
@@ -184,7 +428,18 @@ export default function AsesorDashboardPage() {
             </span>
             <Button
               variant="outline"
-              onClick={() => sessionRepo.logout()}
+              onClick={async () => {
+                try {
+                  await sessionRepo.logout();
+                } catch (err) {
+                  console.error("[logout] error en logout asesor:", err);
+                }
+                if (typeof window !== "undefined") {
+                  window.localStorage.removeItem("mock_role");
+                  window.localStorage.removeItem("mock_email");
+                  window.location.href = "/login";
+                }
+              }}
               className="min-h-[44px] touch-manipulation sm:min-h-0"
             >
               Cerrar sesión
@@ -192,222 +447,471 @@ export default function AsesorDashboardPage() {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:max-w-7xl lg:px-6 xl:max-w-[1400px]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h2 className="text-lg font-medium text-gray-900 sm:text-xl">
-            Mis precalificaciones
+      <main className="mx-auto w-full max-w-5xl space-y-3 px-3 py-3 sm:px-4 sm:py-4 lg:max-w-7xl lg:px-6 xl:max-w-[1400px]">
+        <div className="flex items-baseline justify-between gap-2 border-b border-gray-200/80 pb-2">
+          <h2 className="text-sm font-semibold text-gray-900 sm:text-base">
+            Mis expedientes
           </h2>
-          <Link href="/asesor/nueva" className="w-full sm:w-auto">
-            <Button
-              variant="primary"
-              className="min-h-[44px] w-full touch-manipulation sm:min-h-0 sm:w-auto"
-            >
-              Nueva precalificación
-            </Button>
-          </Link>
         </div>
 
-        <FiltersBar
-          filters={filters}
-          setFilters={setFilters}
-          asesorOptions={[]}
-          showAsesorFilter={false}
-          showProgramaFilter={false}
-        />
-
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
-          <span className="text-sm text-gray-600">
-            Página {page} de {totalPages} · Total: {totalCount}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={!canPrevious}
-            >
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleNext}
-              disabled={!canNext}
-            >
-              Siguiente
-            </Button>
+        {/* KPIs principales (4); aprobadosEditor, noCumple, correccionEnviada siguen en objeto `kpis` */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Total
+            </p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
+              {kpis.total}
+            </p>
+          </div>
+          <div className="rounded-md border border-blue-200/80 bg-blue-50/40 px-3 py-2 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+              En trámite
+            </p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-blue-900">
+              {kpis.enTramite}
+            </p>
+          </div>
+          <div className="rounded-md border border-amber-200/80 bg-amber-50/50 px-3 py-2 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+              Corrección requerida
+            </p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-amber-950">
+              {kpis.correccionRequerida}
+            </p>
+            <p className="mt-0.5 text-[9px] leading-tight text-amber-800/90">
+              Doc. rechazada por mesa
+            </p>
+          </div>
+          <div className="rounded-md border border-red-200/80 bg-red-50/40 px-3 py-2 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-red-800">
+              Rechazados por mesa
+            </p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-red-900">
+              {kpis.rechazadosMesa}
+            </p>
+            <p className="mt-0.5 text-[9px] leading-tight text-red-800/85">
+              Operativo del trámite
+            </p>
           </div>
         </div>
 
-        {/* Vista móvil: tarjetas (solo asesor, no afecta web revisor/admin) */}
-        <div className="space-y-3 sm:hidden">
-          {filteredList.length === 0 ? (
-            <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500">
-              No hay precalificaciones. Crea una nueva.
+        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="asesor-buscar" className="sr-only">
+                Buscar
+              </label>
+              <input
+                id="asesor-buscar"
+                type="search"
+                value={filters.buscar}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, buscar: e.target.value }))
+                }
+                placeholder="Buscar cliente, teléfono o programa…"
+                className="w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
-          ) : (
-            filteredList.map((p) => {
-              const telefono = p.telefono_cliente;
-              const digits = telefono?.replace(/\D/g, "");
-              const waHref = digits ? `https://wa.me/52${digits}` : null;
-              return (
-                <div
-                  key={p.id}
-                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            <Link href="/asesor/nueva" className="shrink-0">
+              <Button
+                variant="primary"
+                className="h-9 w-full whitespace-nowrap px-3 text-sm lg:w-auto"
+              >
+                Nueva precalificación
+              </Button>
+            </Link>
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="tablist"
+              aria-label="Filtros rápidos"
+            >
+              {(
+                [
+                  { id: "todos" as const, label: "Todos" },
+                  { id: "en_tramite" as const, label: "En trámite" },
+                  {
+                    id: "correccion_requerida" as const,
+                    label: "Corrección requerida",
+                  },
+                  {
+                    id: "correccion_enviada" as const,
+                    label: `Corrección enviada (${kpis.correccionEnviada})`,
+                  },
+                  { id: "rechazados_mesa" as const, label: "Rechazados por mesa" },
+                ] satisfies { id: QuickFilterAsesor; label: string }[]
+              ).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={quickFilter === id}
+                  onClick={() => setQuickFilter(id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    quickFilter === id
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  }`}
                 >
-                  <div className="space-y-2 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
-                      <span className="text-xs text-gray-500">
-                        {formatDateTimeMx(p.createdAt)}
-                      </span>
-                      <DecisionBadge decision={p.decision} />
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-500">Cliente: </span>
-                      <span className="text-gray-900">{p.cliente_nombre ?? "—"}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-500">Programa: </span>
-                      <span className="text-gray-900">{p.programa}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-500">NSS: </span>
-                      <span className="text-gray-900">{p.nss}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-500">Teléfono: </span>
-                      {waHref ? (
-                        <a
-                          href={waHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline break-all"
-                        >
-                          {telefono}
-                        </a>
-                      ) : (
-                        <span className="text-gray-900">—</span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-500">Monto: </span>
-                      <span className="text-gray-900">
-                        {p.decision === "no_cumple"
-                          ? "—"
-                          : p.monto_aprobado != null
-                            ? `$${p.monto_aprobado.toLocaleString()}`
-                            : "—"}
-                      </span>
-                    </div>
-                    {(p.notas_revision ?? "").trim() && (
-                      <div>
-                        <span className="font-medium text-gray-500">Notas: </span>
-                        <span className="text-gray-600">
-                          {truncateNotas(p.notas_revision)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="text-xs font-medium text-blue-700 hover:underline"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdvancedFiltersOpen((o) => !o)}
+            className="mt-2 flex w-full items-center justify-between rounded-md border border-dashed border-gray-200 bg-gray-50/50 px-2 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-100"
+            aria-expanded={advancedFiltersOpen}
+          >
+            <span>Filtros avanzados</span>
+            <span className="text-gray-400" aria-hidden>
+              {advancedFiltersOpen ? "▲" : "▼"}
+            </span>
+          </button>
+          {advancedFiltersOpen && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-decision"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Decisión
+                  </label>
+                  <select
+                    id="asesor-decision"
+                    value={filters.decision}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, decision: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {DECISION_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              );
-            })
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-resultado-real"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Resultado real
+                  </label>
+                  <select
+                    id="asesor-resultado-real"
+                    value={filters.resultadoReal}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        resultadoReal: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {RESULTADO_REAL_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-programa"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Programa
+                  </label>
+                  <select
+                    id="asesor-programa"
+                    value={filters.programa}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, programa: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    {programasUnicos.map((prog) => (
+                      <option key={prog} value={prog}>
+                        {prog}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-etapa-exacta"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Etapa exacta
+                  </label>
+                  <select
+                    id="asesor-etapa-exacta"
+                    value={filters.etapaExacta}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, etapaExacta: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {ETAPA_EXACTA_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-estatus"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Estatus operativo
+                  </label>
+                  <select
+                    id="asesor-estatus"
+                    value={filters.estatusOperativo}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        estatusOperativo: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {ESTATUS_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-fecha-desde"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Fecha desde
+                  </label>
+                  <input
+                    id="asesor-fecha-desde"
+                    type="date"
+                    value={filters.fechaDesde}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, fechaDesde: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label
+                    htmlFor="asesor-fecha-hasta"
+                    className="mb-0.5 block text-[11px] font-medium text-gray-600"
+                  >
+                    Fecha hasta
+                  </label>
+                  <input
+                    id="asesor-fecha-hasta"
+                    type="date"
+                    value={filters.fechaHasta}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, fechaHasta: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Vista escritorio: tabla con scroll horizontal si no cabe */}
-        <div className="hidden sm:block">
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[1100px] divide-y divide-gray-200 lg:min-w-0">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
-                    Creada
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Programa
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    NSS
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Cliente
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Teléfono
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Decisión
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Notas
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                    Monto aprobado
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {filteredList.length === 0 ? (
+        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto px-2 py-1.5 sm:px-3 sm:py-2">
+            {filteredMockList.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-gray-500 sm:text-sm">
+                  {mockPrecalList.length === 0
+                    ? "Aún no hay precalificaciones guardadas para este asesor."
+                    : "No hay resultados con los filtros aplicados. Pruebe otros criterios o limpie los filtros."}
+                </p>
+              </div>
+            ) : (
+              <table className="min-w-[760px] w-full divide-y divide-gray-200 text-xs">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td
-                      colSpan={9}
-                      className="px-4 py-8 text-center text-sm text-gray-500"
-                    >
-                      No hay precalificaciones. Crea una nueva.
-                    </td>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Cliente
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Programa
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Resultado real
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Documentación
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Etapa
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Estatus op.
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Monto
+                    </th>
+                    <th className="px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-gray-500">
+                      Actualización
+                    </th>
                   </tr>
-                ) : (
-                  filteredList.map((p) => {
-                    const telefono = p.telefono_cliente;
-                    const digits = telefono?.replace(/\D/g, "");
-                    const waHref = digits ? `https://wa.me/52${digits}` : null;
-                    return (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
-                          {formatDateTimeMx(p.createdAt)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                          {p.programa}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {p.nss}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {p.cliente_nombre ?? "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {waHref ? (
-                            <a
-                              href={waHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline break-all"
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredMockList
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(b.createdAt).getTime() -
+                        new Date(a.createdAt).getTime()
+                    )
+                    .map((p) => {
+                      const decision = p.decision ?? "pendiente";
+                      const resultadoReal = p.resultadoReal;
+                      const montoDisplay =
+                        decision === "no_cumple"
+                          ? "—"
+                          : decision === "aprobado" && p.monto_aprobado != null
+                            ? `$${p.monto_aprobado.toLocaleString()}`
+                            : "—";
+                      const etapaDisplay = etapaActualToTexto(p.etapaActual);
+                      const subestadoDisplay =
+                        p.operativo?.subestado ?? "pendiente";
+                      const resultadoBadge = (() => {
+                        switch (resultadoReal) {
+                          case "rechazado_mesa":
+                            return {
+                              label: "Rechazado (mesa)",
+                              className:
+                                "bg-red-100 text-red-800 border border-red-200",
+                            };
+                          case "en_tramite":
+                            return {
+                              label: "En trámite",
+                              className:
+                                "bg-blue-100 text-blue-800 border border-blue-200",
+                            };
+                          case "no_cumple_editor":
+                            return {
+                              label: "No cumple (editor)",
+                              className:
+                                "bg-red-100 text-red-800 border border-red-200",
+                            };
+                          case "aprobado_editor":
+                            return {
+                              label: "Aprobado (editor)",
+                              className:
+                                "bg-green-100 text-green-800 border border-green-200",
+                            };
+                          case "pendiente_editor":
+                          default:
+                            return {
+                              label: "Pendiente (editor)",
+                              className:
+                                "bg-amber-100 text-amber-800 border border-amber-200",
+                            };
+                        }
+                      })();
+                      const updatedDisplay = p.updatedAtOperativo
+                        ? formatDateTimeMx(p.updatedAtOperativo)
+                        : "—";
+
+                      const rowsDoc = resumenArchivosPorId[p.id];
+                      const estadoDocumentacion =
+                        rowsDoc === undefined
+                          ? undefined
+                          : deriveEstadoDocumentacionColumnaAsesor(rowsDoc, p.etapaActual);
+
+                      const handleRowOpen = (e: React.MouseEvent<HTMLTableRowElement>) => {
+                        const targetEl = e.target as HTMLElement | null;
+                        if (targetEl?.closest("a,button")) return;
+                        router.push(`/asesor/expediente/${p.id}`);
+                      };
+
+                      const handleRowKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        const targetEl = e.target as HTMLElement | null;
+                        if (targetEl?.closest("a,button")) return;
+                        e.preventDefault();
+                        router.push(`/asesor/expediente/${p.id}`);
+                      };
+
+                      return (
+                        <tr
+                          key={p.id}
+                          className="cursor-pointer hover:bg-slate-50/80"
+                          tabIndex={0}
+                          role="link"
+                          onClick={handleRowOpen}
+                          onKeyDown={handleRowKeyDown}
+                          aria-label={`Abrir expediente ${p.id}`}
+                        >
+                          <td className="max-w-[140px] truncate px-2 py-1.5 font-medium text-gray-900">
+                            {p.cliente_nombre || "—"}
+                          </td>
+                          <td className="max-w-[100px] truncate px-2 py-1.5 text-gray-600">
+                            {p.programa}
+                          </td>
+                          <td className="max-w-[7.5rem] px-2 py-1.5 sm:max-w-none sm:whitespace-nowrap">
+                            <span
+                              className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:text-xs ${resultadoBadge.className}`}
                             >
-                              {telefono}
-                            </a>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3">
-                          <DecisionBadge decision={p.decision} />
-                        </td>
-                        <td className="max-w-[200px] truncate px-4 py-3 text-sm text-gray-600">
-                          {truncateNotas(p.notas_revision)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {p.decision === "no_cumple"
-                            ? "—"
-                            : p.monto_aprobado != null
-                              ? `$${p.monto_aprobado.toLocaleString()}`
-                              : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                              <span className="truncate sm:whitespace-normal">
+                                {resultadoBadge.label}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="max-w-[140px] px-2 py-1.5 align-top">
+                            <span
+                              className={`${documentacionColumnaBadgeClass(estadoDocumentacion)} text-[10px] sm:text-xs`}
+                            >
+                              {documentacionColumnaLabel(estadoDocumentacion)}
+                            </span>
+                          </td>
+                          <td className="max-w-[min(200px,28vw)] px-2 py-1.5 align-top text-[10px] leading-snug text-gray-600 sm:text-xs">
+                            <span className="line-clamp-2" title={etapaDisplay}>
+                              {etapaDisplay}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5">
+                            <SubestadoBadge subestado={subestadoDisplay} />
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-gray-600">
+                            {montoDisplay}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-gray-600 sm:text-xs">
+                            {updatedDisplay}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            )}
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );

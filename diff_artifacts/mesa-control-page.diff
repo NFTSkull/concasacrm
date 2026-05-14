@@ -1,0 +1,355 @@
+diff --git a/src/app/mesa-control/page.tsx b/src/app/mesa-control/page.tsx
+new file mode 100644
+index 0000000..fdd6bb0
+--- /dev/null
++++ b/src/app/mesa-control/page.tsx
+@@ -0,0 +1,349 @@
++"use client";
++
++import Link from "next/link";
++import { useCallback, useEffect, useMemo, useState } from "react";
++import { useSessionRepo } from "@/domain/session";
++import { Button } from "@/components/ui/Button";
++import { Input } from "@/components/ui/Input";
++import { Select } from "@/components/ui/Select";
++import {
++  ETAPAS_LABELS,
++  getTodayYMD,
++  type CasoMock,
++} from "./mockData";
++import { MockExpedientesRepo, type ExpedienteMock } from "@/domain/expedientes/mock.repo";
++
++function formatDateTime(iso: string): string {
++  try {
++    const d = new Date(iso);
++    if (Number.isNaN(d.getTime())) return "—";
++    return d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
++  } catch {
++    return "—";
++  }
++}
++
++function formatDate(iso?: string): string {
++  if (!iso) return "—";
++  try {
++    const d = new Date(iso);
++    if (Number.isNaN(d.getTime())) return "—";
++    return d.toLocaleDateString("es-MX");
++  } catch {
++    return "—";
++  }
++}
++
++export default function MesaControlPage() {
++  const { sessionRepo, currentUser } = useSessionRepo();
++  const repo = useMemo(() => new MockExpedientesRepo(), []);
++  const [casos, setCasos] = useState<CasoMock[]>([]);
++  const [buscar, setBuscar] = useState("");
++  const [etapaFilter, setEtapaFilter] = useState<string>("todas");
++  const [subestadoFilter, setSubestadoFilter] = useState<string>("todas");
++  const [soloCitasHoy, setSoloCitasHoy] = useState(false);
++
++  const todayYMD = getTodayYMD();
++
++  function toYMD(iso?: string | null): string | null {
++    if (!iso) return null;
++    const d = new Date(iso);
++    if (Number.isNaN(d.getTime())) return null;
++    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
++      d.getDate(),
++    ).padStart(2, "0")}`;
++  }
++
++  const mapExpToCaso = useCallback((exp: ExpedienteMock): CasoMock => {
++    return {
++      id: exp.id,
++      cliente_nombre: exp.base.cliente_nombre,
++      telefono_cliente: exp.base.telefono_cliente,
++      programa: exp.base.programa,
++      asesorNombre: exp.base.asesorId,
++      etapaActual: exp.operativo.etapaActual ?? 1,
++      subestado: exp.operativo.subestado ?? "pendiente",
++      motivoRechazo: exp.operativo.motivoRechazo ?? undefined,
++      fechaCita: exp.operativo.fechaCita ?? undefined,
++      updatedAt: exp.operativo.updatedAt ?? new Date().toISOString(),
++      submittedToMesa: exp.operativo.submittedToMesa,
++    };
++  }, []);
++
++  const isCitaHoy = useCallback(
++    (c: CasoMock) => toYMD(c.fechaCita) === todayYMD,
++    [todayYMD],
++  );
++
++  const loadCasos = useCallback(() => {
++    void repo.listForMesa().then((exps) => {
++      setCasos(exps.map(mapExpToCaso));
++    });
++  }, [mapExpToCaso, repo]);
++
++  useEffect(() => {
++    loadCasos();
++    if (typeof window === "undefined") return;
++
++    const storageHandler = (e: StorageEvent) => {
++      if (e.key === "mesa_control_inbox") loadCasos();
++    };
++    const customHandler = () => loadCasos();
++
++    window.addEventListener("storage", storageHandler);
++    window.addEventListener("mesa_control_inbox_updated", customHandler);
++    return () => {
++      window.removeEventListener("storage", storageHandler);
++      window.removeEventListener("mesa_control_inbox_updated", customHandler);
++    };
++  }, [loadCasos]);
++
++  const allCasos = useMemo(() => {
++    const list = [...casos];
++
++    const getPriority = (c: CasoMock) => {
++      const isRechazado = c.subestado === "rechazado";
++      const isPendIntegra =
++        [1, 2].includes(c.etapaActual) &&
++        (c.subestado === "pendiente" || c.subestado === "en_proceso");
++
++      if (isRechazado) return 0; // 1) rechazados primero
++      if (isCitaHoy(c)) return 1; // 2) citas de hoy
++      if (isPendIntegra) return 2; // 3) etapas 1-2 pendiente/en_proceso
++      return 3; // 4) resto
++    };
++
++    return list.sort((a, b) => {
++      const pa = getPriority(a);
++      const pb = getPriority(b);
++      if (pa !== pb) return pa - pb;
++      return (
++        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
++      );
++    });
++  }, [casos, isCitaHoy]);
++
++  const filteredCasos = useMemo(() => {
++    let list = [...allCasos];
++    if (buscar.trim()) {
++      const q = buscar.trim().toLowerCase();
++      list = list.filter(
++        (c) =>
++          c.cliente_nombre.toLowerCase().includes(q) ||
++          c.telefono_cliente.includes(q)
++      );
++    }
++    if (etapaFilter !== "todas") {
++      const etapa = Number(etapaFilter);
++      list = list.filter((c) => c.etapaActual === etapa);
++    }
++    if (subestadoFilter !== "todas") {
++      list = list.filter((c) => c.subestado === subestadoFilter);
++    }
++    if (soloCitasHoy) {
++      list = list.filter((c) => isCitaHoy(c));
++    }
++    return list;
++  }, [allCasos, buscar, etapaFilter, subestadoFilter, soloCitasHoy, isCitaHoy]);
++
++  const kpis = useMemo(() => {
++    const enProceso = allCasos.filter((c) => c.subestado === "en_proceso").length;
++    const rechazados = allCasos.filter((c) => c.subestado === "rechazado").length;
++    const citasHoy = allCasos.filter((c) => isCitaHoy(c)).length;
++    const pendientesIntegrar = allCasos.filter(
++      (c) => [1, 2].includes(c.etapaActual) && ["pendiente", "en_proceso"].includes(c.subestado)
++    ).length;
++    return { enProceso, rechazados, citasHoy, pendientesIntegrar };
++  }, [allCasos, isCitaHoy]);
++
++  if (currentUser === undefined) {
++    return (
++      <div className="flex min-h-screen items-center justify-center bg-gray-100">
++        <p className="text-gray-500">Cargando...</p>
++      </div>
++    );
++  }
++  if (!currentUser) {
++    return (
++      <div className="flex min-h-screen items-center justify-center bg-gray-100">
++        <p className="text-gray-600">
++          <Link href="/login" className="text-blue-600 underline">
++            Inicia sesión
++          </Link>
++        </p>
++      </div>
++    );
++  }
++
++  return (
++    <div className="min-h-screen bg-gray-50">
++      <header className="border-b border-gray-200 bg-white px-4 py-3">
++        <div className="mx-auto flex max-w-7xl items-center justify-between">
++          <h1 className="text-lg font-semibold text-gray-900">
++            ConCasa CRM · Mesa de control
++          </h1>
++          <div className="flex items-center gap-3">
++            <span className="text-sm text-gray-500">{currentUser.email}</span>
++            <Button
++              variant="outline"
++              onClick={async () => {
++                try {
++                  await sessionRepo.logout();
++                } catch (err) {
++                  console.error("[logout] mesa-control:", err);
++                }
++                if (typeof window !== "undefined") {
++                  window.localStorage.removeItem("mock_role");
++                  window.localStorage.removeItem("mock_email");
++                  window.location.href = "/login";
++                }
++              }}
++            >
++              Cerrar sesión
++            </Button>
++          </div>
++        </div>
++      </header>
++
++      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
++        <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
++          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
++            <p className="text-xs font-medium uppercase text-gray-500">En proceso</p>
++            <p className="text-2xl font-semibold text-gray-900">{kpis.enProceso}</p>
++          </div>
++          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
++            <p className="text-xs font-medium uppercase text-gray-500">Rechazados</p>
++            <p className="text-2xl font-semibold text-red-700">{kpis.rechazados}</p>
++          </div>
++          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
++            <p className="text-xs font-medium uppercase text-gray-500">Citas hoy</p>
++            <p className="text-2xl font-semibold text-blue-700">{kpis.citasHoy}</p>
++          </div>
++          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
++            <p className="text-xs font-medium uppercase text-gray-500">Pend. integrar/registro</p>
++            <p className="text-2xl font-semibold text-amber-700">{kpis.pendientesIntegrar}</p>
++          </div>
++        </section>
++
++        <section className="flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
++          <Input
++            type="search"
++            placeholder="Cliente o teléfono"
++            value={buscar}
++            onChange={(e) => setBuscar(e.target.value)}
++            className="min-w-[180px]"
++          />
++          <Select
++            label="Etapa"
++            value={etapaFilter}
++            onChange={(e) => setEtapaFilter(e.target.value)}
++            options={[
++              { value: "todas", label: "Todas" },
++              ...Array.from({ length: 12 }, (_, i) => ({
++                value: String(i + 1),
++                label: `${i + 1}. ${ETAPAS_LABELS[i + 1] ?? ""}`,
++              })),
++            ]}
++          />
++          <Select
++            label="Subestado"
++            value={subestadoFilter}
++            onChange={(e) => setSubestadoFilter(e.target.value)}
++            options={[
++              { value: "todas", label: "Todas" },
++              { value: "pendiente", label: "Pendiente" },
++              { value: "en_proceso", label: "En proceso" },
++              { value: "aprobado", label: "Aprobado" },
++              { value: "rechazado", label: "Rechazado" },
++            ]}
++          />
++          <label className="flex cursor-pointer items-center gap-2">
++            <input
++              type="checkbox"
++              checked={soloCitasHoy}
++              onChange={(e) => setSoloCitasHoy(e.target.checked)}
++              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
++            />
++            <span className="text-sm font-medium text-gray-700">Solo citas de hoy</span>
++          </label>
++        </section>
++
++        <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
++          <table className="min-w-full divide-y divide-gray-200">
++            <thead className="bg-gray-50">
++              <tr>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">UpdatedAt</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Cliente</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Teléfono</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Programa</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Asesor</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Etapa</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Subestado</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Motivo</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Cita</th>
++                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Acción</th>
++              </tr>
++            </thead>
++            <tbody className="divide-y divide-gray-200">
++              {filteredCasos.map((c) => (
++                <tr key={c.id} className="hover:bg-gray-50">
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {formatDateTime(c.updatedAt)}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-900">
++                    {c.cliente_nombre}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {c.telefono_cliente}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {c.programa}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {c.asesorNombre}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {c.etapaActual}. {ETAPAS_LABELS[c.etapaActual]}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2">
++                    {c.subestado === "rechazado" ? (
++                      <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
++                        Rechazado
++                      </span>
++                    ) : (
++                      <span className="text-sm text-gray-600">
++                        {c.subestado === "en_proceso"
++                          ? "En proceso"
++                          : c.subestado === "aprobado"
++                            ? "Aprobado"
++                            : "Pendiente"}
++                      </span>
++                    )}
++                  </td>
++                  <td className="max-w-[160px] truncate px-3 py-2 text-sm text-gray-600">
++                    {c.motivoRechazo ?? "—"}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
++                    {formatDate(c.fechaCita)}
++                  </td>
++                  <td className="whitespace-nowrap px-3 py-2">
++                    <Link href={`/mesa-control/${c.id}`}>
++                      <Button variant="outline" className="text-xs">
++                        Abrir expediente
++                      </Button>
++                    </Link>
++                  </td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++          {filteredCasos.length === 0 && (
++            <p className="px-4 py-8 text-center text-sm text-gray-500">
++              No hay casos que coincidan con los filtros.
++            </p>
++          )}
++        </section>
++      </main>
++    </div>
++  );
++}

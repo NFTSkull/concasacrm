@@ -47,7 +47,13 @@ export class MockSessionRepo implements SessionRepo {
     if (fromStore) return Promise.resolve(fromStore);
     const fromStorage = readSessionFromStorage();
     if (fromStorage) {
-      this.store.login(fromStorage.email, "", fromStorage.role as Rol);
+      if (
+        fromStorage.role === "asesor" ||
+        fromStorage.role === "revisor" ||
+        fromStorage.role === "super_admin"
+      ) {
+        this.store.login(fromStorage.email, "", fromStorage.role);
+      }
       return Promise.resolve(fromStorage);
     }
     return Promise.resolve(null);

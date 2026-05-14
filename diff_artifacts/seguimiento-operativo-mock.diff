@@ -1,0 +1,1324 @@
+diff --git a/src/components/seguimiento/SeguimientoOperativoMock.tsx b/src/components/seguimiento/SeguimientoOperativoMock.tsx
+new file mode 100644
+index 0000000..ec729bd
+--- /dev/null
++++ b/src/components/seguimiento/SeguimientoOperativoMock.tsx
+@@ -0,0 +1,1318 @@
++"use client";
++
++import { useEffect, useMemo, useState } from "react";
++import { Button } from "@/components/ui/Button";
++import { Input } from "@/components/ui/Input";
++import { Select } from "@/components/ui/Select";
++
++type EstadoEtapa = "pendiente" | "en_proceso" | "aprobado" | "rechazado";
++type RolMock = "asesor" | "mesa_control";
++
++interface Etapa {
++  id: number;
++  nombre: string;
++  sla?: string;
++}
++
++const ETAPAS: Etapa[] = [
++  { id: 1, nombre: "Integración", sla: "SLA 2 días" },
++  { id: 2, nombre: "Registro", sla: "SLA 2 días" },
++  { id: 3, nombre: "Listo para cita de biométrico" },
++  { id: 4, nombre: "Cita agendada (biométricos)" },
++  { id: 5, nombre: "Biometría (resultado)" },
++  { id: 6, nombre: "Inscripción" },
++  { id: 7, nombre: "Notificación" },
++  { id: 8, nombre: "Acuse / Aviso de retención" },
++  { id: 9, nombre: "Listo para agendar firma" },
++  { id: 10, nombre: "Cita para firma" },
++  { id: 11, nombre: "Firmado" },
++  { id: 12, nombre: "Pago a ConCasa" },
++];
++
++function getEtapaNombre(id: number | null | undefined): string {
++  if (id == null) return "Etapa desconocida";
++  const etapa = ETAPAS.find((e) => e.id === id);
++  return etapa?.nombre ?? `Etapa ${id}`;
++}
++
++type MotivoOption = {
++  value: string;
++  label: string;
++};
++
++const MOTIVOS_POR_ETAPA: Record<number, MotivoOption[]> = {
++  1: [
++    { value: "direccion_repetida", label: "Dirección repetida" },
++    { value: "ine_ilegible", label: "INE ilegible" },
++    { value: "edo_cuenta_no_actualizado", label: "Estado de cuenta no actualizado" },
++    { value: "nss_equivocado", label: "NSS equivocado" },
++    { value: "ine_vencida", label: "INE vencida" },
++  ],
++  2: [
++    {
++      value: "registrado_otro_proveedor",
++      label: "Registrado con otro proveedor",
++    },
++  ],
++  3: [
++    { value: "huellas_ilegibles", label: "Huellas ilegibles" },
++    { value: "no_actualizada_afore", label: "No actualizada en AFORE" },
++    { value: "no_acudio", label: "No acudió" },
++    { value: "rfc_error", label: "RFC con error" },
++    { value: "curp_equivocada", label: "CURP equivocada" },
++    { value: "cp_diferente", label: "Código postal diferente" },
++    { value: "credito_vigente", label: "Crédito vigente" },
++    { value: "mal_buro", label: "Mal buró" },
++    { value: "problemas_legales", label: "Problemas legales" },
++    { value: "usurpacion_identidad", label: "Usurpación de identidad" },
++  ],
++  4: [
++    { value: "huellas_ilegibles", label: "Huellas ilegibles" },
++    { value: "no_actualizada_afore", label: "No actualizada en AFORE" },
++    { value: "no_acudio", label: "No acudió" },
++    { value: "rfc_error", label: "RFC con error" },
++    { value: "curp_equivocada", label: "CURP equivocada" },
++    { value: "cp_diferente", label: "Código postal diferente" },
++    { value: "credito_vigente", label: "Crédito vigente" },
++    { value: "mal_buro", label: "Mal buró" },
++    { value: "problemas_legales", label: "Problemas legales" },
++    { value: "usurpacion_identidad", label: "Usurpación de identidad" },
++  ],
++  5: [
++    { value: "huellas_ilegibles", label: "Huellas ilegibles" },
++    { value: "no_actualizada_afore", label: "No actualizada en AFORE" },
++    { value: "no_acudio", label: "No acudió" },
++    { value: "rfc_error", label: "RFC con error" },
++    { value: "curp_equivocada", label: "CURP equivocada" },
++    { value: "cp_diferente", label: "Código postal diferente" },
++    { value: "credito_vigente", label: "Crédito vigente" },
++    { value: "mal_buro", label: "Mal buró" },
++    { value: "problemas_legales", label: "Problemas legales" },
++    { value: "usurpacion_identidad", label: "Usurpación de identidad" },
++  ],
++  7: [{ value: "notificacion_vencida", label: "Notificación vencida" }],
++  9: [
++    { value: "no_agendo_segunda_cita", label: "No agendó la segunda cita" },
++    { value: "no_vino", label: "No vino" },
++  ],
++  10: [
++    { value: "no_asistio", label: "No asistió" },
++    { value: "no_habia_sistema", label: "No había sistema" },
++    { value: "vino_sin_ine", label: "Vino sin INE" },
++  ],
++  12: [
++    {
++      value: "cliente_no_quiere_pagar",
++      label: "Cliente no quiere pagar",
++    },
++  ],
++};
++
++type Abogado = "elis" | "roberto";
++type DocKey = "ine" | "estado_cuenta" | "nss" | "direccion";
++
++interface DocState {
++  checked: boolean;
++  notes: string;
++}
++
++interface EstadoEtapaDetallado {
++  estado: EstadoEtapa;
++  motivo?: string;
++  notasInternas: string;
++  fechaCita?: string;
++  fechaLiberacion?: string;
++  abogadoAsignado?: Abogado;
++  ultimaActualizacion: string;
++}
++
++type TimelineState = Record<number, EstadoEtapaDetallado>;
++
++const ESTADO_INICIAL: TimelineState = {};
++
++interface ChecklistItemProps {
++  label: string;
++  checked: boolean;
++  onCheckedChange: (checked: boolean) => void;
++  notes: string;
++  onNotesChange: (value: string) => void;
++}
++
++function ChecklistItem({ label, checked, onCheckedChange, notes, onNotesChange }: ChecklistItemProps) {
++  return (
++    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
++      <div className="flex items-center gap-2 sm:items-start sm:pt-1">
++        <input
++          id={`chk-${label}`}
++          type="checkbox"
++          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
++          checked={checked}
++          onChange={(e) => onCheckedChange(e.target.checked)}
++        />
++        <label
++          htmlFor={`chk-${label}`}
++          className="text-sm font-medium text-gray-800"
++        >
++          {label}
++        </label>
++      </div>
++      <textarea
++        value={notes}
++        onChange={(e) => onNotesChange(e.target.value)}
++        placeholder="Notas..."
++        className="h-16 w-full resize-none rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:w-48"
++      />
++    </div>
++  );
++}
++
++function getEstadoLabel(estado: EstadoEtapa): string {
++  switch (estado) {
++    case "pendiente":
++      return "Pendiente";
++    case "en_proceso":
++      return "En proceso";
++    case "aprobado":
++      return "Aprobado";
++    case "rechazado":
++      return "Rechazado";
++    default:
++      return estado;
++  }
++}
++
++type StageVisualStatus = "completed" | "current" | "pending" | "rejected";
++
++function getStageVisualStatus(
++  stageId: number,
++  etapaActualId: number,
++  subestado: EstadoEtapa,
++): StageVisualStatus {
++  if (stageId < etapaActualId) {
++    return "completed";
++  }
++  if (stageId > etapaActualId) {
++    return "pending";
++  }
++  // stageId === etapaActualId
++  if (subestado === "rechazado") return "rejected";
++  if (subestado === "aprobado") return "completed";
++  if (subestado === "en_proceso") return "current";
++  return "pending";
++}
++
++function formatFecha(fechaIso?: string): string {
++  if (!fechaIso) return "—";
++  try {
++    const d = new Date(fechaIso);
++    if (Number.isNaN(d.getTime())) return "—";
++    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
++  } catch {
++    return "—";
++  }
++}
++
++export interface SeguimientoOperativoMockSummary {
++  etapaActualId: number;
++  subestado: EstadoEtapa;
++  motivo?: string;
++  fechaCita?: string;
++}
++
++export interface SeguimientoOperativoMockProps {
++  initialSubmittedToMesa?: boolean;
++  initialEtapaActualId?: number;
++  initialSubestado?: EstadoEtapa;
++  initialMotivo?: string;
++  initialFechaCita?: string;
++  initialUpdatedAt?: string;
++  onChangeSummary?: (summary: SeguimientoOperativoMockSummary) => void;
++  /**
++   * Persistencia real del "Enviar a mesa de control".
++   * El componente no debe escribir en localStorage para mesa; lo hace el repo vía callback.
++   */
++  onEnviarAMesa?: (payload: {
++    id: string;
++    cliente_nombre: string;
++    telefono_cliente: string;
++    programa: string;
++    asesorNombre: string;
++    fechaCita: string;
++    etapaActual?: number;
++    subestado?: EstadoEtapa;
++    docs?: unknown;
++  }) => Promise<void> | void;
++  contextPrecalId?: string;
++  contextClienteNombre?: string;
++  contextTelefono?: string;
++  contextPrograma?: string;
++  contextAsesorId?: string;
++}
++
++export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = {}) {
++  const {
++    initialSubmittedToMesa,
++    initialEtapaActualId,
++    initialSubestado,
++    initialMotivo,
++    initialFechaCita,
++    initialUpdatedAt,
++    onChangeSummary,
++    onEnviarAMesa,
++    contextPrecalId,
++    contextClienteNombre,
++    contextTelefono,
++    contextPrograma,
++    contextAsesorId,
++  } = props;
++
++  const [timeline, setTimeline] = useState<TimelineState>(() => {
++    if (initialEtapaActualId != null && initialSubestado != null) {
++      return {
++        [initialEtapaActualId]: {
++          estado: initialSubestado,
++          motivo: initialMotivo,
++          fechaCita: initialFechaCita,
++          ultimaActualizacion: initialUpdatedAt ?? new Date().toISOString(),
++          notasInternas: "",
++        },
++      };
++    }
++    return ESTADO_INICIAL;
++  });
++  const [etapaActualId, setEtapaActualId] = useState<number>(initialEtapaActualId ?? 1);
++  const [currentRole, setCurrentRole] = useState<RolMock>("asesor");
++  const [submittedToMesa, setSubmittedToMesa] = useState(initialSubmittedToMesa ?? false);
++  const [docs, setDocs] = useState<Record<DocKey, DocState>>({
++    ine: { checked: false, notes: "" },
++    estado_cuenta: { checked: false, notes: "" },
++    nss: { checked: false, notes: "" },
++    direccion: { checked: false, notes: "" },
++  });
++  const [docsWarning, setDocsWarning] = useState<string | null>(null);
++  const [citaFechaAsesor, setCitaFechaAsesor] = useState<string>("");
++  const [citaHoraAsesor, setCitaHoraAsesor] = useState<string>("");
++  const [showRechazoModal, setShowRechazoModal] = useState(false);
++  const [motivoRechazo, setMotivoRechazo] = useState<string>("");
++  const [notaRechazo, setNotaRechazo] = useState<string>("");
++  const [fechaCita, setFechaCita] = useState<string>("");
++  const [fechaLiberacion, setFechaLiberacion] = useState<string>("");
++  const [abogadoAsignado, setAbogadoAsignado] = useState<Abogado | "">("");
++  const [hideRoleSwitch, setHideRoleSwitch] = useState(false);
++  const [aprobadoConMonto, setAprobadoConMonto] = useState<boolean>(false);
++  const [canUseMesaRole, setCanUseMesaRole] = useState(false);
++
++  const disponibilidadSlots = useMemo(
++    () => ["09:00", "10:00", "11:00", "12:00", "13:00", "16:00", "17:00"],
++    []
++  );
++
++  const disponibilidadDias = useMemo(() => {
++    const base = new Date();
++    base.setHours(0, 0, 0, 0);
++    return Array.from({ length: 7 }, (_, i) => {
++      const d = new Date(base.getTime() + i * 24 * 60 * 60 * 1000);
++      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
++      const label = d.toLocaleDateString("es-MX", {
++        weekday: "short",
++        day: "2-digit",
++        month: "short",
++      });
++      return { ymd, label, index: i };
++    });
++  }, []);
++
++  const disponibilidadOcupadoPorOffset = useMemo<Record<number, string[]>>(
++    () => ({
++      0: ["10:00", "13:00"],
++      1: ["09:00", "16:00"],
++      3: ["11:00", "12:00"],
++      5: ["17:00"],
++    }),
++    []
++  );
++
++  const [showAgendaModal, setShowAgendaModal] = useState(false);
++  const [tmpDay, setTmpDay] = useState<string>("");
++  const [tmpHour, setTmpHour] = useState<string>("");
++
++  useEffect(() => {
++    if (typeof window === "undefined") return;
++    const mockRole = window.localStorage.getItem("mock_role");
++    if (mockRole === "mesa_control") {
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setCurrentRole("mesa_control");
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setHideRoleSwitch(false);
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setCanUseMesaRole(true);
++    } else if (mockRole === "asesor") {
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setCurrentRole("asesor");
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setHideRoleSwitch(true);
++      // eslint-disable-next-line react-hooks/set-state-in-effect
++      setCanUseMesaRole(false);
++    }
++  }, []);
++
++  // Sincroniza la timeline con el estado operativo real cuando se usa en visión asesor
++  useEffect(() => {
++    if (currentRole !== "asesor") return;
++    if (initialEtapaActualId == null || !initialSubestado) return;
++    const now = initialUpdatedAt ?? new Date().toISOString();
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    setTimeline(() => {
++      const base: TimelineState = {};
++      ETAPAS.forEach((etapa) => {
++        if (etapa.id < initialEtapaActualId) {
++          base[etapa.id] = {
++            estado: "aprobado",
++            motivo: undefined,
++            notasInternas: "",
++            fechaCita:
++              etapa.id === 4 || etapa.id === 10 ? initialFechaCita : undefined,
++            fechaLiberacion: undefined,
++            abogadoAsignado: undefined,
++            ultimaActualizacion: now,
++          };
++        } else if (etapa.id === initialEtapaActualId) {
++          base[etapa.id] = {
++            estado: initialSubestado,
++            motivo: initialMotivo,
++            notasInternas: "",
++            fechaCita: initialFechaCita,
++            fechaLiberacion: undefined,
++            abogadoAsignado: undefined,
++            ultimaActualizacion: now,
++          };
++        }
++      });
++      return base;
++    });
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    setEtapaActualId(initialEtapaActualId);
++  }, [
++    currentRole,
++    initialEtapaActualId,
++    initialSubestado,
++    initialMotivo,
++    initialFechaCita,
++    initialUpdatedAt,
++  ]);
++
++  const loadDecisionFromMock = () => {
++    if (typeof window === "undefined") return;
++    if (!contextPrecalId) {
++      setAprobadoConMonto(false);
++      return;
++    }
++    try {
++      const raw = window.localStorage.getItem("decisions_mock");
++      if (!raw) {
++        setAprobadoConMonto(false);
++        return;
++      }
++      const parsed = JSON.parse(raw) as unknown[];
++      const found = parsed.find((d) => {
++        if (!d || typeof d !== "object") return false;
++        const obj = d as Record<string, unknown>;
++        return obj.idPrecal === contextPrecalId;
++      });
++      if (!found) {
++        setAprobadoConMonto(false);
++        return;
++      }
++      const obj = found as Record<string, unknown>;
++      const decision = obj.decision;
++      const monto = obj.monto_aprobado;
++      const ok = decision === "aprobado" && typeof monto === "number";
++      setAprobadoConMonto(ok);
++    } catch (err) {
++      console.error(
++        "[seguimiento] error leyendo decisions_mock:",
++        err instanceof Error ? err.message : String(err),
++      );
++      setAprobadoConMonto(false);
++    }
++  };
++
++  useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    loadDecisionFromMock();
++  }, [contextPrecalId]);
++
++  useEffect(() => {
++    if (typeof window === "undefined" || !contextPrecalId) return;
++    const handler = (e: StorageEvent) => {
++      if (e.key === "decisions_mock") {
++        loadDecisionFromMock();
++      }
++    };
++    const customHandler = () => {
++      loadDecisionFromMock();
++    };
++    window.addEventListener("storage", handler);
++    window.addEventListener("decisions_mock_updated", customHandler);
++    return () => {
++      window.removeEventListener("storage", handler);
++      window.removeEventListener("decisions_mock_updated", customHandler);
++    };
++  }, [contextPrecalId]);
++
++  const etapaActual = useMemo(
++    () => ETAPAS.find((e) => e.id === etapaActualId) ?? ETAPAS[0],
++    [etapaActualId]
++  );
++
++  const estadoActual = timeline[etapaActual.id] ?? {
++    estado: "pendiente" as EstadoEtapa,
++    notasInternas: "",
++    ultimaActualizacion: "",
++  };
++
++  const motivosDisponibles = MOTIVOS_POR_ETAPA[etapaActual.id] ?? [];
++
++  const ultimaActualizacionGlobal = useMemo(() => {
++    const fechas = Object.values(timeline)
++      .map((e) => e.ultimaActualizacion)
++      .filter(Boolean);
++    if (fechas.length === 0) return undefined;
++    return fechas.sort().slice(-1)[0];
++  }, [timeline]);
++
++  /** Valor a mostrar en "Última actualización": prioriza el dato real del expediente (mesa_control_inbox) sobre el estado interno del timeline. */
++  const ultimaActualizacionDisplay = initialUpdatedAt ?? ultimaActualizacionGlobal;
++
++  /** Solo Mesa de Control puede cambiar de etapa al hacer click en la timeline. El asesor ve solo lectura. */
++  const canInteractTimeline = currentRole === "mesa_control";
++
++  const subestado = useMemo(() => {
++    return getEstadoLabel(estadoActual.estado);
++  }, [estadoActual.estado]);
++
++  useEffect(() => {
++    if (!onChangeSummary) return;
++    const estado = timeline[etapaActualId] ?? {
++      estado: "pendiente" as EstadoEtapa,
++      motivo: undefined,
++      fechaCita: undefined,
++    };
++    onChangeSummary({
++      etapaActualId,
++      subestado: estado.estado,
++      motivo: estado.motivo,
++      fechaCita: estado.fechaCita,
++    });
++  }, [onChangeSummary, timeline, etapaActualId]);
++
++  const handleMarcarEnProceso = () => {
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        estado: "en_proceso",
++        ultimaActualizacion: new Date().toISOString(),
++        notasInternas: prev[etapaActual.id]?.notasInternas ?? "",
++      },
++    }));
++  };
++
++  const handleAprobarYSiguiente = () => {
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        estado: "aprobado",
++        ultimaActualizacion: new Date().toISOString(),
++        notasInternas: prev[etapaActual.id]?.notasInternas ?? "",
++      },
++    }));
++    const siguiente = ETAPAS.find((e) => e.id === etapaActual.id + 1);
++    if (siguiente) {
++      setEtapaActualId(siguiente.id);
++    }
++  };
++
++  const handleGuardarNotas = (value: string) => {
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        notasInternas: value,
++        ultimaActualizacion:
++          prev[etapaActual.id]?.ultimaActualizacion ?? new Date().toISOString(),
++      },
++    }));
++  };
++
++  const abrirModalRechazo = () => {
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setMotivoRechazo("");
++    setNotaRechazo("");
++    setShowRechazoModal(true);
++  };
++
++  const cerrarModalRechazo = () => {
++    setShowRechazoModal(false);
++  };
++
++  const handleConfirmarRechazo = () => {
++    if (!motivoRechazo) return;
++
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        estado: "rechazado",
++        motivo: motivoRechazo,
++        notasInternas:
++          (prev[etapaActual.id]?.notasInternas ?? "") +
++          (notaRechazo ? `\n[Rechazo] ${notaRechazo}` : ""),
++        fechaCita:
++          etapaActual.id === 4 || etapaActual.id === 10
++            ? fechaCita || prev[etapaActual.id]?.fechaCita
++            : prev[etapaActual.id]?.fechaCita,
++        fechaLiberacion:
++          etapaActual.id === 2 && motivoRechazo === "registrado_otro_proveedor"
++            ? fechaLiberacion || prev[etapaActual.id]?.fechaLiberacion
++            : prev[etapaActual.id]?.fechaLiberacion,
++        abogadoAsignado:
++          etapaActual.id === 12 && motivoRechazo === "cliente_no_quiere_pagar"
++            ? (abogadoAsignado || prev[etapaActual.id]?.abogadoAsignado)
++            : prev[etapaActual.id]?.abogadoAsignado,
++        ultimaActualizacion: new Date().toISOString(),
++      },
++    }));
++    setShowRechazoModal(false);
++  };
++
++  const handleFechaCitaChange = (value: string) => {
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setFechaCita(value);
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        fechaCita: value,
++        ultimaActualizacion: new Date().toISOString(),
++      },
++    }));
++  };
++
++  const handleFechaLiberacionChange = (value: string) => {
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setFechaLiberacion(value);
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        fechaLiberacion: value,
++        ultimaActualizacion: new Date().toISOString(),
++      },
++    }));
++  };
++
++  const handleAbogadoChange = (value: Abogado | "") => {
++    setAbogadoAsignado(value);
++    if (!value) return;
++    if (currentRole !== "mesa_control" || !submittedToMesa) return;
++    setTimeline((prev) => ({
++      ...prev,
++      [etapaActual.id]: {
++        ...prev[etapaActual.id],
++        abogadoAsignado: value,
++        ultimaActualizacion: new Date().toISOString(),
++      },
++    }));
++  };
++
++  const isEtapaConFechaCita = etapaActual.id === 4 || etapaActual.id === 10;
++  const isEtapaConFechaLiberacion =
++    etapaActual.id === 2 && motivoRechazo === "registrado_otro_proveedor";
++  const isEtapaConAbogado =
++    etapaActual.id === 12 && motivoRechazo === "cliente_no_quiere_pagar";
++
++  return (
++    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
++      <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
++        <div>
++          <h2 className="text-base font-semibold text-gray-900">
++            Seguimiento Operativo (mock)
++          </h2>
++          <p className="mt-0.5 text-xs text-gray-500">
++            Información en memoria solo para pruebas de flujo. No se guarda en BD.
++          </p>
++        </div>
++        {!hideRoleSwitch && canUseMesaRole && (
++          <div className="inline-flex items-center gap-2 self-start rounded-full bg-gray-50 px-2 py-1 text-xs md:self-auto">
++            <span className="text-gray-500">Rol (mock):</span>
++            <div className="inline-flex rounded-full border border-gray-200 bg-white p-0.5">
++              <button
++                type="button"
++                onClick={() => setCurrentRole("asesor")}
++                className={`px-2 py-1 text-xs font-medium rounded-full ${
++                  currentRole === "asesor"
++                    ? "bg-blue-600 text-white"
++                    : "text-gray-700"
++                }`}
++              >
++                Asesor
++              </button>
++              <button
++                type="button"
++                onClick={() => {
++                  if (!canUseMesaRole) return;
++                  setCurrentRole("mesa_control");
++                }}
++                className={`px-2 py-1 text-xs font-medium rounded-full ${
++                  currentRole === "mesa_control"
++                    ? "bg-blue-600 text-white"
++                    : "text-gray-700"
++                }`}
++              >
++                Mesa de control
++              </button>
++            </div>
++          </div>
++        )}
++      </header>
++
++      {/* Resumen compacto de la etapa actual */}
++      <div className="grid gap-4 border-b border-gray-100 pb-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
++        <div className="space-y-1">
++          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
++            Etapa actual
++          </p>
++          <p className="mt-1 text-sm font-semibold text-gray-900">
++            {etapaActual.id}. {etapaActual.nombre}
++          </p>
++          {etapaActual.sla && (
++            <p className="text-xs text-yellow-700">{etapaActual.sla}</p>
++          )}
++        </div>
++        <div>
++          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
++            Subestado
++          </p>
++          <p className="mt-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800">
++            {subestado}
++          </p>
++        </div>
++        <div>
++          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
++            Motivo
++          </p>
++          <p className="mt-1 text-sm text-gray-800">
++            {estadoActual.estado === "rechazado" && estadoActual.motivo
++              ? motivosDisponibles.find((m) => m.value === estadoActual.motivo)
++                  ?.label ?? "Otro motivo"
++              : "—"}
++          </p>
++        </div>
++        <div>
++          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
++            Última actualización
++          </p>
++          <p className="mt-1 text-sm text-gray-800">
++            {formatFecha(ultimaActualizacionDisplay)}
++          </p>
++        </div>
++        <div className="space-y-1">
++          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
++            Estado envío
++          </p>
++          <div className="mt-1">
++            {submittedToMesa ? (
++              <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
++                En mesa de control
++              </span>
++            ) : (
++              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
++                Pendiente de envío
++              </span>
++            )}
++          </div>
++        </div>
++      </div>
++
++      <div className="mt-4 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
++        {/* Timeline */}
++        <div className="flex min-w-0 flex-col gap-3">
++          <div className="flex items-center justify-between gap-3">
++            <p className="text-sm font-medium text-gray-800">
++              Timeline / Etapas
++            </p>
++          </div>
++          <ol className="max-h-[360px] space-y-2 overflow-y-auto pr-1 text-sm">
++            {ETAPAS.map((etapa) => {
++              const estado = timeline[etapa.id]?.estado ?? "pendiente";
++              const visual = getStageVisualStatus(
++                etapa.id,
++                etapaActualId,
++                timeline[etapaActualId]?.estado ?? "pendiente",
++              );
++
++              const isCurrent = visual === "current" || visual === "rejected";
++              const isCompleted = visual === "completed";
++
++              const circleClasses =
++                visual === "completed"
++                  ? "bg-green-500 text-white"
++                  : visual === "current"
++                    ? "bg-blue-600 text-white"
++                    : visual === "rejected"
++                      ? "bg-red-600 text-white"
++                      : "bg-gray-200 text-gray-800";
++
++              const cardClasses =
++                visual === "current" || visual === "rejected"
++                  ? "border-blue-500 bg-blue-50"
++                  : isCompleted
++                    ? "border-green-400 bg-green-50"
++                    : canInteractTimeline
++                      ? "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50"
++                      : "border-gray-200 bg-gray-50";
++
++              let estadoLabel: string;
++              if (visual === "completed") {
++                estadoLabel = "Completada";
++              } else if (visual === "current") {
++                estadoLabel = "En proceso";
++              } else if (visual === "rejected") {
++                estadoLabel = "Rechazada";
++              } else {
++                estadoLabel = "Pendiente";
++              }
++
++              return (
++                <li
++                  key={etapa.id}
++                  className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${canInteractTimeline ? "cursor-pointer" : "cursor-default"} ${cardClasses}`}
++                  onClick={canInteractTimeline ? () => setEtapaActualId(etapa.id) : undefined}
++                >
++                  <div className="flex items-center gap-2">
++                    <span
++                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${circleClasses}`}
++                    >
++                      {etapa.id}
++                    </span>
++                    <div>
++                      <p className="font-medium text-gray-900">{etapa.nombre}</p>
++                      {etapa.sla && (
++                        <p className="text-xs text-gray-500">{etapa.sla}</p>
++                      )}
++                    </div>
++                  </div>
++                  <span className="text-xs font-medium text-gray-600">
++                    {estadoLabel}
++                  </span>
++                </li>
++              );
++            })}
++          </ol>
++        </div>
++
++        {/* Lado derecho: checklist asesor (solo antes de enviar) o controles mesa de control */}
++        <div className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-6">
++          {currentRole === "asesor" && !submittedToMesa ? (
++            <>
++              {/* Card: Paquete de integración */}
++              <div className="flex flex-col gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
++                <p className="text-sm font-medium text-gray-800">
++                  Paquete de integración (mock)
++                </p>
++                <p className="text-xs text-gray-500">
++                  Solo visible para asesor. No se cargan archivos reales; solo se simula el
++                  checklist.
++                </p>
++                <ChecklistItem
++                  label="INE"
++                  checked={docs.ine.checked}
++                  onCheckedChange={(checked) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      ine: { ...prev.ine, checked },
++                    }))
++                  }
++                  notes={docs.ine.notes}
++                  onNotesChange={(notes) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      ine: { ...prev.ine, notes },
++                    }))
++                  }
++                />
++                <ChecklistItem
++                  label="Estado de cuenta"
++                  checked={docs.estado_cuenta.checked}
++                  onCheckedChange={(checked) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      estado_cuenta: { ...prev.estado_cuenta, checked },
++                    }))
++                  }
++                  notes={docs.estado_cuenta.notes}
++                  onNotesChange={(notes) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      estado_cuenta: { ...prev.estado_cuenta, notes },
++                    }))
++                  }
++                />
++                <ChecklistItem
++                  label="NSS"
++                  checked={docs.nss.checked}
++                  onCheckedChange={(checked) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      nss: { ...prev.nss, checked },
++                    }))
++                  }
++                  notes={docs.nss.notes}
++                  onNotesChange={(notes) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      nss: { ...prev.nss, notes },
++                    }))
++                  }
++                />
++                <ChecklistItem
++                  label="Dirección"
++                  checked={docs.direccion.checked}
++                  onCheckedChange={(checked) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      direccion: { ...prev.direccion, checked },
++                    }))
++                  }
++                  notes={docs.direccion.notes}
++                  onNotesChange={(notes) =>
++                    setDocs((prev) => ({
++                      ...prev,
++                      direccion: { ...prev.direccion, notes },
++                    }))
++                  }
++                />
++              </div>
++
++              {/* Card: Agenda / envío */}
++              {aprobadoConMonto ? (
++                <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
++                  <div>
++                    <p className="text-sm font-medium text-gray-900">Cita</p>
++                    <p className="mt-1 text-xs text-gray-500">
++                      Selecciona la fecha y hora en la que se agendará al cliente.
++                    </p>
++                  </div>
++
++                  <p className="text-xs text-gray-700">
++                    <span className="font-medium">Seleccionada:</span>{" "}
++                    {citaFechaAsesor && citaHoraAsesor
++                      ? `${citaFechaAsesor} ${citaHoraAsesor}`
++                      : "—"}
++                  </p>
++
++                  <div className="flex flex-wrap gap-2">
++                    <Button
++                      type="button"
++                      variant="outline"
++                      className="text-xs"
++                      onClick={() => {
++                        const initialDay =
++                          citaFechaAsesor || disponibilidadDias[0]?.ymd || "";
++                        const initialHour = citaHoraAsesor || "";
++                        setTmpDay(initialDay);
++                        setTmpHour(initialHour);
++                        setShowAgendaModal(true);
++                      }}
++                    >
++                      Elegir cita
++                    </Button>
++                  </div>
++
++                  <div className="pt-1">
++                    <Button
++                      type="button"
++                      variant="primary"
++                      className="w-full sm:w-auto"
++                      disabled={submittedToMesa}
++                      onClick={async () => {
++                        const allChecked = Object.values(docs).every(
++                          (doc) => doc.checked,
++                        );
++                        if (!allChecked) {
++                          setDocsWarning(
++                            "Faltan documentos del paquete de integración."
++                          );
++                          return;
++                        }
++                        if (!citaFechaAsesor || !citaHoraAsesor) {
++                          setDocsWarning(
++                            "Debes seleccionar fecha y hora de cita antes de enviar a mesa de control."
++                          );
++                          return;
++                        }
++
++                        setDocsWarning(null);
++
++                        const citaISO = `${citaFechaAsesor}T${citaHoraAsesor}`;
++
++                        // UI: seguimos mostrando el flujo como antes (optimistic UI).
++                        setSubmittedToMesa(true);
++                        setTimeline((prev) => ({
++                          ...prev,
++                          1: {
++                            ...(prev[1] ?? {
++                              notasInternas: "",
++                              motivo: undefined,
++                              fechaCita: undefined,
++                              fechaLiberacion: undefined,
++                              abogadoAsignado: undefined,
++                            }),
++                            estado: "en_proceso",
++                            ultimaActualizacion: new Date().toISOString(),
++                          },
++                          4: {
++                            ...(prev[4] ?? {
++                              estado: "pendiente",
++                              notasInternas: "",
++                            }),
++                            fechaCita: citaISO,
++                            ultimaActualizacion: new Date().toISOString(),
++                          },
++                        }));
++
++                        // Persistencia real: repo vía callback.
++                        const idPrecal = contextPrecalId;
++                        if (!idPrecal) {
++                          console.warn(
++                            "[seguimiento] onEnviarAMesa no disponible: falta contextPrecalId"
++                          );
++                        } else {
++                          try {
++                            await onEnviarAMesa?.({
++                              id: idPrecal,
++                              cliente_nombre: contextClienteNombre ?? "",
++                              telefono_cliente: contextTelefono ?? "",
++                              programa: contextPrograma ?? "",
++                              asesorNombre: contextAsesorId ?? "",
++                              fechaCita: citaISO,
++                              etapaActual: 1,
++                              subestado: "en_proceso",
++                              docs,
++                            });
++                          } catch (err) {
++                            console.error(
++                              "[seguimiento] error persistiendo enviar a mesa:",
++                              err
++                            );
++                          }
++                        }
++
++                        setEtapaActualId(1);
++                      }}
++                    >
++                      {submittedToMesa ? "Enviado a mesa de control" : "Enviar a mesa de control"}
++                    </Button>
++                    {docsWarning && (
++                      <p className="mt-2 text-xs text-red-700">{docsWarning}</p>
++                    )}
++                  </div>
++                </div>
++              ) : (
++                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
++                  Esperando aprobación del editor/revisor con monto para habilitar agenda y
++                  envío a mesa de control.
++                </div>
++              )}
++            </>
++          ) : currentRole === "mesa_control" ? (
++            <div className="flex flex-col gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
++              <p className="text-sm font-medium text-gray-800">
++                Panel de operación (mesa de control)
++              </p>
++              {!submittedToMesa ? (
++                <p className="text-xs text-yellow-800">
++                  Aún no enviado por asesor. No puedes operar el seguimiento hasta que el
++                  asesor envíe el paquete de integración.
++                </p>
++              ) : (
++                <>
++                  <div className="space-y-3 text-sm">
++                    <div className="flex items-center justify-between gap-2">
++                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
++                        Acciones rápidas
++                      </span>
++                    </div>
++                    <div className="flex flex-wrap gap-2">
++                      <Button
++                        variant="outline"
++                        onClick={handleMarcarEnProceso}
++                        className="text-xs"
++                      >
++                        Marcar En proceso
++                      </Button>
++                      <Button
++                        variant="primary"
++                        onClick={handleAprobarYSiguiente}
++                        className="text-xs"
++                      >
++                        Aprobar y pasar a siguiente
++                      </Button>
++                      <Button
++                        variant="outline"
++                        className="text-xs text-red-700 hover:text-red-800"
++                        onClick={abrirModalRechazo}
++                      >
++                        Rechazar
++                      </Button>
++                    </div>
++
++                    {isEtapaConFechaCita && (
++                      <Input
++                        type="date"
++                        label="Fecha de cita"
++                        value={estadoActual.fechaCita ?? fechaCita}
++                        onChange={(e) => handleFechaCitaChange(e.target.value)}
++                      />
++                    )}
++
++                    {isEtapaConFechaLiberacion && (
++                      <Input
++                        type="date"
++                        label="Fecha de liberación / registrado en"
++                        value={estadoActual.fechaLiberacion ?? fechaLiberacion}
++                        onChange={(e) => handleFechaLiberacionChange(e.target.value)}
++                      />
++                    )}
++
++                    {isEtapaConAbogado && (
++                      <Select
++                        label="Abogado asignado"
++                        value={estadoActual.abogadoAsignado ?? abogadoAsignado}
++                        onChange={(e) =>
++                          handleAbogadoChange(e.target.value as Abogado | "")
++                        }
++                        options={[
++                          { value: "", label: "Selecciona abogado" },
++                          { value: "elis", label: "Elis" },
++                          { value: "roberto", label: "Roberto" },
++                        ]}
++                      />
++                    )}
++
++                    <div className="mt-2">
++                      <label
++                        htmlFor="notas_internas"
++                        className="text-sm font-medium text-gray-700"
++                      >
++                        Notas internas
++                      </label>
++                      <textarea
++                        id="notas_internas"
++                        value={estadoActual.notasInternas}
++                        onChange={(e) => handleGuardarNotas(e.target.value)}
++                        placeholder="Notas internas de seguimiento..."
++                        className="mt-1 h-28 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
++                      />
++                    </div>
++                  </div>
++                </>
++              )}
++            </div>
++          ) : null}
++        </div>
++
++        {/* Modal Agenda (mock) */}
++        {showAgendaModal && (
++          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
++            <div className="mx-4 w-full max-w-lg rounded-xl bg-white p-5 shadow-lg">
++              <div className="mb-3 flex items-center justify-between">
++                <h3 className="text-sm font-semibold text-gray-900">
++                  Elegir cita
++                </h3>
++                <button
++                  type="button"
++                  onClick={() => setShowAgendaModal(false)}
++                  className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
++                >
++                  ✕
++                </button>
++              </div>
++
++              <div className="space-y-4">
++                <div>
++                  <Select
++                    label="Día"
++                    value={tmpDay}
++                    onChange={(e) => setTmpDay(e.target.value)}
++                    options={disponibilidadDias.map((d) => ({
++                      value: d.ymd,
++                      label: d.label,
++                    }))}
++                  />
++                </div>
++
++                <div>
++                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
++                    Horarios disponibles
++                  </p>
++                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
++                    {(() => {
++                      const diaSel = disponibilidadDias.find(
++                        (d) => d.ymd === tmpDay
++                      );
++                      if (!diaSel) {
++                        return (
++                          <p className="col-span-full text-xs text-gray-500">
++                            Selecciona un día para ver horarios.
++                          </p>
++                        );
++                      }
++                      const ocupados = new Set(
++                        disponibilidadOcupadoPorOffset[diaSel.index] ?? []
++                      );
++                      return disponibilidadSlots.map((slot) => {
++                        const isOcupado = ocupados.has(slot);
++                        const isSelected = tmpHour === slot;
++                        return (
++                          <button
++                            key={slot}
++                            type="button"
++                            disabled={isOcupado}
++                            onClick={() => {
++                              if (isOcupado) return;
++                              setTmpHour(slot);
++                            }}
++                            className={`w-full rounded-md border px-3 py-3 text-xs font-semibold transition-colors ${
++                              isOcupado
++                                ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
++                                : isSelected
++                                  ? "border-blue-600 bg-blue-600 text-white"
++                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
++                            }`}
++                          >
++                            {slot}
++                          </button>
++                        );
++                      });
++                    })()}
++                  </div>
++                </div>
++
++                <div className="mt-2 flex justify-end gap-2">
++                  <Button
++                    type="button"
++                    variant="outline"
++                    className="text-xs"
++                    onClick={() => setShowAgendaModal(false)}
++                  >
++                    Cancelar
++                  </Button>
++                  <Button
++                    type="button"
++                    variant="primary"
++                    className="text-xs"
++                    disabled={!tmpDay || !tmpHour}
++                    onClick={() => {
++                      if (!tmpDay || !tmpHour) return;
++                      setCitaFechaAsesor(tmpDay);
++                      setCitaHoraAsesor(tmpHour);
++                      setDocsWarning(null);
++                      setShowAgendaModal(false);
++                    }}
++                  >
++                    Confirmar
++                  </Button>
++                </div>
++              </div>
++            </div>
++          </div>
++        )}
++      </div>
++
++      {showRechazoModal && (
++        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
++          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
++            <h3 className="text-base font-semibold text-gray-900">
++              Registrar rechazo de etapa
++            </h3>
++            <p className="mt-1 text-xs text-gray-500">
++              Esta acción es solo mock y no afecta datos reales.
++            </p>
++
++            <div className="mt-4 space-y-3">
++              <Select
++                label="Motivo de rechazo"
++                value={motivoRechazo}
++                onChange={(e) => setMotivoRechazo(e.target.value)}
++                options={[
++                  { value: "", label: "Selecciona un motivo" },
++                  ...motivosDisponibles,
++                ]}
++              />
++              <div>
++                <label
++                  htmlFor="nota_rechazo"
++                  className="text-sm font-medium text-gray-700"
++                >
++                  Nota interna (opcional)
++                </label>
++                <textarea
++                  id="nota_rechazo"
++                  value={notaRechazo}
++                  onChange={(e) => setNotaRechazo(e.target.value)}
++                  placeholder="Detalle adicional del rechazo..."
++                  className="mt-1 h-24 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
++                />
++              </div>
++
++              {etapaActual.id === 2 &&
++                motivoRechazo === "registrado_otro_proveedor" && (
++                  <Input
++                    type="date"
++                    label="Fecha de liberación / registrado en"
++                    value={fechaLiberacion}
++                    onChange={(e) => setFechaLiberacion(e.target.value)}
++                  />
++                )}
++
++              {etapaActual.id === 12 &&
++                motivoRechazo === "cliente_no_quiere_pagar" && (
++                  <Select
++                    label="Abogado asignado"
++                    value={abogadoAsignado}
++                    onChange={(e) =>
++                      setAbogadoAsignado(e.target.value as Abogado | "")
++                    }
++                    options={[
++                      { value: "", label: "Selecciona abogado" },
++                      { value: "elis", label: "Elis" },
++                      { value: "roberto", label: "Roberto" },
++                    ]}
++                  />
++                )}
++            </div>
++
++            <div className="mt-6 flex justify-end gap-2">
++              <Button variant="secondary" onClick={cerrarModalRechazo}>
++                Cancelar
++              </Button>
++              <Button
++                variant="primary"
++                onClick={handleConfirmarRechazo}
++                disabled={!motivoRechazo}
++              >
++                Confirmar rechazo
++              </Button>
++            </div>
++          </div>
++        </div>
++      )}
++    </section>
++  );
++}
++

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { MockStoreProvider } from "@/context/MockStoreContext";
+import { DevClearMockGlobal } from "@/lib/dev/DevClearMockGlobal";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,7 +36,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <MockStoreProvider>{children}</MockStoreProvider>
+        <MockStoreProvider>
+          {process.env.NODE_ENV === "development" ? <DevClearMockGlobal /> : null}
+          {children}
+        </MockStoreProvider>
       </body>
     </html>
   );

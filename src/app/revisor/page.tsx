@@ -335,16 +335,20 @@ export default function RevisorDashboardPage() {
   useEffect(() => {
     queueMicrotask(() => setAsesorDebug({ status: "loading" }));
     getAsesorDisplayMap()
-      .then((map) => {
+      .then(({ map, error }) => {
         setAsesorMap(map);
         console.log("[asesorMap] size:", map.size);
         const sample = Array.from(map.entries())
           .slice(0, 3)
           .map(([id, email]) => `${id} -> ${email}`);
-        setAsesorDebug({ status: "ok", sample });
+        setAsesorDebug({
+          status: error ? "error" : "ok",
+          message: error ? error.message : undefined,
+          sample,
+        });
       })
       .catch((err) => {
-        console.log("[asesorMap] error loading map", err);
+        console.log("[asesorMap] unexpected error loading map", err);
         setAsesorMap(new Map());
         setAsesorDebug({
           status: "error",
@@ -441,7 +445,21 @@ export default function RevisorDashboardPage() {
           </h1>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{currentUser.email}</span>
-            <Button variant="outline" onClick={() => sessionRepo.logout()}>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await sessionRepo.logout();
+                } catch (err) {
+                  console.error("[logout] error en logout revisor:", err);
+                }
+                if (typeof window !== "undefined") {
+                  window.localStorage.removeItem("mock_role");
+                  window.localStorage.removeItem("mock_email");
+                  window.location.href = "/login";
+                }
+              }}
+            >
               Cerrar sesión
             </Button>
           </div>

@@ -1,0 +1,19 @@
+diff --git a/src/domain/session/mock.repo.ts b/src/domain/session/mock.repo.ts
+index daa48dd..95da215 100644
+--- a/src/domain/session/mock.repo.ts
++++ b/src/domain/session/mock.repo.ts
+@@ -47,7 +47,13 @@ export class MockSessionRepo implements SessionRepo {
+     if (fromStore) return Promise.resolve(fromStore);
+     const fromStorage = readSessionFromStorage();
+     if (fromStorage) {
+-      this.store.login(fromStorage.email, "", fromStorage.role as Rol);
++      if (
++        fromStorage.role === "asesor" ||
++        fromStorage.role === "revisor" ||
++        fromStorage.role === "super_admin"
++      ) {
++        this.store.login(fromStorage.email, "", fromStorage.role);
++      }
+       return Promise.resolve(fromStorage);
+     }
+     return Promise.resolve(null);

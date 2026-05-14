@@ -9,8 +9,7 @@ import type { Precalificacion } from "@/domain/precalificaciones";
 import { FormEditarPrecalificacion } from "@/components/FormEditarPrecalificacion";
 
 export default function RevisorEditarPage() {
-  const params = useParams();
-  const id = params.id as string;
+  const { id } = useParams<{ id: string }>();
   const { currentUser } = useSessionRepo();
   const repo = usePrecalificacionesRepo();
   const [precal, setPrecal] = useState<Precalificacion | null | undefined>(undefined);
