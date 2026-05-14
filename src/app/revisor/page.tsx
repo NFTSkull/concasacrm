@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { usePrecalificacionesRepo } from "@/domain/precalificaciones";
 import type { Precalificacion } from "@/domain/precalificaciones";
@@ -18,7 +18,6 @@ import {
 import type { Decision } from "@/domain/precalificaciones";
 import { NotesFieldWithSuggestions } from "@/components/NotesFieldWithSuggestions";
 import { getAsesorDisplayMap, getAsesorDisplayLabel } from "@/lib/asesorDisplay";
-import { supabase } from "@/lib/supabaseClient";
 
 function computeDecision(montoStr: string, notasStr: string): Decision {
   const montoTrim = montoStr.trim();
@@ -246,11 +245,6 @@ export default function RevisorDashboardPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 50;
-  const pageRef = useRef(page);
-  useEffect(() => {
-    pageRef.current = page;
-  }, [page]);
-
   const fullList = useMemo(
     () => (currentUser ? list : []),
     [currentUser, list]
@@ -272,65 +266,6 @@ export default function RevisorDashboardPage() {
         );
       });
   }, [currentUser, repo, page, pageSize]);
-
-  const refreshPage = useCallback(async () => {
-    if (!currentUser) return;
-    console.log("[revisor] Realtime: refreshPage()");
-    const { data, count } = await repo.listPageForUser(
-      { email: currentUser.email, role: currentUser.role },
-      { page: pageRef.current, pageSize }
-    );
-    setList(data);
-    setTotalCount(count);
-    const newTotalPages = Math.ceil(count / pageSize) || 0;
-    setPage((p) =>
-      newTotalPages > 0 && p > newTotalPages ? newTotalPages : p
-    );
-  }, [currentUser, repo, pageSize]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    const debounceRef = {
-      timeoutId: null as ReturnType<typeof setTimeout> | null,
-      hasInsert: false,
-      hasUpdate: false,
-    };
-    const channel = supabase
-      .channel("precalificaciones-revisor-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "precalificaciones" },
-        (payload: { eventType?: string; new?: { id?: string } }) => {
-          console.log("[revisor] postgres_changes", payload.eventType, "id:", payload.new?.id);
-          if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
-          if (payload.eventType === "INSERT") debounceRef.hasInsert = true;
-          if (payload.eventType === "UPDATE") debounceRef.hasUpdate = true;
-          debounceRef.timeoutId = setTimeout(() => {
-            if (debounceRef.hasInsert) {
-              console.log("[revisor] Realtime: INSERT -> setPage(1)");
-              setPage(1);
-              refreshPage();
-            } else if (debounceRef.hasUpdate && pageRef.current === 1) {
-              console.log("[revisor] Realtime: UPDATE (página 1) -> refreshPage()");
-              refreshPage();
-            }
-            debounceRef.hasInsert = false;
-            debounceRef.hasUpdate = false;
-            debounceRef.timeoutId = null;
-          }, 300);
-        }
-      )
-      .subscribe((status) => {
-        console.log("[revisor] Realtime channel status:", status);
-        if (status === "SUBSCRIBED") {
-          console.log("[revisor] SUBSCRIBED to public.precalificaciones");
-        }
-      });
-    return () => {
-      if (debounceRef.timeoutId) clearTimeout(debounceRef.timeoutId);
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser, refreshPage]);
 
   useEffect(() => {
     queueMicrotask(() => setAsesorDebug({ status: "loading" }));
@@ -454,8 +389,6 @@ export default function RevisorDashboardPage() {
                   console.error("[logout] error en logout revisor:", err);
                 }
                 if (typeof window !== "undefined") {
-                  window.localStorage.removeItem("mock_role");
-                  window.localStorage.removeItem("mock_email");
                   window.location.href = "/login";
                 }
               }}

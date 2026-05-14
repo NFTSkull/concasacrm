@@ -1,6 +1,7 @@
 "use client";
 
 import type { MockStoreContextValue } from "@/context/MockStoreContext";
+import { clearMockUser } from "@/lib/mockUser";
 import type { UserSession, Rol } from "./types";
 import type { SessionRepo } from "./repo";
 
@@ -70,6 +71,7 @@ export class MockSessionRepo implements SessionRepo {
 
   async logout(): Promise<void> {
     this.store.logout();
+    clearMockUser();
     if (typeof window !== "undefined") {
       localStorage.removeItem(SESSION_KEY);
     }

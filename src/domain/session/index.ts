@@ -1,26 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SupabaseSessionRepo } from "./supabase.repo";
+import { MockSessionRepo } from "./mock.repo";
 import { getEffectiveMockEmail, getEffectiveMockRole } from "@/lib/mockUser";
+import { useMockStore } from "@/context/MockStoreContext";
 import type { UserSession } from "./types";
 import type { SessionRepo } from "./repo";
 
 export type { UserSession, Rol } from "./types";
 export type { SessionRepo } from "./repo";
-export { SupabaseSessionRepo } from "./supabase.repo";
+export { MockSessionRepo } from "./mock.repo";
 
 /**
  * Hook que devuelve el repositorio de sesión y el usuario actual (sincronizado).
  * currentUser es undefined mientras no se ha resuelto la sesión; null si no hay usuario; UserSession si hay sesión.
- * Usa SupabaseSessionRepo como única fuente de verdad del login.
+ * Usa MockSessionRepo como fuente de verdad del login en modo demo.
  */
 export function useSessionRepo(): {
   sessionRepo: SessionRepo;
   /** undefined = aún cargando, null = no hay sesión, UserSession = sesión activa */
   currentUser: UserSession | null | undefined;
 } {
-  const sessionRepo = useMemo(() => new SupabaseSessionRepo(), []);
+  const store = useMockStore();
+  const sessionRepo = useMemo(() => new MockSessionRepo(store), [store]);
   /**
    * Siempre `undefined` en el primer render (SSR + hidratación) para evitar mismatch:
    * no leer localStorage en el inicializador de useState (solo existe en cliente).

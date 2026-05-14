@@ -435,8 +435,6 @@ export default function AsesorDashboardPage() {
                   console.error("[logout] error en logout asesor:", err);
                 }
                 if (typeof window !== "undefined") {
-                  window.localStorage.removeItem("mock_role");
-                  window.localStorage.removeItem("mock_email");
                   window.location.href = "/login";
                 }
               }}

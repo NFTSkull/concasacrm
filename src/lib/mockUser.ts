@@ -72,6 +72,14 @@ export function persistMockUser(user: MockUserV1): void {
   window.localStorage.setItem("mock_email", normalized.email);
 }
 
+/** Borra sesión mock (`mock_user` y claves legacy). Idempotente. */
+export function clearMockUser(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(MOCK_USER_KEY);
+  window.localStorage.removeItem("mock_role");
+  window.localStorage.removeItem("mock_email");
+}
+
 export function isMesaControlAdminEffectiveRole(): boolean {
   return getEffectiveMockRole() === "mesa_control_admin";
 }

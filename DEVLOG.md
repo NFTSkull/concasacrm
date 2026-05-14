@@ -1,5 +1,15 @@
 # Devlog
 
+## 2026-05-14 - Limpieza a modo 100% mock (sin Supabase)
+
+### Decisiones
+
+- `useSessionRepo()` pasa a `MockSessionRepo` y deja de instanciar repositorio Supabase.
+- Se elimina export de `SupabasePrecalificacionesRepo` en el índice de dominio para mantener un único camino de datos mock.
+- Se retira el canal realtime de `revisor/page.tsx` (suscripción `postgres_changes`) porque no existe backend en este entorno.
+- `getAsesorDisplayMap()` deja de consultar `user_profiles`; retorna mapa vacío y el label cae al fallback del `asesorId` (o nombre derivado si parece email).
+- Se eliminan archivos `src/lib/env.ts`, `src/lib/supabaseClient.ts`, `src/domain/session/supabase.repo.ts`, `src/domain/precalificaciones/supabase.repo.ts` y la dependencia `@supabase/supabase-js`.
+
 ## 2026-05-07 - Mesa-control: documentos cliente no desaparecen en etapas 9–12
 
 ### Decisiones

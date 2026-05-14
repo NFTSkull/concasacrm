@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-14
+
+- **Modo 100% mock (sin Supabase):** se retira el acoplamiento directo a Supabase en sesión, repositorios y utilidades de display de asesor. `useSessionRepo` usa `MockSessionRepo`, `usePrecalificacionesRepo` queda solo mock, se elimina realtime de revisor por canal Postgres y se borran archivos/dependencia de Supabase para simplificar despliegue y evitar errores por variables de entorno faltantes.
+
 ## 2026-05-07
 
 - **Mesa-control (etapas finales) / documentos cliente permanentes:** el checklist visual de “Documentos requeridos” y “Revisión de documentos” deja de depender de `etapaActualDisplay` (que en etapas 9–12 devolvía 0/0 porque el catálogo cliente está requerido en 1–2). Ahora usa un checklist documental fijo de cliente con etapa base 2, preservando visibilidad de los 6 `cliente_*` en cualquier etapa operativa.

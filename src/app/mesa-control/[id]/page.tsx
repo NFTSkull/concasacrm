@@ -44,7 +44,6 @@ import { AgendaBiometricosCard } from "@/components/asesor/AgendaBiometricosCard
 import {
   getEffectiveMockRole,
   getEffectiveMockName,
-  MOCK_USER_KEY,
 } from "@/lib/mockUser";
 import { canUserAccessExpediente } from "@/lib/mesaControlAccess";
 import { subestadoOperativoLabel as subestadoLabel } from "@/lib/subestadoOperativoUi";
@@ -975,7 +974,6 @@ export default function MesaControlExpedientePage() {
                   console.error("[logout] mesa-control:", err);
                 }
                 if (typeof window !== "undefined") {
-                  window.localStorage.removeItem(MOCK_USER_KEY);
                   window.localStorage.removeItem("mock_role");
                   window.localStorage.removeItem("mock_email");
                   window.location.href = "/login";

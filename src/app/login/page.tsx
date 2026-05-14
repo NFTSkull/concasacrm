@@ -7,22 +7,20 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { persistMockUser } from "@/lib/mockUser";
 
-/** Roles que se ofrecen en el login mock (sin `admin` ni `mesa_control` legacy). */
-const MOCK_LOGIN_ROLES = [
-  "super_admin",
-  "editor",
-  "asesor",
-  "mesa_control_admin",
-  "mesa_control_interno",
-  "mesa_control_externo",
-] as const;
-
-type MockLoginRole = (typeof MOCK_LOGIN_ROLES)[number];
+type MockLoginRole =
+  | "super_admin"
+  | "editor"
+  | "asesor"
+  | "revisor"
+  | "mesa_control_admin"
+  | "mesa_control_interno"
+  | "mesa_control_externo";
 
 const VISION_OPTIONS: { value: MockLoginRole; label: string }[] = [
   { value: "super_admin", label: "Super Admin" },
   { value: "editor", label: "Editor" },
   { value: "asesor", label: "Asesor" },
+  { value: "revisor", label: "Revisor" },
   { value: "mesa_control_admin", label: "Mesa Control - Admin (Cynthia)" },
   { value: "mesa_control_interno", label: "Mesa Control - Interno" },
   { value: "mesa_control_externo", label: "Mesa Control - Externo" },
@@ -49,13 +47,9 @@ export default function LoginPage() {
     e.preventDefault();
     setLoginError(null);
     const form = e.currentTarget;
-    const email = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
+    const emailRaw = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
+    const email = emailRaw || "anon@mock.local";
     void (form.elements.namedItem("password") as HTMLInputElement).value;
-
-    if (!email) {
-      setLoginError("Indica un correo válido.");
-      return;
-    }
 
     const emailLocal = email.includes("@") ? email.split("@")[0] ?? "" : email;
     const nameFinal =
@@ -78,6 +72,8 @@ export default function LoginPage() {
       router.push("/admin");
     } else if (vision === "editor") {
       router.push("/editor");
+    } else if (vision === "revisor") {
+      router.push("/revisor");
     } else {
       router.push("/admin");
     }
@@ -90,15 +86,16 @@ export default function LoginPage() {
           ConCasa CRM
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Entorno mock · sesión guardada en este navegador
+          Demo sin seguridad: no se valida contraseña; el correo puede ir vacío (se usa{" "}
+          <code className="text-[10px]">anon@mock.local</code>). Sesión en este navegador.
         </p>
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <Input
             name="email"
-            type="email"
-            label="Correo"
-            placeholder="cynthia@concasa.test"
-            required
+            type="text"
+            label="Correo (opcional)"
+            placeholder="cynthia@concasa.test · vacío = anon@mock.local"
+            autoComplete="username"
           />
           <div>
             <Input
@@ -116,9 +113,9 @@ export default function LoginPage() {
           <Input
             name="password"
             type="password"
-            label="Contraseña"
-            placeholder="••••••••"
-            required
+            label="Contraseña (ignorada)"
+            placeholder="cualquier valor o vacío"
+            autoComplete="current-password"
           />
           <Select
             label="Perfil (mock)"

@@ -176,8 +176,6 @@ export default function EditorDashboardPage() {
                   );
                 }
                 if (typeof window !== "undefined") {
-                  window.localStorage.removeItem("mock_role");
-                  window.localStorage.removeItem("mock_email");
                   window.location.href = "/login";
                 }
               }}

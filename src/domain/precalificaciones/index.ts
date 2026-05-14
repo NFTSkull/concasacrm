@@ -13,7 +13,6 @@ export type {
 } from "./types";
 export type { PrecalificacionesRepo } from "./repo";
 export { MockPrecalificacionesRepo } from "./mock.repo";
-export { SupabasePrecalificacionesRepo } from "./supabase.repo";
 
 /**
  * Hook que devuelve el repositorio de precalificaciones.
