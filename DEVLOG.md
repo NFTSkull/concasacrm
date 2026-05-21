@@ -8,4 +8,7 @@
   - Boton "Descargar CSV (dia)" en la seccion "Vista del dia".
   - Boton "Descargar CSV (tabla)" en la seccion "Todas las precalificaciones".
   - Exporta datos visibles, no modifica DB ni permisos, y mantiene consultas de solo lectura.
+- Ajuste posterior:
+  - Cuando hay filtros "Desde/Hasta", el boton exporta todo el rango filtrado y no solo las filas de la pagina actual.
+  - El texto del boton cambia a "Descargar CSV (rango)" para reflejar el comportamiento.
 - Riesgo mitigado: no se tocaron rutas de asesor/revisor ni logica de creacion/edicion.

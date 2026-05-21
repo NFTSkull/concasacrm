@@ -297,6 +297,7 @@ export default function AdminDashboardPage() {
   });
   const [dayRows, setDayRows] = useState<Precalificacion[]>([]);
   const [dayRowsLoading, setDayRowsLoading] = useState(false);
+  const [dayRowsExporting, setDayRowsExporting] = useState(false);
   const [dayRowsCount, setDayRowsCount] = useState(0);
   const [dayPage, setDayPage] = useState(1);
   const vistaDiaRef = useRef<HTMLDivElement>(null);
@@ -451,33 +452,96 @@ export default function AdminDashboardPage() {
     [fullList, filters]
   );
 
-  const exportDayRows = useCallback(() => {
-    const headers = [
-      "Fecha",
-      "Asesor",
-      "Programa",
-      "NSS",
-      "Cliente",
-      "Telefono",
-      "Decision",
-      "Monto aprobado",
-      "Notas",
-      "Notas revision",
-    ];
-    const rows = dayRows.map((p) => [
-      formatDateTimeMx(p.createdAt),
-      getAsesorDisplayLabel(p.asesorId, asesorMap),
-      p.programa,
-      p.nss,
-      p.cliente_nombre ?? "",
-      p.telefono_cliente ?? "",
-      p.decision ?? "pendiente",
-      p.monto_aprobado ?? "",
-      p.notas ?? "",
-      p.notas_revision ?? "",
-    ]);
-    exportRowsToCsv(`admin-vista-dia-${daySelected}.csv`, headers, rows);
-  }, [dayRows, asesorMap, daySelected]);
+  const exportDayRows = useCallback(async () => {
+    setDayRowsExporting(true);
+    try {
+      const exportFilters: FiltersState = {
+        asesorId: filters.asesorId,
+        programa: filters.programa,
+        buscar: filters.buscar,
+        desde: filters.desde,
+        hasta: filters.hasta,
+      };
+      const { startISO, endISO, mode } = getPeriodStartEndISO(daySelected, exportFilters);
+      const batchSize = 1000;
+      let from = 0;
+      const allRows: Precalificacion[] = [];
+
+      while (true) {
+        let query = supabase
+          .from("precalificaciones")
+          .select("*")
+          .gte("createdAt", startISO)
+          .lt("createdAt", endISO);
+
+        if (filters.asesorId) query = query.eq("asesorId", filters.asesorId);
+        if (filters.programa) query = query.eq("programa", filters.programa);
+        if (filters.buscar.trim()) {
+          const searchQ = filters.buscar.trim().replace(/,/g, " ");
+          const like = `%${searchQ}%`;
+          query = query.or(
+            `nss.ilike.${like},cliente_nombre.ilike.${like},telefono_cliente.ilike.${like},direccion_opcional.ilike.${like},notas.ilike.${like}`
+          );
+        }
+
+        const { data, error } = await query
+          .order("createdAt", { ascending: false })
+          .range(from, from + batchSize - 1);
+
+        if (error) throw new Error(error.message);
+
+        const batch = (data ?? []) as Precalificacion[];
+        allRows.push(...batch);
+
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+
+      const headers = [
+        "Fecha",
+        "Asesor",
+        "Programa",
+        "NSS",
+        "Cliente",
+        "Telefono",
+        "Decision",
+        "Monto aprobado",
+        "Notas",
+        "Notas revision",
+      ];
+      const rows = allRows.map((p) => [
+        formatDateTimeMx(p.createdAt),
+        getAsesorDisplayLabel(p.asesorId, asesorMap),
+        p.programa,
+        p.nss,
+        p.cliente_nombre ?? "",
+        p.telefono_cliente ?? "",
+        p.decision ?? "pendiente",
+        p.monto_aprobado ?? "",
+        p.notas ?? "",
+        p.notas_revision ?? "",
+      ]);
+
+      const filename =
+        mode === "range" && (filters.desde || filters.hasta)
+          ? `admin-vista-rango-${filters.desde || "inicio"}-${filters.hasta || "fin"}.csv`
+          : `admin-vista-dia-${daySelected}.csv`;
+      exportRowsToCsv(filename, headers, rows);
+    } catch (err) {
+      console.error("[admin] Error exportando CSV de vista dia/rango", err);
+      window.alert("No se pudo exportar el CSV. Intenta nuevamente.");
+    } finally {
+      setDayRowsExporting(false);
+    }
+  }, [
+    asesorMap,
+    daySelected,
+    filters.asesorId,
+    filters.buscar,
+    filters.desde,
+    filters.hasta,
+    filters.programa,
+  ]);
 
   const exportMainTable = useCallback(() => {
     const headers = [
@@ -744,9 +808,13 @@ export default function AdminDashboardPage() {
             <Button
               variant="outline"
               onClick={exportDayRows}
-              disabled={dayRows.length === 0 || dayRowsLoading}
+              disabled={dayRowsCount === 0 || dayRowsLoading || dayRowsExporting}
             >
-              Descargar CSV (día)
+              {dayRowsExporting
+                ? "Exportando..."
+                : filters.desde || filters.hasta
+                  ? "Descargar CSV (rango)"
+                  : "Descargar CSV (día)"}
             </Button>
           </div>
           <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
