@@ -17,6 +17,29 @@ import { getAsesorDisplayMap, getAsesorDisplayLabel } from "@/lib/asesorDisplay"
 import { supabase } from "@/lib/supabaseClient";
 import { formatMontoMX } from "@/lib/monto";
 
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  const raw = String(value).replace(/"/g, '""');
+  return `"${raw}"`;
+}
+
+function exportRowsToCsv(filename: string, headers: string[], rows: Array<Array<unknown>>) {
+  const csvLines = [
+    headers.map((h) => csvCell(h)).join(","),
+    ...rows.map((row) => row.map((v) => csvCell(v)).join(",")),
+  ];
+  const csv = `\uFEFF${csvLines.join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function getTodayYMD(): string {
   const t = new Date();
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
@@ -428,6 +451,64 @@ export default function AdminDashboardPage() {
     [fullList, filters]
   );
 
+  const exportDayRows = useCallback(() => {
+    const headers = [
+      "Fecha",
+      "Asesor",
+      "Programa",
+      "NSS",
+      "Cliente",
+      "Telefono",
+      "Decision",
+      "Monto aprobado",
+      "Notas",
+      "Notas revision",
+    ];
+    const rows = dayRows.map((p) => [
+      formatDateTimeMx(p.createdAt),
+      getAsesorDisplayLabel(p.asesorId, asesorMap),
+      p.programa,
+      p.nss,
+      p.cliente_nombre ?? "",
+      p.telefono_cliente ?? "",
+      p.decision ?? "pendiente",
+      p.monto_aprobado ?? "",
+      p.notas ?? "",
+      p.notas_revision ?? "",
+    ]);
+    exportRowsToCsv(`admin-vista-dia-${daySelected}.csv`, headers, rows);
+  }, [dayRows, asesorMap, daySelected]);
+
+  const exportMainTable = useCallback(() => {
+    const headers = [
+      "Fecha",
+      "Asesor",
+      "Programa",
+      "NSS",
+      "Cliente",
+      "Telefono",
+      "Direccion",
+      "Decision",
+      "Monto aprobado",
+      "Notas",
+      "Notas revision",
+    ];
+    const rows = filteredList.map((p) => [
+      formatDateTimeMx(p.createdAt),
+      getAsesorDisplayLabel(p.asesorId, asesorMap),
+      p.programa,
+      p.nss,
+      p.cliente_nombre ?? "",
+      p.telefono_cliente ?? "",
+      p.direccion_opcional ?? "",
+      p.decision ?? "pendiente",
+      p.monto_aprobado ?? "",
+      p.notas ?? "",
+      p.notas_revision ?? "",
+    ]);
+    exportRowsToCsv("admin-precalificaciones-filtradas.csv", headers, rows);
+  }, [filteredList, asesorMap]);
+
   const totalPages = Math.ceil(totalCount / pageSize) || 0;
   const canPrevious = page > 1;
   const canNext = page < totalPages;
@@ -620,6 +701,9 @@ export default function AdminDashboardPage() {
             ConCasa CRM · Super Admin
           </h1>
           <div className="flex items-center gap-3">
+            <Link href="/admin/historial">
+              <Button variant="outline">Historial</Button>
+            </Link>
             <span className="text-sm text-gray-500">{currentUser.email}</span>
             <Button variant="outline" onClick={() => sessionRepo.logout()}>
               Cerrar sesión
@@ -657,6 +741,13 @@ export default function AdminDashboardPage() {
                 className="rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
+            <Button
+              variant="outline"
+              onClick={exportDayRows}
+              disabled={dayRows.length === 0 || dayRowsLoading}
+            >
+              Descargar CSV (día)
+            </Button>
           </div>
           <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
@@ -772,9 +863,18 @@ export default function AdminDashboardPage() {
 
         {/* Tabla(s) */}
         <section>
-          <h2 className="mb-4 text-xl font-medium text-gray-900">
-            Todas las precalificaciones
-          </h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-medium text-gray-900">
+              Todas las precalificaciones
+            </h2>
+            <Button
+              variant="outline"
+              onClick={exportMainTable}
+              disabled={filteredList.length === 0}
+            >
+              Descargar CSV (tabla)
+            </Button>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200">
               {ADMIN_TABLE_HEAD}
