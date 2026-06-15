@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-15 - Fase A1: estabilización localhost/piloto mock
+
+### Cambios
+
+- `clearMockData`: claves retención etapa 8 (`expediente_retencion_opcion_v1`, `expediente_retencion_envio_mesa_v1`); test `clearMockData.test.ts`.
+- ESLint: `diff_artifacts/**` en `globalIgnores` (artefactos de diff, no parte del build).
+- Retención post-envío: `retencionOpcionAsesorEditable` / `retencionOpcionParaPanelAsesor`; radios bloqueados en estado `enviado`; banner con opción enviada a Mesa.
+
+### Rutas legacy (solo reporte, sin cambio)
+
+- `/revisor`, `/revisor/[id]`, `/admin/[id]` siguen compilando; rol `revisor` redirige desde login. Recomendación: ocultar enlaces en nav principal y documentar como alias del flujo editor hasta decisión de producto.
+
+### Git remoto
+
+- Canónico: `crmconcasa` (`main` @ `b3794c5`, tracking actual). `origin`/`concasacrm` diverge desde `813ecab` con 13 commits de formato CSV/montos (2026-05-21) sin retención B0D4–B0D6.
+
 ## 2026-05-27 - B0D6.4: alineación opción A/B retención en Mesa
 
 ### Causa

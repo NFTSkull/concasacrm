@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Artefactos de diff manual (no forman parte del build):
+    "diff_artifacts/**",
   ]),
 ]);
 

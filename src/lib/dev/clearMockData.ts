@@ -1,4 +1,6 @@
 import { resetMockArchivosIndexedDbConnection } from "@/domain/expediente-archivos/mock-indexeddb.repo";
+import { RETENCION_ENVIO_MESA_STORAGE_KEY } from "@/domain/expediente-retencion/envio-mesa.mock-localstorage.repo";
+import { RETENCION_OPCION_STORAGE_KEY } from "@/domain/expediente-retencion/mock-localstorage.repo";
 import { ASESORES_TIPO_MESA_KEY_V1 } from "@/lib/asesorTipoMesaMock";
 import {
   AGENDA_FIRMAS_BOOKINGS_KEY_V1,
@@ -21,6 +23,8 @@ export const MOCK_LOCAL_STORAGE_KEYS = [
   AGENDA_FIRMAS_BOOKINGS_KEY_V1,
   ASESORES_TIPO_MESA_KEY_V1,
   "expediente_cliente_datos",
+  RETENCION_OPCION_STORAGE_KEY,
+  RETENCION_ENVIO_MESA_STORAGE_KEY,
   MOCK_USER_KEY,
   "mock_role",
   "mock_email",

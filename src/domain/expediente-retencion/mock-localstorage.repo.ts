@@ -7,7 +7,8 @@ import type {
   SaveExpedienteRetencionOpcionInput,
 } from "./types";
 
-const STORAGE_KEY = "expediente_retencion_opcion_v1";
+export const RETENCION_OPCION_STORAGE_KEY = "expediente_retencion_opcion_v1";
+const STORAGE_KEY = RETENCION_OPCION_STORAGE_KEY;
 const EVENT_NAME = "expediente_retencion_opcion_updated";
 
 type StoredRow = {

@@ -63,3 +63,25 @@ export function retencionPuedeReenviarAMesa(
   if (faltantes.length > 0) return false;
   return uiEstado === "no_enviado" || uiEstado === "correccion_requerida";
 }
+
+/** Tras envío en revisión, el asesor no debe cambiar A/B hasta corrección o reenvío. */
+export function retencionOpcionAsesorEditable(
+  uiEstado: RetencionEnvioMesaUiEstado,
+): boolean {
+  return uiEstado !== "enviado";
+}
+
+/**
+ * Opción mostrada en panel asesor: con bloque enviado en revisión, fijar a la opción
+ * enviada (canónica para Mesa) para no desalinear uploads con lo que ve Mesa.
+ */
+export function retencionOpcionParaPanelAsesor(
+  envio: ExpedienteRetencionEnvioMesa | null | undefined,
+  opcionPersistida: RetencionOpcion | null | undefined,
+  uiEstado: RetencionEnvioMesaUiEstado,
+): RetencionOpcion | null {
+  if (uiEstado === "enviado" && envio?.opcion) {
+    return envio.opcion;
+  }
+  return opcionPersistida ?? null;
+}

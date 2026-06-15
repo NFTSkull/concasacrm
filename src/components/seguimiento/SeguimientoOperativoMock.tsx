@@ -10,6 +10,7 @@ import {
   getChecklistDocumentos,
   getBloqueosRetencionAvanceEtapa8Mesa,
   isRetencionTipoDocumento,
+  labelRetencionOpcion,
   listRetencionUploadsForOpcion,
   RETENCION_ETAPA_OPERATIVA_ID,
 } from "@/domain/expediente-archivos";
@@ -27,7 +28,9 @@ import {
 import { MockExpedienteRetencionOpcionLocalStorageRepo } from "@/domain/expediente-retencion/mock-localstorage.repo";
 import {
   retencionEnvioEstadoEfectivo,
+  retencionOpcionAsesorEditable,
   retencionOpcionMesaEfectiva,
+  retencionOpcionParaPanelAsesor,
   retencionPuedeReenviarAMesa,
 } from "@/domain/expediente-retencion/retencion-envio-mesa";
 import type {
@@ -816,20 +819,6 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
     (operativoEtapaId === RETENCION_ETAPA_OPERATIVA_ID ||
       selectedStageId === RETENCION_ETAPA_OPERATIVA_ID);
 
-  const retencionFaltantes = useMemo(
-    () =>
-      deriveRetencionAcuseAvisoFaltantes({
-        retencion_opcion: retencionOpcion,
-        archivos: archivosResumen,
-      }),
-    [retencionOpcion, archivosResumen],
-  );
-
-  const retencionUploads = useMemo(
-    () => listRetencionUploadsForOpcion(retencionOpcion),
-    [retencionOpcion],
-  );
-
   const retencionEnvioUiEstado = useMemo(
     () =>
       retencionEnvioEstadoEfectivo(
@@ -838,6 +827,32 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
         retencionOpcion,
       ),
     [retencionEnvioMesa, archivosResumen, retencionOpcion],
+  );
+
+  const retencionOpcionEditable = retencionOpcionAsesorEditable(retencionEnvioUiEstado);
+
+  const retencionOpcionPanel = useMemo(
+    () =>
+      retencionOpcionParaPanelAsesor(
+        retencionEnvioMesa,
+        retencionOpcion,
+        retencionEnvioUiEstado,
+      ),
+    [retencionEnvioMesa, retencionOpcion, retencionEnvioUiEstado],
+  );
+
+  const retencionFaltantes = useMemo(
+    () =>
+      deriveRetencionAcuseAvisoFaltantes({
+        retencion_opcion: retencionOpcionPanel,
+        archivos: archivosResumen,
+      }),
+    [retencionOpcionPanel, archivosResumen],
+  );
+
+  const retencionUploads = useMemo(
+    () => listRetencionUploadsForOpcion(retencionOpcionPanel),
+    [retencionOpcionPanel],
   );
 
   const mostrarBotonEnvioRetencionMesa =
@@ -1528,16 +1543,21 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                       etapa 9.
                     </p>
 
-                    <fieldset className="mt-2 space-y-1.5">
+                    <fieldset className="mt-2 space-y-1.5" disabled={!retencionOpcionEditable}>
                       <legend className="sr-only">Opción de retención</legend>
-                      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs">
+                      <label
+                        className={`flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs ${
+                          retencionOpcionEditable ? "cursor-pointer" : "cursor-not-allowed opacity-80"
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="retencion_opcion"
                           className="mt-0.5"
-                          checked={retencionOpcion === "con_sello"}
+                          checked={retencionOpcionPanel === "con_sello"}
+                          disabled={!retencionOpcionEditable}
                           onChange={() => {
-                            if (!contextPrecalId) return;
+                            if (!contextPrecalId || !retencionOpcionEditable) return;
                             void retencionOpcionRepo
                               .save({
                                 expedienteId: contextPrecalId,
@@ -1558,14 +1578,19 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                           </span>
                         </span>
                       </label>
-                      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs">
+                      <label
+                        className={`flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs ${
+                          retencionOpcionEditable ? "cursor-pointer" : "cursor-not-allowed opacity-80"
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="retencion_opcion"
                           className="mt-0.5"
-                          checked={retencionOpcion === "sin_sello"}
+                          checked={retencionOpcionPanel === "sin_sello"}
+                          disabled={!retencionOpcionEditable}
                           onChange={() => {
-                            if (!contextPrecalId) return;
+                            if (!contextPrecalId || !retencionOpcionEditable) return;
                             void retencionOpcionRepo
                               .save({
                                 expedienteId: contextPrecalId,
@@ -1588,7 +1613,21 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                       </label>
                     </fieldset>
 
-                    {retencionOpcion ? (
+                    {!retencionOpcionEditable && retencionEnvioMesa?.opcion ? (
+                      <p
+                        role="status"
+                        className="mt-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-800"
+                      >
+                        Opción enviada a Mesa:{" "}
+                        <span className="font-semibold">
+                          {labelRetencionOpcion(retencionEnvioMesa.opcion)}
+                        </span>
+                        . Para cambiar la opción, primero requiere que Mesa solicite
+                        corrección o reenvíes el bloque tras una corrección.
+                      </p>
+                    ) : null}
+
+                    {retencionOpcionPanel ? (
                       <div className="mt-2 flex flex-col gap-1.5">
                         {retencionUploads.map(({ tipo, label }) => {
                           const item =
@@ -1673,7 +1712,7 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                           ))}
                         </ul>
                       </div>
-                    ) : retencionOpcion ? (
+                    ) : retencionOpcionPanel ? (
                       <p
                         role="status"
                         className="mt-2 rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-xs text-green-900"

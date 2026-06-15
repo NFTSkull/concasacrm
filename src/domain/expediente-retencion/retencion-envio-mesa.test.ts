@@ -4,7 +4,9 @@ import {
   puedeEnviarRetencionAcuseAvisoAMesa,
   rechazoRetencionMesaPermitido,
   retencionEnvioEstadoEfectivo,
+  retencionOpcionAsesorEditable,
   retencionOpcionMesaEfectiva,
+  retencionOpcionParaPanelAsesor,
   retencionPuedeReenviarAMesa,
 } from "./retencion-envio-mesa";
 import { getBloqueosRetencionAvanceEtapa8Mesa } from "@/domain/expediente-archivos/retencion-acuse-aviso";
@@ -116,5 +118,23 @@ describe("B0D6: envío Acuse/Aviso retención a Mesa", () => {
       ]),
       false,
     );
+  });
+
+  it("A1: opción asesor bloqueada tras envío en revisión", () => {
+    assert.equal(retencionOpcionAsesorEditable("enviado"), false);
+    assert.equal(retencionOpcionAsesorEditable("correccion_requerida"), true);
+    assert.equal(retencionOpcionAsesorEditable("no_enviado"), true);
+  });
+
+  it("A1: panel asesor fija opción enviada mientras Mesa revisa", () => {
+    assert.equal(
+      retencionOpcionParaPanelAsesor(envioBase, "sin_sello", "enviado"),
+      "con_sello",
+    );
+    assert.equal(
+      retencionOpcionParaPanelAsesor(envioBase, "sin_sello", "correccion_requerida"),
+      "sin_sello",
+    );
+    assert.equal(retencionOpcionParaPanelAsesor(null, "con_sello", "no_enviado"), "con_sello");
   });
 });
