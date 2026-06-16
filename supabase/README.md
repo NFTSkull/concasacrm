@@ -52,6 +52,31 @@ supabase db reset      # aplica migrations/
 
 **No ejecutar** `supabase db push` contra producción sin revisión de seguridad y backup.
 
+## Tests SQL (P2C-5)
+
+Requiere **Supabase local** en marcha (`npx supabase start`). Para un entorno limpio:
+
+```bash
+npx supabase db reset
+npm run test:sql
+```
+
+Atajo con reset incluido:
+
+```bash
+npm run test:sql:reset
+```
+
+Orden de ejecución (`npm run test:sql`):
+
+1. `supabase/tests/rls_policies.sql`
+2. `supabase/tests/audit_document_history.sql`
+3. `supabase/tests/rpc_documento_revision.sql`
+4. `supabase/tests/rpc_enviar_a_mesa.sql`
+5. `supabase/tests/rpc_avanzar_etapa_operativa.sql`
+
+Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
+
 ## Estructura
 
 ```
@@ -75,7 +100,6 @@ supabase/
 
 ## Próximos archivos
 
-- Script npm `test:sql` — ejecutar las 5 suites SQL en orden
 - `book_biometricos` — agenda biométricos (etapa 4)
 - Retención etapa 8 — RPCs de envío/validación retención
 - Storage — bucket + policies
