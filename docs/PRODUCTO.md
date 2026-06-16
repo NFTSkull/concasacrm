@@ -30,7 +30,7 @@ ConCasa CRM gestiona el ciclo operativo de precalificaciones / expedientes hipot
 | Rol | Alias mock / legacy | Acceso |
 |-----|---------------------|--------|
 | `asesor` | `asesor` | Solo sus expedientes; captura, documentos, envío integración, biométricos etapa 4, retención etapa 8. |
-| `editor` | `editor`, **`revisor` (legacy → redirigir a editor)** | Todos los expedientes; aprueba monto / decisión editor. |
+| `editor` | `editor` | Todos los expedientes; aprueba monto / decisión editor. |
 | `mesa_admin` | `mesa_control_admin` | Todos los expedientes en mesa; config agenda; avance operativo. |
 | `mesa_interno` | `mesa_control_interno` | Expedientes con `origen_mesa = interno`. |
 | `mesa_externo` | `mesa_control_externo` | Expedientes con `origen_mesa = externo`. PII completa **solo** de los suyos. |
@@ -53,7 +53,7 @@ ConCasa CRM gestiona el ciclo operativo de precalificaciones / expedientes hipot
 | `/mesa-control` | Mesa* | Bandeja operativa. |
 | `/mesa-control/[id]` | Mesa* | Revisión documental, avance etapas, retención, lectura citas. |
 | `/admin` | Super admin | KPIs y métricas. |
-| `/revisor`, `/revisor/[id]` | Legacy | Alias de editor; **deprecar** en producción. |
+| `/revisor`, `/revisor/[id]` | Legacy mock | Redirigen a `/editor`; **no** es rol de producción. |
 
 ---
 

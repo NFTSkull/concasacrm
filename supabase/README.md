@@ -2,14 +2,14 @@
 
 Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 
-## Estado P1
+## Estado (P2B / P2C)
 
 | Item | Estado |
 |------|--------|
-| `migrations/001_core_schema.sql` | ✅ Creado |
-| Supabase CLI local | ❌ No detectada en entorno dev |
-| Proyecto remoto vinculado | ❌ No configurado |
-| Policies RLS | TODO P2/P6 (RLS ON, deny-by-default) |
+| `migrations/001`–`004` | ✅ Schema, RLS, auditoría, RPC `update_documento_revision` |
+| Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
+| Supabase CLI local | `npx supabase start` / `db reset` |
+| UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
 
 ## Aplicar migración (cuando exista CLI)
 

@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P2B.1 — Rol productivo `editor` (sin `revisor`):** login mock sin opción Revisor; `normalizeLegacyMockRole`; redirect `/revisor/*`→`/editor`; sesión mesa usa `mesa_control`; docs y e2e alineados. Supabase sin cambios.
+
 - **Fase A1 — Estabilización piloto mock:** `clearMockData` limpia `expediente_retencion_opcion_v1` y `expediente_retencion_envio_mesa_v1`; ESLint ignora `diff_artifacts/`; asesor no puede cambiar opción A/B mientras el bloque Acuse/Aviso está enviado en revisión (Mesa sigue usando opción enviada como canónica).
 
 - **B1 — Avance Mesa 4→5 biométricos:** `resolveFechaCitaBiometricosOperativa` alinea bloqueo con `mesa_control_inbox.fechaCita` y fallback a `agenda_bookings_v1`; backfill al cargar detalle Mesa en etapa 4; Mesa puede aprobar 4→5 cuando el asesor ya agendó cita.

@@ -9,6 +9,13 @@ export type MockUserV1 = Readonly<{
   name: string;
 }>;
 
+/** `revisor` es alias legacy del mock; en producción solo existe `editor`. */
+export function normalizeLegacyMockRole(role: string): string {
+  const trimmed = role.trim();
+  if (trimmed === "revisor") return "editor";
+  return trimmed;
+}
+
 function safeParse(raw: string | null): MockUserV1 | null {
   if (!raw) return null;
   try {
@@ -40,10 +47,11 @@ export function readMockUser(): MockUserV1 | null {
  */
 export function getEffectiveMockRole(): string | null {
   const u = readMockUser();
-  if (u?.role) return u.role;
+  if (u?.role) return normalizeLegacyMockRole(u.role);
   if (typeof window === "undefined") return null;
   const legacy = window.localStorage.getItem("mock_role");
-  return legacy?.trim() || null;
+  if (!legacy?.trim()) return null;
+  return normalizeLegacyMockRole(legacy);
 }
 
 export function getEffectiveMockEmail(): string | null {
@@ -64,7 +72,7 @@ export function persistMockUser(user: MockUserV1): void {
   if (typeof window === "undefined") return;
   const normalized: MockUserV1 = {
     email: user.email.trim(),
-    role: user.role.trim(),
+    role: normalizeLegacyMockRole(user.role),
     name: user.name.trim(),
   };
   window.localStorage.setItem(MOCK_USER_KEY, JSON.stringify(normalized));

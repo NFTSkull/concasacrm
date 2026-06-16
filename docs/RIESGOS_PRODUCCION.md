@@ -43,7 +43,7 @@
 
 | Riesgo | Impacto | Mitigación |
 |--------|---------|------------|
-| `revisor` vs `editor` divergente | Medio | Alias único en Auth; redirect rutas legacy |
+| `revisor` vs `editor` divergente | Medio | **P2B.1:** mock normaliza `revisor`→`editor`; `/revisor/*` redirect; sin rol en Supabase |
 | `mock_role` en producción | Crítico | Eliminar en P4 prod; solo Supabase JWT |
 | Mesa usa `useSessionRepo` colapsado | Medio | Perfil real con `tipo_mesa` |
 

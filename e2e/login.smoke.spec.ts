@@ -10,7 +10,6 @@ const LOGIN_SMOKE_CASES: LoginSmokeCase[] = [
   { role: "editor", expectedPath: "/editor" },
   { role: "mesa_control_admin", expectedPath: "/mesa-control" },
   { role: "super_admin", expectedPath: "/admin" },
-  { role: "revisor", expectedPath: "/revisor" },
 ];
 
 async function tryClearMockData(page: import("@playwright/test").Page): Promise<void> {

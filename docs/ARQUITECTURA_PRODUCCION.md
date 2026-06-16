@@ -67,7 +67,7 @@ export function getExpedientesRepo(): ExpedientesRepo {
 
 - Usuarios en `auth.users`; perfil extendido en `public.profiles`.
 - Claim / columna `app_role` en `profiles` (no confiar en rol enviado por cliente).
-- Login mock (`/login`) se reemplaza en **P4**; rutas legacy `revisor` → redirect `editor`.
+- Login mock (`/login`) se reemplaza en **P4**; rutas legacy `/revisor/*` redirigen a `/editor` (P2B.1).
 - Mesa interno/externo: `profiles.tipo_mesa` + RLS filtra `expedientes.origen_mesa`.
 
 ---

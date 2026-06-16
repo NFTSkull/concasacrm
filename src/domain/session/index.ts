@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MockSessionRepo } from "./mock.repo";
 import { getEffectiveMockEmail, getEffectiveMockRole } from "@/lib/mockUser";
 import { useMockStore } from "@/context/MockStoreContext";
-import type { UserSession } from "./types";
+import type { UserSession, Rol } from "./types";
 import type { SessionRepo } from "./repo";
 
 export type { UserSession, Rol } from "./types";
@@ -48,16 +48,17 @@ export function useSessionRepo(): {
 
       if (mockEmail && mockRole) {
         let mockSession: UserSession | null = null;
+        const normalizedRole =
+          mockRole === "revisor" ? "editor" : mockRole;
         if (mesaMockRoles.includes(mockRole as (typeof mesaMockRoles)[number])) {
-          mockSession = { email: mockEmail, role: "revisor" };
+          mockSession = { email: mockEmail, role: "mesa_control" };
         } else {
-          switch (mockRole) {
+          switch (normalizedRole) {
             case "asesor":
-            case "revisor":
             case "super_admin":
             case "admin":
             case "editor":
-              mockSession = { email: mockEmail, role: mockRole };
+              mockSession = { email: mockEmail, role: normalizedRole as Rol };
               break;
             default:
               mockSession = null;
@@ -85,14 +86,13 @@ export function useSessionRepo(): {
         ];
         if (
           roleOverride === "asesor" ||
-          roleOverride === "revisor" ||
           roleOverride === "super_admin" ||
           roleOverride === "admin" ||
           roleOverride === "editor"
         ) {
           setCurrentUser({ ...user, role: roleOverride });
         } else if (roleOverride && mesaOverride.includes(roleOverride)) {
-          setCurrentUser({ ...user, role: "revisor" });
+          setCurrentUser({ ...user, role: "mesa_control" });
         } else {
           setCurrentUser(user);
         }

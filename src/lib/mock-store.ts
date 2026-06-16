@@ -10,7 +10,7 @@ export type Precalificacion = PrecalificacionDomain;
 /** @deprecated Usar Decision de domain/precalificaciones/types */
 export type DecisionPrecalificacion = Decision;
 
-export type Rol = "asesor" | "revisor" | "super_admin";
+export type Rol = "asesor" | "editor" | "super_admin" | "mesa_control";
 
 export interface UsuarioMock {
   email: string;

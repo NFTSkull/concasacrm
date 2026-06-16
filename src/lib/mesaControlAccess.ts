@@ -2,8 +2,8 @@ import type { ExpedienteMock } from "@/domain/expedientes/mock.repo";
 
 /**
  * Contexto de acceso para Mesa de Control.
- * Usar `localStorage.getItem("mock_role")`: `useSessionRepo` mapea `mesa_control` → `revisor`
- * y no refleja `mesa_control_admin` / `_interno` / `_externo`.
+ * Usar `getEffectiveMockRole()` para permisos mesa (`mesa_control_*`).
+ * `useSessionRepo` expone `mesa_control` como rol de sesión mock para operadores de mesa.
  */
 export type MesaControlAccessUser = {
   mockRole: string | null;

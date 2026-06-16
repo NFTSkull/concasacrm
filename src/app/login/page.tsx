@@ -11,7 +11,6 @@ type MockLoginRole =
   | "super_admin"
   | "editor"
   | "asesor"
-  | "revisor"
   | "mesa_control_admin"
   | "mesa_control_interno"
   | "mesa_control_externo";
@@ -20,7 +19,6 @@ const VISION_OPTIONS: { value: MockLoginRole; label: string }[] = [
   { value: "super_admin", label: "Super Admin" },
   { value: "editor", label: "Editor" },
   { value: "asesor", label: "Asesor" },
-  { value: "revisor", label: "Revisor" },
   { value: "mesa_control_admin", label: "Mesa Control - Admin (Cynthia)" },
   { value: "mesa_control_interno", label: "Mesa Control - Interno" },
   { value: "mesa_control_externo", label: "Mesa Control - Externo" },
@@ -72,8 +70,6 @@ export default function LoginPage() {
       router.push("/admin");
     } else if (vision === "editor") {
       router.push("/editor");
-    } else if (vision === "revisor") {
-      router.push("/revisor");
     } else {
       router.push("/admin");
     }

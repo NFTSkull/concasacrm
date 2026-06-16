@@ -1,14 +1,13 @@
 /**
  * Tipos de dominio para la sesión de usuario.
- * 
- * Nota: en este proyecto copiado se usan roles adicionales de "visión" mock
- * (admin, editor, mesa_control) únicamente en cliente. Los roles reales de Supabase
- * siguen siendo asesor | revisor | super_admin.
+ *
+ * Producción (Supabase `app_role`): asesor, editor, mesa_*, super_admin.
+ * `revisor` es alias legacy del mock — normalizar a `editor` vía `normalizeLegacyMockRole`.
  */
 
 export type Rol =
   | "asesor"
-  | "revisor"
+  | "revisor" // legacy mock; normalizar a editor — no existe en producción
   | "super_admin"
   | "admin"
   | "editor"

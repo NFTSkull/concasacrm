@@ -1,7 +1,7 @@
 "use client";
 
 import type { MockStoreContextValue } from "@/context/MockStoreContext";
-import { clearMockUser } from "@/lib/mockUser";
+import { clearMockUser, normalizeLegacyMockRole } from "@/lib/mockUser";
 import type { UserSession, Rol } from "./types";
 import type { SessionRepo } from "./repo";
 
@@ -25,10 +25,15 @@ function readSessionFromStorage(): UserSession | null {
     const parsed = JSON.parse(raw) as { email?: string; role?: string };
     if (
       typeof parsed?.email === "string" &&
-      typeof parsed?.role === "string" &&
-      ["asesor", "revisor", "super_admin"].includes(parsed.role)
+      typeof parsed?.role === "string"
     ) {
-      return { email: parsed.email, role: parsed.role as Rol };
+      const role = normalizeLegacyMockRole(parsed.role);
+      if (["asesor", "editor", "super_admin", "revisor"].includes(role)) {
+        return {
+          email: parsed.email,
+          role: (role === "revisor" ? "editor" : role) as Rol,
+        };
+      }
     }
   } catch {
     // ignore
@@ -48,14 +53,20 @@ export class MockSessionRepo implements SessionRepo {
     if (fromStore) return Promise.resolve(fromStore);
     const fromStorage = readSessionFromStorage();
     if (fromStorage) {
+      const role =
+        fromStorage.role === "revisor" ? "editor" : fromStorage.role;
       if (
-        fromStorage.role === "asesor" ||
-        fromStorage.role === "revisor" ||
-        fromStorage.role === "super_admin"
+        role === "asesor" ||
+        role === "editor" ||
+        role === "super_admin" ||
+        role === "mesa_control"
       ) {
-        this.store.login(fromStorage.email, "", fromStorage.role);
+        this.store.login(fromStorage.email, "", role);
       }
-      return Promise.resolve(fromStorage);
+      return Promise.resolve({
+        email: fromStorage.email,
+        role: role as Rol,
+      });
     }
     return Promise.resolve(null);
   }

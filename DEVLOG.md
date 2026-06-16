@@ -1,5 +1,24 @@
 # Devlog
 
+## 2026-06-15 - P2B.1: alinear producto — `revisor` no existe, solo `editor`
+
+### Decisión
+
+- Supabase `app_role` y RPCs usan `editor`; `revisor` es alias legacy del mock únicamente.
+
+### Cambios
+
+- Login mock: se retira `revisor` del selector; `normalizeLegacyMockRole` mapea `revisor`→`editor` en `mockUser`.
+- Rutas `/revisor` y `/revisor/[id]`: redirect a `/editor` / `/editor/[id]`.
+- `useSessionRepo`: mesa mock usa rol sesión `mesa_control` (ya no `revisor`).
+- Docs producto/arquitectura/contratos/riesgos actualizados; e2e sin login `revisor`.
+- Textos UI: «editor» en mensajes de integración y formulario de decisión.
+
+### No tocado
+
+- Migraciones Supabase, RLS, RPCs P2C; helper `asesorPuedeIntegrarTrasMontoRevisor` (nombre legacy).
+- Docs históricos `AUDITORIA_CRM.md`, `CONTEXTO_TECNICO_AUDITOR.md`, `supabase-precalificaciones-rls.sql` (precalificaciones legacy).
+
 ## 2026-06-15 - Retención etapa 8: rechazar documento ya validado
 
 ### Causa

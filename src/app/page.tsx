@@ -15,8 +15,11 @@ export default function HomePage() {
       return;
     }
     if (currentUser.role === "asesor") router.replace("/asesor");
-    else if (currentUser.role === "revisor") router.replace("/revisor");
-    else router.replace("/admin");
+    else if (currentUser.role === "editor" || currentUser.role === "revisor") {
+      router.replace("/editor");
+    } else if (currentUser.role === "mesa_control") {
+      router.replace("/mesa-control");
+    } else router.replace("/admin");
   }, [currentUser, router]);
 
   return (

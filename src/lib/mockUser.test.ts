@@ -4,6 +4,7 @@ import {
   getEffectiveMockEmail,
   getEffectiveMockRole,
   MOCK_USER_KEY,
+  normalizeLegacyMockRole,
   persistMockUser,
   readMockUser,
 } from "@/lib/mockUser";
@@ -42,6 +43,16 @@ test("getEffectiveMockRole: sin mock_user usa mock_role", () => {
   assert.equal(getEffectiveMockRole(), "mesa_control_interno");
 });
 
+test("normalizeLegacyMockRole: revisor legacy → editor", () => {
+  assert.equal(normalizeLegacyMockRole("revisor"), "editor");
+  assert.equal(normalizeLegacyMockRole("editor"), "editor");
+});
+
+test("getEffectiveMockRole: revisor legacy en mock_role → editor", () => {
+  installWindowStore({ mock_role: "revisor", mock_email: "x@test.com" });
+  assert.equal(getEffectiveMockRole(), "editor");
+});
+
 test("persistMockUser escribe mock_user y sincroniza claves legacy", () => {
   const map = new Map<string, string>();
   (globalThis as unknown as { window: object }).window = {
@@ -63,4 +74,26 @@ test("persistMockUser escribe mock_user y sincroniza claves legacy", () => {
   assert.equal(readMockUser()?.name, "Cynthia");
   assert.equal(map.get("mock_role"), "mesa_control_admin");
   assert.equal(map.get("mock_email"), "cynthia@concasa.test");
+});
+
+test("persistMockUser normaliza revisor legacy a editor", () => {
+  const map = new Map<string, string>();
+  (globalThis as unknown as { window: object }).window = {
+    localStorage: {
+      getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        map.set(k, v);
+      },
+      removeItem: (k: string) => {
+        map.delete(k);
+      },
+    },
+  };
+  persistMockUser({
+    email: "legacy@test.com",
+    role: "revisor",
+    name: "Legacy",
+  });
+  assert.equal(readMockUser()?.role, "editor");
+  assert.equal(map.get("mock_role"), "editor");
 });

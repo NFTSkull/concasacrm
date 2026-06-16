@@ -1,5 +1,7 @@
 # Módulo Editor/Revisor del CRM — Cómo funciona
 
+> **P2B.1 (2026-06-15):** En producción **no existe** el rol `revisor`; solo `editor`. Las rutas `/revisor/*` del mock redirigen a `/editor`. Este documento describe código histórico; usar `/editor` y rol `editor` como referencia productiva.
+
 Documentación exacta basada en el código actual. Sin inventar rutas ni comportamiento.
 
 ---

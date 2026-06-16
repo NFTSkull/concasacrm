@@ -70,7 +70,7 @@ Convenciones:
 ### Reglas
 
 - Rol `editor` | `super_admin`.
-- Asesor integra solo si `decision = aprobado` AND `monto_aprobado > 0` (ver `asesorPuedeIntegrarTrasMontoRevisor`).
+- Asesor integra solo si `decision = aprobado` AND `monto_aprobado > 0` (helper mock `asesorPuedeIntegrarTrasMontoRevisor`; nombre legacy, aplica al rol **editor**).
 - Log: `action_log` `editor_decision.update`.
 
 ---

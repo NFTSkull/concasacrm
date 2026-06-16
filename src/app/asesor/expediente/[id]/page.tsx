@@ -74,7 +74,7 @@ type EstadoEtapa =
   | "rechazado";
 
 const MSJ_ESPERA_MONTO_REVISOR =
-  "Debes esperar a que el revisor apruebe un monto antes de capturar datos, subir documentos o enviar a mesa.";
+  "Debes esperar a que el editor apruebe un monto antes de capturar datos, subir documentos o enviar a mesa.";
 
 function formatDateTime(iso: string): string {
   try {
