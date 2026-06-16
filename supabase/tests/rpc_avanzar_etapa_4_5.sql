@@ -1,0 +1,439 @@
+-- ConCasa CRM — pruebas P2C-7 RPC avanzar_etapa_operativa (transición 4→5)
+-- Uso: PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f supabase/tests/rpc_avanzar_etapa_4_5.sql
+
+\set ON_ERROR_STOP on
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_assert(p_ok BOOLEAN, p_msg TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT p_ok THEN
+    RAISE EXCEPTION 'RPC AVANZAR 45 TEST FAIL: %', p_msg;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_set_auth(p_user_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM set_config('role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claim.sub', p_user_id::text, true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_reset_auth()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM set_config('role', 'postgres', true);
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_call_as(
+  p_user_id UUID,
+  p_expediente_id UUID,
+  p_comentario TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  PERFORM public.__rpc_avanzar_45_test_set_auth(p_user_id);
+  SELECT public.avanzar_etapa_operativa(p_expediente_id, p_comentario) INTO v_result;
+  PERFORM public.__rpc_avanzar_45_test_reset_auth();
+  RETURN v_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_call_expect_fail(
+  p_user_id UUID,
+  p_expediente_id UUID,
+  p_comentario TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM public.__rpc_avanzar_45_test_set_auth(p_user_id);
+  BEGIN
+    PERFORM public.avanzar_etapa_operativa(p_expediente_id, p_comentario);
+    PERFORM public.__rpc_avanzar_45_test_reset_auth();
+    RETURN false;
+  EXCEPTION
+    WHEN OTHERS THEN
+      PERFORM public.__rpc_avanzar_45_test_reset_auth();
+      RETURN true;
+  END;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_insert_expediente(
+  p_id UUID,
+  p_org_id UUID,
+  p_asesor_id UUID,
+  p_nss CHAR(11),
+  p_origen public.origen_mesa DEFAULT 'interno',
+  p_submitted BOOLEAN DEFAULT true,
+  p_etapa SMALLINT DEFAULT 4,
+  p_fecha_cita TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO public.expedientes (
+    id, organization_id, asesor_id, programa, nss, cliente_nombre,
+    telefono_cliente, origen_mesa, submitted_to_mesa, fecha_envio_mesa,
+    etapa_actual, subestado, fecha_cita
+  ) VALUES (
+    p_id, p_org_id, p_asesor_id, 'mejoravit', p_nss,
+    'Fixture Avanzar 4-5', '5599999999', p_origen,
+    p_submitted,
+    CASE WHEN p_submitted THEN NOW() ELSE NULL END,
+    p_etapa, 'en_proceso', p_fecha_cita
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    asesor_id = EXCLUDED.asesor_id,
+    nss = EXCLUDED.nss,
+    origen_mesa = EXCLUDED.origen_mesa,
+    submitted_to_mesa = EXCLUDED.submitted_to_mesa,
+    etapa_actual = EXCLUDED.etapa_actual,
+    subestado = EXCLUDED.subestado,
+    fecha_cita = EXCLUDED.fecha_cita,
+    deleted_at = NULL,
+    ciclo_estado = 'activo',
+    updated_at = NOW();
+
+  DELETE FROM public.agenda_bookings WHERE expediente_id = p_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_45_test_insert_booking(
+  p_expediente_id UUID,
+  p_org_id UUID,
+  p_created_by UUID,
+  p_kind public.booking_kind DEFAULT 'biometricos',
+  p_status public.booking_status DEFAULT 'booked',
+  p_booking_date DATE DEFAULT (CURRENT_DATE + 7),
+  p_booking_time TIME DEFAULT '10:00:00'
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  INSERT INTO public.agenda_bookings (
+    organization_id, kind, expediente_id, booking_date, booking_time,
+    location_id, status, created_by, cancelled_at
+  ) VALUES (
+    p_org_id, p_kind, p_expediente_id, p_booking_date, p_booking_time,
+    'sede-fixture', p_status, p_created_by,
+    CASE WHEN p_status = 'cancelled' THEN NOW() ELSE NULL END
+  )
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+DO $$
+DECLARE
+  v_org_id UUID := '00000000-0000-4000-8000-000000000001';
+  v_asesor_a1 UUID := '00000000-0000-4000-8001-000000000001';
+  v_asesor_a2 UUID := '00000000-0000-4000-8001-000000000002';
+  v_mesa_admin UUID := '00000000-0000-4000-8003-000000000001';
+  v_mesa_int UUID := '00000000-0000-4000-8004-000000000001';
+  v_mesa_ext UUID := '00000000-0000-4000-8005-000000000001';
+  v_editor UUID := '00000000-0000-4000-8002-000000000001';
+
+  v_fecha_cita TIMESTAMPTZ := NOW() + INTERVAL '7 days';
+
+  v_exp_admin UUID := '00000000-0000-4000-9009-000000000010';
+  v_exp_int UUID := '00000000-0000-4000-9009-000000000011';
+  v_exp_int_block UUID := '00000000-0000-4000-9009-000000000012';
+  v_exp_ext UUID := '00000000-0000-4000-9009-000000000013';
+  v_exp_roles UUID := '00000000-0000-4000-9009-000000000014';
+  v_exp_wrong_etapa UUID := '00000000-0000-4000-9009-000000000015';
+  v_exp_not_sent UUID := '00000000-0000-4000-9009-000000000016';
+  v_exp_no_fecha UUID := '00000000-0000-4000-9009-000000000017';
+  v_exp_no_booking UUID := '00000000-0000-4000-9009-000000000018';
+  v_exp_cancelled UUID := '00000000-0000-4000-9009-000000000019';
+  v_exp_firmas UUID := '00000000-0000-4000-9009-000000000020';
+  v_exp_ok UUID := '00000000-0000-4000-9009-000000000021';
+  v_exp_fecha_check UUID := '00000000-0000-4000-9009-000000000022';
+  v_exp_double UUID := '00000000-0000-4000-9009-000000000023';
+  v_exp_sanity_1 UUID := '00000000-0000-4000-9009-000000000024';
+
+  v_result JSONB;
+  v_booking_id UUID;
+  v_fecha_before TIMESTAMPTZ;
+  v_log_before BIGINT;
+  v_log_after BIGINT;
+BEGIN
+  -- Expedientes etapa 4 listos con cita + booking biométrico
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_admin, v_org_id, v_asesor_a1, '90901000001', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_admin, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_int, v_org_id, v_asesor_a1, '90901100011', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_int, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_int_block, v_org_id, v_asesor_a1, '90901200012', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_int_block, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_ext, v_org_id, v_asesor_a2, '90901300013', 'externo', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_ext, v_org_id, v_asesor_a2);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_roles, v_org_id, v_asesor_a1, '90901400014', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_roles, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90901500015', 'interno', true, 3::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_wrong_etapa, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_not_sent, v_org_id, v_asesor_a1, '90901600016', 'interno', false, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_not_sent, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_no_fecha, v_org_id, v_asesor_a1, '90901700017', 'interno', true, 4::smallint, NULL
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_no_fecha, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_no_booking, v_org_id, v_asesor_a1, '90901800018', 'interno', true, 4::smallint, v_fecha_cita
+  );
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_cancelled, v_org_id, v_asesor_a1, '90901900019', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(
+    v_exp_cancelled, v_org_id, v_asesor_a1, 'biometricos', 'cancelled'
+  );
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_firmas, v_org_id, v_asesor_a1, '90902000020', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(
+    v_exp_firmas, v_org_id, v_asesor_a1, 'firmas', 'booked'
+  );
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_ok, v_org_id, v_asesor_a1, '90902100021', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_ok, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_fecha_check, v_org_id, v_asesor_a1, '90902200022', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_fecha_check, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_double, v_org_id, v_asesor_a1, '90902300023', 'interno', true, 4::smallint, v_fecha_cita
+  );
+  PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_double, v_org_id, v_asesor_a1);
+
+  PERFORM public.__rpc_avanzar_45_test_insert_expediente(
+    v_exp_sanity_1, v_org_id, v_asesor_a1, '90902400024', 'interno', true, 1::smallint, NULL
+  );
+
+  -- Test 1: mesa_admin avanza 4→5 con booking y fecha_cita
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_admin, v_exp_admin, 'biométricos confirmados');
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'ok')::boolean = true,
+    'test 1: mesa_admin ok'
+  );
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'etapa_actual')::int = 5,
+    'test 1: etapa 5'
+  );
+
+  -- Test 2: mesa_interno avanza expediente interno
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_int, v_exp_int);
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'ok')::boolean = true,
+    'test 2: mesa_interno ok'
+  );
+
+  -- Test 3: mesa_externo NO avanza expediente interno
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_ext, v_exp_int_block),
+    'test 3: mesa_externo bloqueado en interno'
+  );
+
+  -- Test 4: mesa_externo avanza expediente externo
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_ext, v_exp_ext);
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'ok')::boolean = true,
+    'test 4: mesa_externo ok en externo'
+  );
+
+  -- Test 5: asesor NO puede avanzar 4→5
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_asesor_a1, v_exp_roles),
+    'test 5: asesor bloqueado'
+  );
+
+  -- Test 6: editor NO puede avanzar 4→5
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_editor, v_exp_roles),
+    'test 6: editor bloqueado'
+  );
+
+  -- Test 7: etapa distinta de 4 falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_wrong_etapa),
+    'test 7: etapa != 4 falla'
+  );
+
+  -- Test 8: no enviado a Mesa falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_not_sent),
+    'test 8: no enviado falla'
+  );
+
+  -- Test 9: sin fecha_cita falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_no_fecha),
+    'test 9: sin fecha_cita falla'
+  );
+
+  -- Test 10: fecha_cita sin booking activo falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_no_booking),
+    'test 10: sin booking activo falla'
+  );
+
+  -- Test 11: booking cancelled falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_cancelled),
+    'test 11: booking cancelled falla'
+  );
+
+  -- Test 12: booking firmas falla
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_firmas),
+    'test 12: booking firmas falla'
+  );
+
+  -- Test 13: avance exitoso cambia etapa 4→5
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_admin, v_exp_ok);
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'etapa_anterior')::int = 4,
+    'test 13: etapa_anterior 4'
+  );
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    EXISTS (
+      SELECT 1 FROM public.expedientes e
+      WHERE e.id = v_exp_ok AND e.etapa_actual = 5 AND e.subestado = 'en_proceso'
+    ),
+    'test 13: expediente en etapa 5'
+  );
+
+  -- Test 14: avance exitoso conserva fecha_cita
+  SELECT e.fecha_cita INTO v_fecha_before
+  FROM public.expedientes e
+  WHERE e.id = v_exp_fecha_check;
+
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_admin, v_exp_fecha_check);
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'ok')::boolean = true,
+    'test 14: avance fecha_check ok'
+  );
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    EXISTS (
+      SELECT 1 FROM public.expedientes e
+      WHERE e.id = v_exp_fecha_check
+        AND e.fecha_cita = v_fecha_before
+    ),
+    'test 14: fecha_cita conservada'
+  );
+
+  -- Test 15: action_log
+  v_booking_id := (v_result->>'booking_id')::uuid;
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    EXISTS (
+      SELECT 1 FROM public.action_log al
+      WHERE al.entity_type = 'expediente'
+        AND al.entity_id = v_exp_fecha_check
+        AND al.action = 'expediente.avanzar_etapa_operativa'
+        AND (al.payload->>'etapa_anterior')::int = 4
+        AND (al.payload->>'etapa_nueva')::int = 5
+        AND al.payload->>'booking_id' IS NOT NULL
+    ),
+    'test 15: action_log 4→5'
+  );
+
+  -- Test 16: segundo avance falla
+  SELECT count(*) INTO v_log_before
+  FROM public.action_log
+  WHERE entity_id = v_exp_double AND action = 'expediente.avanzar_etapa_operativa';
+
+  v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_admin, v_exp_double);
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    (v_result->>'ok')::boolean = true,
+    'test 16: primer avance double ok'
+  );
+
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_double),
+    'test 16: segundo avance falla'
+  );
+
+  SELECT count(*) INTO v_log_after
+  FROM public.action_log
+  WHERE entity_id = v_exp_double AND action = 'expediente.avanzar_etapa_operativa';
+
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    v_log_after = v_log_before + 1,
+    'test 16: no duplica action_log'
+  );
+
+  -- Test 17: rama 1→2 sigue activa (sanity sin docs validados en etapa 1)
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_sanity_1),
+    'test 17: rama 1→2 sigue evaluando gates (suite 006 cubre happy path)'
+  );
+
+  -- Test 18: rol revisor no existe en app_role productivo
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    NOT EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'app_role'
+        AND e.enumlabel = 'revisor'
+    ),
+    'test 18: revisor no existe en app_role'
+  );
+
+  RAISE NOTICE 'RPC avanzar_etapa_operativa 4→5: 18 pruebas OK';
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_insert_booking(UUID, UUID, UUID, public.booking_kind, public.booking_status, DATE, TIME);
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_insert_expediente(UUID, UUID, UUID, CHAR, public.origen_mesa, BOOLEAN, SMALLINT, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_call_expect_fail(UUID, UUID, TEXT);
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_call_as(UUID, UUID, TEXT);
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_reset_auth();
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_set_auth(UUID);
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_45_test_assert(BOOLEAN, TEXT);

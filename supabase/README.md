@@ -10,6 +10,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/005_rpc_enviar_a_mesa.sql` | ✅ RPC `enviar_a_mesa` (P2C-3) |
 | `migrations/006_rpc_avanzar_etapa_operativa.sql` | ✅ RPC `avanzar_etapa_operativa` (P2C-4) |
 | `migrations/007_rpc_book_biometricos.sql` | ✅ RPC `book_biometricos` (P2C-6) |
+| `migrations/008_rpc_avanzar_etapa_4_5.sql` | ✅ extensión `avanzar_etapa_operativa` 4→5 (P2C-7) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -23,7 +24,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `submitted_to_mesa = true`, `etapa_actual = 1`, `subestado = en_validacion_mesa` (no avanza a etapa 2)
 - **Tests:** `supabase/tests/rpc_enviar_a_mesa.sql`
 
-### RPC `avanzar_etapa_operativa` (P2C-4)
+### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7)
 
 - **Función:**
 
@@ -34,13 +35,24 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
   ) returns jsonb
   ```
 
-- **Alcance:** solo transición **1 → 2** (integración → registro)
+- **Alcance:** transiciones **1 → 2** (P2C-4) y **4 → 5** (P2C-7); otras etapas rechazadas
 - **Roles permitidos:** `mesa_admin`, `mesa_interno`, `mesa_externo`, `super_admin` (vía `can_see_expediente`)
 - **Roles bloqueados:** `asesor`, `editor` — **`revisor` no existe en producción**
-- **Gates:** expediente enviado a Mesa; `etapa_actual = 1`; `subestado = en_validacion_mesa`; `cliente_datos.estado = validado`; 10 documentos obligatorios con `estatus_revision = validado` (opcionales no bloquean)
-- **Efecto:** `etapa_actual = 2`, `subestado = en_proceso`, `updated_at = now()`
-- **Auditoría:** `action_log` → `expediente.avanzar_etapa_operativa`
-- **Tests:** `supabase/tests/rpc_avanzar_etapa_operativa.sql`
+
+**1 → 2 (integración → registro)**
+
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 1`; `subestado = en_validacion_mesa`; `cliente_datos.estado = validado`; 10 documentos obligatorios con `estatus_revision = validado`
+- **Efecto:** `etapa_actual = 2`, `subestado = en_proceso`
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_operativa.sql` (15 pruebas)
+
+**4 → 5 (biométricos → registro IMSS)**
+
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 4`; `fecha_cita IS NOT NULL`; booking `agenda_bookings` con `kind = biometricos` y `status = booked` (no compara fecha/hora exacta vs booking por timezone)
+- **Efecto:** `etapa_actual = 5`, `subestado = en_proceso`; **no** modifica `fecha_cita` ni bookings
+- **Retorno 4→5:** incluye `booking_id`, `fecha_cita`
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_4_5.sql` (18 pruebas)
+
+- **Auditoría (ambas):** `action_log` → `expediente.avanzar_etapa_operativa`
 
 ### RPC `book_biometricos` (P2C-6)
 
@@ -99,6 +111,7 @@ Orden de ejecución (`npm run test:sql`):
 4. `supabase/tests/rpc_enviar_a_mesa.sql`
 5. `supabase/tests/rpc_avanzar_etapa_operativa.sql`
 6. `supabase/tests/rpc_book_biometricos.sql`
+7. `supabase/tests/rpc_avanzar_etapa_4_5.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -114,6 +127,7 @@ supabase/
     005_rpc_enviar_a_mesa.sql
     006_rpc_avanzar_etapa_operativa.sql
     007_rpc_book_biometricos.sql
+    008_rpc_avanzar_etapa_4_5.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -121,6 +135,7 @@ supabase/
     rpc_enviar_a_mesa.sql
     rpc_avanzar_etapa_operativa.sql
     rpc_book_biometricos.sql
+    rpc_avanzar_etapa_4_5.sql
   seed.sql
   README.md
 ```
@@ -129,7 +144,7 @@ supabase/
 
 - Extender `book_biometricos` con reglas `agenda_config` (cupo por slot/location, min lead days)
 - Cancelación / reagenda de cita biométrica (RPC separada)
-- Avance etapa **4→5** (RPC separada)
+- Avance etapas **2→3**, **3→4**, **5→6**… (fuera de alcance P2C-7)
 - Retención etapa 8 — RPCs de envío/validación retención
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
