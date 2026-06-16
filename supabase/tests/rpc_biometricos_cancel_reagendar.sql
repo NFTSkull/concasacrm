@@ -231,8 +231,8 @@ DECLARE
   v_mesa_admin UUID := '00000000-0000-4000-8003-000000000001';
   v_super UUID := '00000000-0000-4000-8006-000000000001';
 
-  v_fecha_cita TIMESTAMPTZ := NOW() + INTERVAL '7 days';
-  v_fecha_nueva TIMESTAMPTZ := NOW() + INTERVAL '10 days';
+  v_fecha_cita TIMESTAMPTZ := public.agenda_biometricos_slot_ts(1, '10:00', 7);
+  v_fecha_nueva TIMESTAMPTZ := public.agenda_biometricos_slot_ts(1, '11:00', 8);
   v_fecha_pasada TIMESTAMPTZ := NOW() - INTERVAL '1 day';
 
   v_exp_cancel_ok UUID := '00000000-0000-4000-9010-000000000010';

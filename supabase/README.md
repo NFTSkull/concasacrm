@@ -77,7 +77,33 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** inserta `agenda_bookings` (`kind = biometricos`, `status = booked`, `booking_date`/`booking_time` derivados de `scheduled_at`); actualiza `expedientes.fecha_cita`; **no** cambia `etapa_actual`
 - **Auditoría:** `action_log` → `agenda.biometricos.book`
 - **Tests:** `supabase/tests/rpc_book_biometricos.sql` (18 pruebas)
-- **Nota:** reglas de cupo por slot/`agenda_config` (min lead days, slots) quedan para fase posterior; P2C-6 valida solo fecha futura
+- **P2C-11:** reglas `agenda_config` aplicadas (ver sección siguiente)
+
+### Reglas `agenda_config` biométricos (P2C-11)
+
+- **Migración:** `012_agenda_config_biometricos_rules.sql`
+- **RPCs afectadas:** `book_biometricos`, `reagendar_biometricos` (firmas sin cambios)
+- **Helper:** `agenda_biometricos_assert_slot_available(org, scheduled_at, location_id)`
+- **Estructura `config` JSONB (canónica P2C-11):**
+
+  ```json
+  {
+    "enabled": true,
+    "timezone": "America/Monterrey",
+    "min_lead_hours": 24,
+    "allowed_weekdays": [1, 2, 3, 4, 5],
+    "locations": {
+      "mty-centro": { "enabled": true, "capacity_per_slot": 3 }
+    },
+    "slots": ["09:00", "10:00", "11:00"]
+  }
+  ```
+
+- **Legacy seed** (`minLeadDays`, sin `locations`/`slots`): se **normaliza** al insertar/actualizar vía trigger `agenda_config_normalize_biometricos` y `UPDATE` en migración 012; **no hay modo permisivo** en RPC
+- **Validaciones estrictas:** `locations`, `slots` y `allowed_weekdays` deben existir y no estar vacíos; sede/hora exactas obligatorias
+- **Errores:** prefijo `agenda_config:` (no encontrada, deshabilitada, anticipación, día, horario, sede, cupo)
+- **Índice P2C-6:** se mantiene `agenda_bookings_one_active_biometricos_per_expediente_idx` (no reemplazado)
+- **Tests:** `supabase/tests/agenda_config_biometricos_rules.sql` (36 pruebas)
 
 ### RPC `cancel_biometricos` / `reagendar_biometricos` (P2C-8)
 
@@ -105,7 +131,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Reagendar:** cancela booking activo + inserta nuevo `booked` en una transacción; actualiza `fecha_cita`; captura `unique_violation`
 - **Auditoría:** `agenda.biometricos.cancel` / `agenda.biometricos.reagendar`
 - **Tests:** `supabase/tests/rpc_biometricos_cancel_reagendar.sql` (24 pruebas)
-- **Nota:** sin reglas `agenda_config` (cupo/slot) en P2C-8
+- **Nota:** `reagendar_biometricos` aplica reglas `agenda_config` (P2C-11); `cancel_biometricos` sin cambios de config
 
 ### RPC `upsert_editor_decision` (P2C-9)
 
@@ -196,6 +222,7 @@ Orden de ejecución (`npm run test:sql`):
 8. `supabase/tests/rpc_biometricos_cancel_reagendar.sql`
 9. `supabase/tests/rpc_upsert_editor_decision.sql`
 10. `supabase/tests/rpc_save_cliente_datos.sql`
+11. `supabase/tests/agenda_config_biometricos_rules.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -215,6 +242,7 @@ supabase/
     009_rpc_biometricos_cancel_reagendar.sql
     010_rpc_upsert_editor_decision.sql
     011_rpc_save_cliente_datos.sql
+    012_agenda_config_biometricos_rules.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -226,13 +254,13 @@ supabase/
     rpc_biometricos_cancel_reagendar.sql
     rpc_upsert_editor_decision.sql
     rpc_save_cliente_datos.sql
+    agenda_config_biometricos_rules.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Extender `book_biometricos` con reglas `agenda_config` (cupo por slot/location, min lead days)
 - Avance etapas **2→3**, **3→4**, **5→6**… (fuera de alcance actual)
 - Retención etapa 8 — RPCs de envío/validación retención
 - Storage — bucket + policies

@@ -1,5 +1,25 @@
 # Devlog
 
+## 2026-06-15 - P2C-11: agenda_config en biométricos
+
+### Decisión
+
+- Validación centralizada en `agenda_biometricos_assert_slot_available`; `book_biometricos` y `reagendar_biometricos` conservan firmas.
+- Config canónica JSONB documentada en README; seed legacy (`minLeadDays`) se normaliza con trigger `BEFORE INSERT OR UPDATE` + `UPDATE` en migración 012 (sin tocar `seed.sql`).
+- Claves ausentes en legacy se completan con defaults; `locations`/`slots`/`allowed_weekdays` vacíos explícitos fallan en RPC.
+- Ya no hay modo permisivo: sede y hora deben estar en config normalizada.
+- Índice único por expediente P2C-6 intacto.
+
+### Archivos
+
+- `supabase/migrations/012_agenda_config_biometricos_rules.sql`
+- `supabase/tests/agenda_config_biometricos_rules.sql` (36 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–011, Storage, retención, `cancel_biometricos`.
+
 ## 2026-06-15 - P2C-10: RPC save_cliente_datos
 
 ### Decisión

@@ -149,7 +149,7 @@ DECLARE
   v_exp_etapa_check UUID := '00000000-0000-4000-9008-000000000110';
   v_exp_db_dup UUID := '00000000-0000-4000-9008-000000000120';
 
-  v_future TIMESTAMPTZ := NOW() + INTERVAL '7 days';
+  v_future TIMESTAMPTZ := public.agenda_biometricos_slot_ts(1, '10:00', 7);
   v_past TIMESTAMPTZ := NOW() - INTERVAL '1 day';
   v_result JSONB;
   v_booking_id UUID;
@@ -248,7 +248,11 @@ BEGIN
     'test 11: primer booking dup ok'
   );
   PERFORM public.__rpc_book_test_assert(
-    public.__rpc_book_test_call_expect_fail(v_asesor_a1, v_exp_dup, v_future + INTERVAL '1 day'),
+    public.__rpc_book_test_call_expect_fail(
+      v_asesor_a1, v_exp_dup,
+      public.agenda_biometricos_slot_ts(1, '11:00', 8),
+      'sede-centro'
+    ),
     'test 11: duplicado activo falla'
   );
 
