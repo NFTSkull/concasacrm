@@ -31,6 +31,7 @@ import {
   retencionOpcionAsesorEditable,
   retencionOpcionMesaEfectiva,
   retencionOpcionParaPanelAsesor,
+  retencionDocPuedeReemplazarAsesor,
   retencionPuedeReenviarAMesa,
 } from "@/domain/expediente-retencion/retencion-envio-mesa";
 import type {
@@ -1645,6 +1646,10 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                           const hasFile = Boolean(item?.id);
                           const estatus = item?.estatus_revision ?? "faltante";
                           const rechazado = estatus === "rechazado";
+                          const puedeReemplazar = retencionDocPuedeReemplazarAsesor(
+                            estatus,
+                            hasFile,
+                          );
                           return (
                             <div
                               key={tipo}
@@ -1674,11 +1679,21 @@ export function SeguimientoOperativoMock(props: SeguimientoOperativoMockProps = 
                                       Nota de Mesa: {item.comentario_mesa}
                                     </p>
                                   ) : null}
+                                  {estatus === "validado" ? (
+                                    <p className="mt-1 text-[11px] text-green-800">
+                                      Validado por Mesa — no requiere cambios.
+                                    </p>
+                                  ) : null}
+                                  {!puedeReemplazar && hasFile && estatus !== "validado" ? (
+                                    <p className="mt-1 text-[10px] text-gray-500">
+                                      En revisión por Mesa; espera validación o rechazo.
+                                    </p>
+                                  ) : null}
                                 </div>
                                 <FileUploadButton
                                   accept="image/*,application/pdf"
                                   label={hasFile ? "Reemplazar" : "Subir"}
-                                  disabled={!contextPrecalId}
+                                  disabled={!contextPrecalId || !puedeReemplazar}
                                   onFile={async (file) => {
                                     if (!contextPrecalId) return;
                                     if (

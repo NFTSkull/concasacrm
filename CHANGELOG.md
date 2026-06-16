@@ -6,6 +6,8 @@
 
 - **B1 — Avance Mesa 4→5 biométricos:** `resolveFechaCitaBiometricosOperativa` alinea bloqueo con `mesa_control_inbox.fechaCita` y fallback a `agenda_bookings_v1`; backfill al cargar detalle Mesa en etapa 4; Mesa puede aprobar 4→5 cuando el asesor ya agendó cita.
 
+- **Retención etapa 8 — rechazo post-validación:** Mesa puede rechazar documentos Acuse/Aviso ya validados; el formulario de rechazo ya no se resetea al abrir; asesor ve nota de Mesa y solo puede reemplazar documentos rechazados.
+
 ## 2026-05-27
 
 - **B0D6.4 — Opción A/B alineada en Mesa:** `retencionOpcionMesaEfectiva` (envío prima sobre selección local); checklist etapa 8 ya no mezcla docs de la opción no elegida al avanzar.

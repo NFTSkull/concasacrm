@@ -1601,8 +1601,8 @@ export default function MesaControlExpedientePage() {
             </h2>
             <p className="mt-1 text-xs text-gray-600">
               Etapa {RETENCION_ETAPA_OPERATIVA_ID}: revisa los documentos según la opción
-              elegida por el asesor. Valida o rechaza cada documento con los botones de esta
-              sección (también disponible en el panel de revisión al seleccionar un archivo).
+              elegida por el asesor. Valida o rechaza cada documento; puedes rechazar aunque
+              ya esté validado si hubo un error.
             </p>
 
             <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
@@ -1744,6 +1744,11 @@ export default function MesaControlExpedientePage() {
                           Nota Mesa: {item.comentario_mesa}
                         </p>
                       ) : null}
+                      {item.estatus_revision === "validado" ? (
+                        <p className="mt-1 text-[11px] text-green-800">
+                          Validado por Mesa. Si hubo un error, usa «Rechazar (corregir)».
+                        </p>
+                      ) : null}
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Button
                           type="button"
@@ -1786,16 +1791,18 @@ export default function MesaControlExpedientePage() {
                           disabled={!item.id || isSavingRow}
                           onClick={(e) => {
                             e.stopPropagation();
+                            setSelectedTipo(tipo);
                             setRetencionRejectTipo(tipo);
                             setRetencionRejectComment(
                               item.estatus_revision === "rechazado"
                                 ? (item.comentario_mesa ?? "")
                                 : "",
                             );
-                            selectRetencionDoc(tipo);
                           }}
                         >
-                          Rechazar
+                          {item.estatus_revision === "validado"
+                            ? "Rechazar (corregir)"
+                            : "Rechazar"}
                         </Button>
                       </div>
                       {retencionRejectTipo === tipo ? (

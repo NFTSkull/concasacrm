@@ -1,5 +1,16 @@
 # Devlog
 
+## 2026-06-15 - Retención etapa 8: rechazar documento ya validado
+
+### Causa
+
+- Al pulsar «Rechazar» en Acuse/Aviso, `selectRetencionDoc` limpiaba `retencionRejectTipo` y el comentario en el mismo click; el formulario nunca aparecía (incluido tras validar por error de dedo).
+
+### Corrección
+
+- Rechazar abre el formulario sin reset; botón «Rechazar (corregir)» en docs validados.
+- Helpers `retencionDocPuedeRechazarMesa` / `retencionDocPuedeReemplazarAsesor`; asesor solo reemplaza rechazados y ve nota Mesa.
+
 ## 2026-06-15 - B1: Mesa 4→5 tras cita biométrica (asesor)
 
 ### Causa

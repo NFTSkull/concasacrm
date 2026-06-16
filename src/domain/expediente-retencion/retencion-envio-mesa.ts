@@ -64,6 +64,23 @@ export function retencionPuedeReenviarAMesa(
   return uiEstado === "no_enviado" || uiEstado === "correccion_requerida";
 }
 
+/** Mesa puede rechazar un documento de retención aunque ya esté validado (corrección por error). */
+export function retencionDocPuedeRechazarMesa(
+  estatus: string | undefined,
+): boolean {
+  if (!estatus || estatus === "faltante") return false;
+  return estatus === "subido" || estatus === "resubido" || estatus === "validado" || estatus === "rechazado";
+}
+
+/** Asesor solo reemplaza documentos rechazados o faltantes (no los ya validados por Mesa). */
+export function retencionDocPuedeReemplazarAsesor(
+  estatus: string | undefined,
+  hasFile: boolean,
+): boolean {
+  if (!estatus || estatus === "faltante") return !hasFile;
+  return estatus === "rechazado";
+}
+
 /** Tras envío en revisión, el asesor no debe cambiar A/B hasta corrección o reenvío. */
 export function retencionOpcionAsesorEditable(
   uiEstado: RetencionEnvioMesaUiEstado,

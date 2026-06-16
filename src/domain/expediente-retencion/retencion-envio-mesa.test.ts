@@ -4,6 +4,8 @@ import {
   puedeEnviarRetencionAcuseAvisoAMesa,
   rechazoRetencionMesaPermitido,
   retencionEnvioEstadoEfectivo,
+  retencionDocPuedeRechazarMesa,
+  retencionDocPuedeReemplazarAsesor,
   retencionOpcionAsesorEditable,
   retencionOpcionMesaEfectiva,
   retencionOpcionParaPanelAsesor,
@@ -136,5 +138,37 @@ describe("B0D6: envío Acuse/Aviso retención a Mesa", () => {
       "sin_sello",
     );
     assert.equal(retencionOpcionParaPanelAsesor(null, "con_sello", "no_enviado"), "con_sello");
+  });
+
+  it("mesa puede rechazar documento validado (corrección por error)", () => {
+    assert.equal(retencionDocPuedeRechazarMesa("validado"), true);
+    assert.equal(retencionDocPuedeRechazarMesa("subido"), true);
+    assert.equal(retencionDocPuedeRechazarMesa("faltante"), false);
+  });
+
+  it("asesor solo reemplaza rechazados o sube faltantes", () => {
+    assert.equal(retencionDocPuedeReemplazarAsesor("rechazado", true), true);
+    assert.equal(retencionDocPuedeReemplazarAsesor("validado", true), false);
+    assert.equal(retencionDocPuedeReemplazarAsesor("subido", true), false);
+    assert.equal(retencionDocPuedeReemplazarAsesor("faltante", false), true);
+  });
+
+  it("rechazo post-validación activa correccion_requerida y bloquea 8→9", () => {
+    const archivosValidados = [
+      { tipo_documento: "retencion_acuse_con_sello" as const, estatus_revision: "validado", id: "a1" },
+      { tipo_documento: "retencion_aviso_retencion" as const, estatus_revision: "validado", id: "a2" },
+      { tipo_documento: "retencion_ine_frente" as const, estatus_revision: "validado", id: "a3" },
+      { tipo_documento: "retencion_ine_reverso" as const, estatus_revision: "rechazado", id: "a4" },
+    ];
+    assert.equal(
+      retencionEnvioEstadoEfectivo(envioBase, archivosValidados, "con_sello"),
+      "correccion_requerida",
+    );
+    const bloqueos = getBloqueosRetencionAvanceEtapa8Mesa({
+      retencion_opcion: "con_sello",
+      archivos: archivosValidados,
+      retencion_enviado_a_mesa: true,
+    });
+    assert.ok(bloqueos.some((b) => b.includes("rechazado")));
   });
 });
