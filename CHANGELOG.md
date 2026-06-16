@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P2C-10 — RPC `save_cliente_datos`:** asesor dueño guarda RFC, teléfono normalizado, referencias e imágenes (metadata/rutas) en `cliente_datos`; validación RFC México; índice UNIQUE parcial por org en `telefono_normalizado` + pre-check RPC; teléfonos de referencias validados en RPC; `action_log` `cliente_datos.save`; 42 pruebas SQL. Sin UI/Storage binario.
+
 - **P2B.1 — Rol productivo `editor` (sin `revisor`):** login mock sin opción Revisor; `normalizeLegacyMockRole`; redirect `/revisor/*`→`/editor`; sesión mesa usa `mesa_control`; docs y e2e alineados. Supabase sin cambios.
 
 - **Fase A1 — Estabilización piloto mock:** `clearMockData` limpia `expediente_retencion_opcion_v1` y `expediente_retencion_envio_mesa_v1`; ESLint ignora `diff_artifacts/`; asesor no puede cambiar opción A/B mientras el bloque Acuse/Aviso está enviado en revisión (Mesa sigue usando opción enviada como canónica).

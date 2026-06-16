@@ -129,6 +129,35 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Tests:** `supabase/tests/rpc_upsert_editor_decision.sql` (19 pruebas)
 - **Integración:** `enviar_a_mesa` consume decisión `aprobado` + monto creados por esta RPC
 
+### RPC `save_cliente_datos` (P2C-10)
+
+- **Función:**
+
+  ```sql
+  public.save_cliente_datos(
+    p_expediente_id uuid,
+    p_rfc text,
+    p_telefono text,
+    p_referencias jsonb default '[]'::jsonb,
+    p_imagenes jsonb default null,
+    p_datos jsonb default '{}'::jsonb,
+    p_estado public.cliente_datos_estado default 'completo'
+  ) returns jsonb
+  ```
+
+- **Alcance:** asesor dueño guarda/actualiza `cliente_datos` (RFC, teléfono, referencias, imágenes como metadata/rutas); **no** envía a Mesa, **no** cambia etapa ni `submitted_to_mesa`
+- **Roles permitidos:** solo `asesor` (dueño, misma organización)
+- **Roles bloqueados:** `editor`, `mesa_*`, `super_admin` — **`revisor` no existe**
+- **Columnas nuevas en `cliente_datos`:** `telefono_normalizado`, `referencias` (jsonb), `imagenes` (jsonb)
+- **Anti-duplicado teléfono principal:** índice **UNIQUE** parcial `cliente_datos_org_telefono_normalizado_unique_idx` en `(organization_id, telefono_normalizado)` donde `telefono_normalizado IS NOT NULL AND telefono_normalizado <> ''`; pre-check RPC + `pg_advisory_xact_lock`; captura `unique_violation` → `save_cliente_datos: teléfono repetido`
+- **Teléfonos en referencias JSONB:** validados por RPC (sin tabla normalizada ni índice UNIQUE en P2C-10)
+- **Validaciones:** RFC México (12/13, regex), teléfono MX 10 dígitos sin duplicados en org, referencias con nombres/teléfonos únicos, imágenes solo metadata (`storage_path`/`url`/`public_url`, mime jpeg/png/webp) — **sin binarios ni Supabase Storage**
+- **Estado:** asesor puede `completo` o `pendiente`; **no** puede marcar `validado`
+- **`p_imagenes`:** `NULL` conserva existentes; `[]` limpia
+- **Auditoría:** `action_log` → `cliente_datos.save`
+- **Tests:** `supabase/tests/rpc_save_cliente_datos.sql` (42 pruebas)
+- **Integración:** `enviar_a_mesa` consume `cliente_datos` con RFC en `datos->>'rfc'` y `estado` `completo`/`validado`
+
 ## Aplicar migración (cuando exista CLI)
 
 ```bash
@@ -166,6 +195,7 @@ Orden de ejecución (`npm run test:sql`):
 7. `supabase/tests/rpc_avanzar_etapa_4_5.sql`
 8. `supabase/tests/rpc_biometricos_cancel_reagendar.sql`
 9. `supabase/tests/rpc_upsert_editor_decision.sql`
+10. `supabase/tests/rpc_save_cliente_datos.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -184,6 +214,7 @@ supabase/
     008_rpc_avanzar_etapa_4_5.sql
     009_rpc_biometricos_cancel_reagendar.sql
     010_rpc_upsert_editor_decision.sql
+    011_rpc_save_cliente_datos.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -194,13 +225,13 @@ supabase/
     rpc_avanzar_etapa_4_5.sql
     rpc_biometricos_cancel_reagendar.sql
     rpc_upsert_editor_decision.sql
+    rpc_save_cliente_datos.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- RPC `save_cliente_datos` (P2C-10)
 - Extender `book_biometricos` con reglas `agenda_config` (cupo por slot/location, min lead days)
 - Avance etapas **2→3**, **3→4**, **5→6**… (fuera de alcance actual)
 - Retención etapa 8 — RPCs de envío/validación retención

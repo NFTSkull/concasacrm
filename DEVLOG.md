@@ -1,5 +1,24 @@
 # Devlog
 
+## 2026-06-15 - P2C-10: RPC save_cliente_datos
+
+### Decisión
+
+- RFC y teléfono principal viven en `datos` JSONB (`rfc`, `celular`) para compatibilidad con `enviar_a_mesa`; columnas dedicadas `telefono_normalizado`, `referencias`, `imagenes` para validación/duplicados y metadata P3.
+- Asesor solo puede `completo` o `pendiente`; `validado` queda para Mesa.
+- `p_imagenes NULL` conserva existentes; `[]` limpia; sin binarios ni Supabase Storage en P2C-10.
+- Anti-duplicado teléfono principal: índice UNIQUE parcial `cliente_datos_org_telefono_normalizado_unique_idx` + pre-check `cliente_datos_telefono_ocupado_en_org` + `pg_advisory_xact_lock`; `unique_violation` → mensaje controlado. Teléfonos en `referencias` JSONB solo por RPC (sin índice UNIQUE).
+
+### Archivos
+
+- `supabase/migrations/011_rpc_save_cliente_datos.sql`
+- `supabase/tests/rpc_save_cliente_datos.sql` (42 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–010, Storage, retención, `agenda_config`.
+
 ## 2026-06-15 - P2B.1: alinear producto — `revisor` no existe, solo `editor`
 
 ### Decisión
