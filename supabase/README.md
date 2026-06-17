@@ -19,6 +19,8 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/014_rpc_avanzar_etapa_5_6.sql` | ✅ extensión `avanzar_etapa_operativa` 5→6 (P2C-13) |
 | `migrations/015_rpc_avanzar_etapa_6_7.sql` | ✅ extensión `avanzar_etapa_operativa` 6→7 (P2C-14) |
 | `migrations/016_rpc_avanzar_etapa_7_8.sql` | ✅ extensión `avanzar_etapa_operativa` 7→8 (P2C-15) |
+| `migrations/017_rpc_enviar_retencion_mesa.sql` | ✅ RPC `enviar_retencion_mesa` (P2C-16) |
+| `migrations/018_rpc_documento_revision_retencion_hook.sql` | ✅ hook rechazo `retencion_*` → `correccion_requerida` (P2C-16) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -93,6 +95,29 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Tests:** `supabase/tests/rpc_avanzar_etapa_7_8.sql` (23 pruebas)
 
 - **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7 | 7_8` según bloque)
+
+### RPC `enviar_retencion_mesa` (P2C-16)
+
+- **Función:**
+
+  ```sql
+  public.enviar_retencion_mesa(
+    p_expediente_id uuid,
+    p_retencion_opcion public.retencion_opcion
+  ) returns jsonb
+  ```
+
+- **Alcance:** asesor dueño envía o reenvía bloque Acuse/Aviso en **etapa 8**; **no** cambia `etapa_actual`
+- **Roles permitidos:** solo `asesor` (dueño, misma organización)
+- **Roles bloqueados:** `mesa_*`, `editor`, `super_admin` — **`revisor` no existe**
+- **Gates:** expediente activo, enviado a Mesa, `etapa_actual = 8`, `subestado = en_proceso`; docs requeridos de la opción con `estatus_revision` en `subido` | `resubido` | `validado` (no `rechazado` ni `faltante`)
+- **Opción A (`con_sello`):** `retencion_acuse_con_sello`, `retencion_aviso_retencion`, `retencion_ine_frente`, `retencion_ine_reverso`
+- **Opción B (`sin_sello`):** `retencion_carta_sin_sello`, `retencion_aviso_retencion`, `retencion_ine_frente`, `retencion_ine_reverso`
+- **Reenvío:** permitido solo si `retencion_envios.estado = correccion_requerida`; bloqueado si ya `enviado`
+- **Efecto:** upsert `retencion_opciones` + `retencion_envios` (`enviado = true`, `estado = enviado`, `fecha_envio_mesa = now()`)
+- **Hook Mesa:** `update_documento_revision` rechazo `retencion_*` → `retencion_envios.estado = correccion_requerida` (si existe fila)
+- **Auditoría:** `action_log` → `expediente.enviar_retencion_mesa`
+- **Tests:** `supabase/tests/rpc_enviar_retencion_mesa.sql` (36 pruebas)
 
 ### RPC `book_biometricos` (P2C-6)
 
@@ -265,6 +290,7 @@ Orden de ejecución (`npm run test:sql`):
 13. `supabase/tests/rpc_avanzar_etapa_5_6.sql`
 14. `supabase/tests/rpc_avanzar_etapa_6_7.sql`
 15. `supabase/tests/rpc_avanzar_etapa_7_8.sql`
+16. `supabase/tests/rpc_enviar_retencion_mesa.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -289,6 +315,8 @@ supabase/
     014_rpc_avanzar_etapa_5_6.sql
     015_rpc_avanzar_etapa_6_7.sql
     016_rpc_avanzar_etapa_7_8.sql
+    017_rpc_enviar_retencion_mesa.sql
+    018_rpc_documento_revision_retencion_hook.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -305,14 +333,14 @@ supabase/
     rpc_avanzar_etapa_5_6.sql
     rpc_avanzar_etapa_6_7.sql
     rpc_avanzar_etapa_7_8.sql
+    rpc_enviar_retencion_mesa.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Avance etapa **8→9** (P2C-16)
-- Retención etapa 8 — RPC `enviar_retencion_mesa` y validación
+- Avance etapa **8→9** (P2C-17)
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
 

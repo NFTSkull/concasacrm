@@ -1,5 +1,25 @@
 # Devlog
 
+## 2026-06-15 - P2C-16: enviar_retencion_mesa + hook retención
+
+### Decisión
+
+- RPC `enviar_retencion_mesa`: asesor dueño, etapa 8, docs requeridos subidos (`subido`/`resubido`/`validado`); upsert `retencion_opciones` + `retencion_envios`.
+- Primer envío si no hay fila o `correccion_requerida`; bloqueo si `estado = enviado`.
+- Hook en `update_documento_revision`: rechazo `retencion_*` → `correccion_requerida` sin crear envío.
+- Sin `etapa_actual`, Storage, avance 8→9.
+
+### Archivos
+
+- `supabase/migrations/017_rpc_enviar_retencion_mesa.sql`
+- `supabase/migrations/018_rpc_documento_revision_retencion_hook.sql`
+- `supabase/tests/rpc_enviar_retencion_mesa.sql` (36 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–016, `avanzar_etapa_operativa` 8→9, Storage, firmas, `DATA_MODE`.
+
 ## 2026-06-15 - P2C-15: avanzar_etapa_operativa 7→8
 
 ### Decisión
