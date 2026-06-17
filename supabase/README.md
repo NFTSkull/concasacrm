@@ -21,6 +21,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/016_rpc_avanzar_etapa_7_8.sql` | ✅ extensión `avanzar_etapa_operativa` 7→8 (P2C-15) |
 | `migrations/017_rpc_enviar_retencion_mesa.sql` | ✅ RPC `enviar_retencion_mesa` (P2C-16) |
 | `migrations/018_rpc_documento_revision_retencion_hook.sql` | ✅ hook rechazo `retencion_*` → `correccion_requerida` (P2C-16) |
+| `migrations/019_rpc_avanzar_etapa_8_9.sql` | ✅ extensión `avanzar_etapa_operativa` 8→9 (P2C-17) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -34,7 +35,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `submitted_to_mesa = true`, `etapa_actual = 1`, `subestado = en_validacion_mesa` (no avanza a etapa 2)
 - **Tests:** `supabase/tests/rpc_enviar_a_mesa.sql`
 
-### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13 / P2C-14 / P2C-15)
+### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13 / P2C-14 / P2C-15 / P2C-17)
 
 - **Función:**
 
@@ -45,7 +46,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
   ) returns jsonb
   ```
 
-- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13), **6 → 7** (P2C-14), **7 → 8** (P2C-15); otras etapas rechazadas
+- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13), **6 → 7** (P2C-14), **7 → 8** (P2C-15), **8 → 9** (P2C-17); otras etapas rechazadas
 - **Roles permitidos:** `mesa_admin`, `mesa_interno`, `mesa_externo`, `super_admin` (vía `can_see_expediente`)
 - **Roles bloqueados:** `asesor`, `editor` — **`revisor` no existe en producción**
 
@@ -94,7 +95,14 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `etapa_actual = 8`, `subestado = en_proceso`; **no** crea/envía retención; **no** modifica `fecha_cita`, bookings, documentos, `cliente_datos` ni `editor_decisions`
 - **Tests:** `supabase/tests/rpc_avanzar_etapa_7_8.sql` (23 pruebas)
 
-- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7 | 7_8` según bloque)
+**8 → 9 (post-retención validada)**
+
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 8`; `subestado = en_proceso`; ciclo activo; visibilidad Mesa; `cliente_datos.estado = validado`; `retencion_envios.enviado = true` y `estado = enviado`; opción efectiva (`retencion_envios.opcion`, fallback `retencion_opciones.retencion_opcion`); documentos requeridos por opción con `estatus_revision = validado` (`con_sello`: acuse+aviso+INE; `sin_sello`: carta+aviso+INE)
+- **Efecto:** `etapa_actual = 9`, `subestado = en_proceso`; **no** modifica retención/envío, documentos, `cliente_datos`, `fecha_cita` ni bookings
+- **Retorno 8→9:** incluye `retencion_opcion`, `required_documentos`
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_8_9.sql` (38 pruebas)
+
+- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7 | 7_8 | 8_9` según bloque)
 
 ### RPC `enviar_retencion_mesa` (P2C-16)
 
@@ -291,6 +299,7 @@ Orden de ejecución (`npm run test:sql`):
 14. `supabase/tests/rpc_avanzar_etapa_6_7.sql`
 15. `supabase/tests/rpc_avanzar_etapa_7_8.sql`
 16. `supabase/tests/rpc_enviar_retencion_mesa.sql`
+17. `supabase/tests/rpc_avanzar_etapa_8_9.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -317,6 +326,7 @@ supabase/
     016_rpc_avanzar_etapa_7_8.sql
     017_rpc_enviar_retencion_mesa.sql
     018_rpc_documento_revision_retencion_hook.sql
+    019_rpc_avanzar_etapa_8_9.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -334,13 +344,14 @@ supabase/
     rpc_avanzar_etapa_6_7.sql
     rpc_avanzar_etapa_7_8.sql
     rpc_enviar_retencion_mesa.sql
+    rpc_avanzar_etapa_8_9.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Avance etapa **8→9** (P2C-17)
+- Avance etapa **9→10** / agenda firmas (P2C-18)
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
 

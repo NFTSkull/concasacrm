@@ -1,5 +1,25 @@
 # Devlog
 
+## 2026-06-15 - P2C-17: avanzar_etapa_operativa 8→9
+
+### Decisión
+
+- Rama `ELSIF etapa_actual = 8` en `avanzar_etapa_operativa`: Mesa avanza a etapa 9 solo con retención enviada y documentos requeridos `validado`.
+- Opción efectiva: `retencion_envios.opcion` (fallback `retencion_opciones.retencion_opcion` por compatibilidad; schema actual NOT NULL en envío).
+- Reutiliza helper `retencion_doc_tipos_requeridos` de P2C-16.
+- `action_log` con `transition: 8_9`, `retencion_opcion`, `required_documentos`.
+- Sin tocar `enviar_retencion_mesa`, Storage, UI mock ni firmas.
+
+### Archivos
+
+- `supabase/migrations/019_rpc_avanzar_etapa_8_9.sql`
+- `supabase/tests/rpc_avanzar_etapa_8_9.sql` (38 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–018, `enviar_retencion_mesa`, Storage, firmas, `DATA_MODE`.
+
 ## 2026-06-15 - P2C-16: enviar_retencion_mesa + hook retención
 
 ### Decisión
