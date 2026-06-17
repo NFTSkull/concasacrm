@@ -25,6 +25,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/020_agenda_config_firmas_rules.sql` | ✅ reglas `agenda_config` firmas (P2C-18) |
 | `migrations/021_rpc_book_firmas.sql` | ✅ RPC `book_firmas` (P2C-18) |
 | `migrations/022_rpc_firmas_cancel_reagendar.sql` | ✅ RPC `cancel_firmas` / `reagendar_firmas` (P2C-19) |
+| `migrations/023_rpc_avanzar_etapa_9_10.sql` | ✅ extensión `avanzar_etapa_operativa` 9→10 (P2C-20) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -38,7 +39,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `submitted_to_mesa = true`, `etapa_actual = 1`, `subestado = en_validacion_mesa` (no avanza a etapa 2)
 - **Tests:** `supabase/tests/rpc_enviar_a_mesa.sql`
 
-### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13 / P2C-14 / P2C-15 / P2C-17)
+### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13 / P2C-14 / P2C-15 / P2C-17 / P2C-20)
 
 - **Función:**
 
@@ -49,7 +50,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
   ) returns jsonb
   ```
 
-- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13), **6 → 7** (P2C-14), **7 → 8** (P2C-15), **8 → 9** (P2C-17); otras etapas rechazadas
+- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13), **6 → 7** (P2C-14), **7 → 8** (P2C-15), **8 → 9** (P2C-17), **9 → 10** (P2C-20); otras etapas rechazadas
 - **Roles permitidos:** `mesa_admin`, `mesa_interno`, `mesa_externo`, `super_admin` (vía `can_see_expediente`)
 - **Roles bloqueados:** `asesor`, `editor` — **`revisor` no existe en producción**
 
@@ -105,7 +106,15 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Retorno 8→9:** incluye `retencion_opcion`, `required_documentos`
 - **Tests:** `supabase/tests/rpc_avanzar_etapa_8_9.sql` (38 pruebas)
 
-- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7 | 7_8 | 8_9` según bloque)
+**9 → 10 (cita firma agendada)**
+
+- **Roles:** solo `mesa_admin` y `super_admin` (bloqueados `mesa_interno`, `mesa_externo`, `asesor`, `editor`)
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 9`; `subestado = en_proceso`; ciclo activo; `fecha_cita IS NOT NULL`; booking `agenda_bookings` con `kind = firmas` y `status = booked`
+- **Efecto:** `etapa_actual = 10`, `subestado = en_proceso`; **no** modifica `fecha_cita` ni bookings
+- **Retorno 9→10:** incluye `booking_id`, `fecha_cita`, `transition: 9_10`, `kind: firmas`
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_9_10.sql` (14 pruebas)
+
+- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7 | 7_8 | 8_9 | 9_10` según bloque)
 
 ### RPC `enviar_retencion_mesa` (P2C-16)
 
@@ -177,7 +186,6 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Reagendar:** cancela booking anterior (nota `Reagendada`), valida slot con `agenda_firmas_assert_slot_available` **después** de cancelar, inserta nuevo booking, actualiza `fecha_cita`
 - **Auditoría:** `action_log` → `agenda.firmas.cancel` / `agenda.firmas.reagendar`
 - **Tests:** `supabase/tests/rpc_firmas_cancel_reagendar.sql` (44 pruebas)
-- **Pendiente:** avance 9→10 (P2C-20)
 
 ### Reglas `agenda_config` firmas (P2C-18)
 
@@ -376,6 +384,7 @@ Orden de ejecución (`npm run test:sql`):
 17. `supabase/tests/rpc_avanzar_etapa_8_9.sql`
 18. `supabase/tests/rpc_book_firmas.sql`
 19. `supabase/tests/rpc_firmas_cancel_reagendar.sql`
+20. `supabase/tests/rpc_avanzar_etapa_9_10.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -406,6 +415,7 @@ supabase/
     020_agenda_config_firmas_rules.sql
     021_rpc_book_firmas.sql
     022_rpc_firmas_cancel_reagendar.sql
+    023_rpc_avanzar_etapa_9_10.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -426,13 +436,13 @@ supabase/
     rpc_avanzar_etapa_8_9.sql
     rpc_book_firmas.sql
     rpc_firmas_cancel_reagendar.sql
+    rpc_avanzar_etapa_9_10.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Avance etapa **9→10** (P2C-20)
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
 

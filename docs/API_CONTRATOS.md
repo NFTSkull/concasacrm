@@ -214,6 +214,7 @@ Convenciones:
 | 1→2 | Docs etapa 1 validados; datos cliente `validado` |
 | 4→5 | Cita biométrica (`fecha_cita` o booking activo) |
 | 8→9 | Retención: opción + envío asesor + docs opción `validado` |
+| 9→10 | Cita firma: `fecha_cita` + booking `firmas` activo (`booked`); solo `mesa_admin`/`super_admin` |
 | Rechazo | Nota obligatoria; puede regresar etapa |
 
 - Validación server-side espejo de `getBloqueosAvanceMesa` / helpers retención.
@@ -298,7 +299,6 @@ Adicional:
 
 ### Pendiente (bloques posteriores)
 
-- Avance Mesa **9→10** (`avanzar_etapa_operativa`).
 - UI / `DATA_MODE` fuera de alcance.
 
 ---
@@ -349,7 +349,7 @@ Adicional:
 
 ### Pendiente
 
-- Avance Mesa **9→10** (`avanzar_etapa_operativa`).
+- UI / `DATA_MODE` fuera de alcance.
 
 ---
 

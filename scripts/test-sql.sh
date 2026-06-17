@@ -38,5 +38,6 @@ run_sql_test "supabase/tests/rpc_enviar_retencion_mesa.sql"
 run_sql_test "supabase/tests/rpc_avanzar_etapa_8_9.sql"
 run_sql_test "supabase/tests/rpc_book_firmas.sql"
 run_sql_test "supabase/tests/rpc_firmas_cancel_reagendar.sql"
+run_sql_test "supabase/tests/rpc_avanzar_etapa_9_10.sql"
 
 echo "SQL tests: ALL PASSED"

@@ -1,5 +1,19 @@
 # Devlog
 
+## 2026-06-15 - P2C-20: avanzar_etapa_operativa 9→10
+
+### Decisión
+
+- Rama `ELSIF etapa_actual = 9` en `avanzar_etapa_operativa`: solo `mesa_admin` y `super_admin` (no `mesa_interno`/`mesa_externo`).
+- Gates: `fecha_cita IS NOT NULL` + booking `firmas` con `status = booked` (enum real; no existe `scheduled`).
+- Actualiza `etapa_actual = 10`, mantiene `subestado = en_proceso`; **no** modifica `fecha_cita` ni bookings.
+
+### Archivos
+
+- `supabase/migrations/023_rpc_avanzar_etapa_9_10.sql`
+- `supabase/tests/rpc_avanzar_etapa_9_10.sql` (14 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`, `docs/API_CONTRATOS.md`
+
 ## 2026-06-15 - P2C-19: cancel_firmas + reagendar_firmas
 
 ### Decisión
