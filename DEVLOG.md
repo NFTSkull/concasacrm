@@ -1,5 +1,25 @@
 # Devlog
 
+## 2026-06-15 - P2C-19: cancel_firmas + reagendar_firmas
+
+### Decisión
+
+- Patrón biométricos P2C-8 adaptado a firmas: roles `asesor` dueño + `mesa_admin` + `super_admin`.
+- Gates etapa **9 o 10** (permite cancel/reagendar con cita activa sin avance automático 9→10).
+- `reagendar_firmas`: cancela booking anterior **antes** de `agenda_firmas_assert_slot_available` (cupo no cuenta booking previo).
+- Limpia/actualiza `fecha_cita`; **no** cambia `etapa_actual`.
+- Sin avance 9→10, UI, Storage, DATA_MODE.
+
+### Archivos
+
+- `supabase/migrations/022_rpc_firmas_cancel_reagendar.sql`
+- `supabase/tests/rpc_firmas_cancel_reagendar.sql` (44 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`, `docs/API_CONTRATOS.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–021, avance 9→10, Storage, DATA_MODE.
+
 ## 2026-06-15 - P2C-18: agenda_config firmas + book_firmas
 
 ### Decisión

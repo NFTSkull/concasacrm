@@ -298,13 +298,62 @@ Adicional:
 
 ### Pendiente (bloques posteriores)
 
-- `cancel_firmas`, `reagendar_firmas`.
 - Avance Mesa **9→10** (`avanzar_etapa_operativa`).
-- UI / `DATA_MODE` fuera de alcance P2C-18.
+- UI / `DATA_MODE` fuera de alcance.
 
 ---
 
-## 12. Reenvío retención (asesor)
+## 12. Cancelar firma (asesor / mesa_admin) — P2C-19
+
+**Operación:** `POST /agenda/firmas/bookings/cancel` · RPC `cancel_firmas`
+
+### Request
+
+```json
+{
+  "expediente_id": "uuid",
+  "motivo": "string?"
+}
+```
+
+### Reglas
+
+- Roles: `asesor` (dueño), `mesa_admin`, `super_admin`.
+- Expediente etapa **9 o 10**, `subestado = en_proceso`, enviado a Mesa.
+- Requiere booking `firmas` activo (`status = booked`).
+- Cancela booking (`status = cancelled`, `cancelled_at`); limpia `expedientes.fecha_cita`.
+- **NO** cambia `etapa_actual`.
+
+---
+
+## 13. Reagendar firma (asesor / mesa_admin) — P2C-19
+
+**Operación:** `POST /agenda/firmas/bookings/reagendar` · RPC `reagendar_firmas`
+
+### Request
+
+```json
+{
+  "expediente_id": "uuid",
+  "scheduled_at": "ISO-8601",
+  "location_id": "string",
+  "note": "string?"
+}
+```
+
+### Reglas
+
+- Mismos roles y gates que cancelar (etapa 9 o 10, booking activo).
+- Cancela booking anterior, valida nuevo slot (`agenda_firmas_assert_slot_available`), inserta nuevo booking, actualiza `fecha_cita`.
+- **NO** cambia `etapa_actual`.
+
+### Pendiente
+
+- Avance Mesa **9→10** (`avanzar_etapa_operativa`).
+
+---
+
+## 14. Reenvío retención (asesor)
 
 **Operación:** `POST /expedientes/{id}/retencion/reenviar`
 
@@ -315,7 +364,7 @@ Adicional:
 
 ---
 
-## 13. Admin KPIs
+## 15. Admin KPIs
 
 **Operación:** `GET /admin/metrics` · vistas materializadas / RPC read-only
 
@@ -337,7 +386,7 @@ Adicional:
 
 ---
 
-## 14. Descargar documento (signed URL)
+## 16. Descargar documento (signed URL)
 
 **Operación:** `POST /documentos/{id}/signed-url`
 
@@ -357,7 +406,7 @@ Adicional:
 
 ---
 
-## 15. Repos mock existentes (referencia implementación)
+## 17. Repos mock existentes (referencia implementación)
 
 | Interfaz | Archivo |
 |----------|---------|
@@ -371,7 +420,7 @@ Adicional:
 
 ---
 
-## 16. TODO P2
+## 18. TODO P2
 
 - [ ] Formalizar `ExpedientesRepo` interface
 - [ ] Zod schemas por RPC

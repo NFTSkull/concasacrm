@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P2C-19 — Cancel/reagendar firmas:** RPCs `cancel_firmas` y `reagendar_firmas` (asesor/mesa_admin, etapas 9/10, sin avance etapa); 44 pruebas SQL. Pendiente: avance 9→10.
+
 - **P2C-18 — Agenda firmas backend base:** reglas `agenda_config` firmas + RPC `book_firmas` (asesor/mesa_admin, etapa 9, sin avance etapa); 37 pruebas SQL. Pendiente: cancel/reagendar y 9→10.
 
 - **P2C-17 — Avance Mesa 8→9:** extiende `avanzar_etapa_operativa` post-retención validada; gates `cliente_datos` validado + `retencion_envios` enviado + docs `validado` por opción A/B; sin modificar retención/documentos/`fecha_cita`/bookings; 38 pruebas SQL.

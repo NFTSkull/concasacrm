@@ -24,6 +24,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/019_rpc_avanzar_etapa_8_9.sql` | ✅ extensión `avanzar_etapa_operativa` 8→9 (P2C-17) |
 | `migrations/020_agenda_config_firmas_rules.sql` | ✅ reglas `agenda_config` firmas (P2C-18) |
 | `migrations/021_rpc_book_firmas.sql` | ✅ RPC `book_firmas` (P2C-18) |
+| `migrations/022_rpc_firmas_cancel_reagendar.sql` | ✅ RPC `cancel_firmas` / `reagendar_firmas` (P2C-19) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -149,12 +150,39 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** inserta `agenda_bookings` (`kind = firmas`); actualiza `expedientes.fecha_cita`; **no** cambia `etapa_actual`
 - **Auditoría:** `action_log` → `agenda.firmas.book`
 - **Tests:** `supabase/tests/rpc_book_firmas.sql` (37 pruebas)
-- **Pendiente:** `cancel_firmas`, `reagendar_firmas`, avance 9→10 (P2C-19+)
+
+### RPC `cancel_firmas` / `reagendar_firmas` (P2C-19)
+
+- **Funciones:**
+
+  ```sql
+  public.cancel_firmas(
+    p_expediente_id uuid,
+    p_motivo text default null
+  ) returns jsonb
+
+  public.reagendar_firmas(
+    p_expediente_id uuid,
+    p_scheduled_at timestamptz,
+    p_location_id text,
+    p_note text default null
+  ) returns jsonb
+  ```
+
+- **Alcance:** asesor dueño o `mesa_admin` cancela/reagenda cita firmas en **etapa 9 o 10**; **no** avanza etapa
+- **Roles permitidos:** `asesor` (dueño), `mesa_admin`, `super_admin`
+- **Roles bloqueados:** `mesa_interno`, `mesa_externo`, `editor` — **`revisor` no existe**
+- **Gates:** expediente activo, enviado a Mesa, `subestado = en_proceso`, `etapa_actual IN (9, 10)`; booking `firmas` activo (`status = booked`)
+- **Cancel:** `status = cancelled`, `cancelled_at`; limpia `expedientes.fecha_cita`
+- **Reagendar:** cancela booking anterior (nota `Reagendada`), valida slot con `agenda_firmas_assert_slot_available` **después** de cancelar, inserta nuevo booking, actualiza `fecha_cita`
+- **Auditoría:** `action_log` → `agenda.firmas.cancel` / `agenda.firmas.reagendar`
+- **Tests:** `supabase/tests/rpc_firmas_cancel_reagendar.sql` (44 pruebas)
+- **Pendiente:** avance 9→10 (P2C-20)
 
 ### Reglas `agenda_config` firmas (P2C-18)
 
 - **Migración:** `020_agenda_config_firmas_rules.sql`
-- **RPC afectada:** `book_firmas`
+- **RPC afectada:** `book_firmas`, `reagendar_firmas`
 - **Helper:** `agenda_firmas_assert_slot_available(org, scheduled_at, location_id)`
 - **Estructura `config` JSONB (canónica):**
 
@@ -347,6 +375,7 @@ Orden de ejecución (`npm run test:sql`):
 16. `supabase/tests/rpc_enviar_retencion_mesa.sql`
 17. `supabase/tests/rpc_avanzar_etapa_8_9.sql`
 18. `supabase/tests/rpc_book_firmas.sql`
+19. `supabase/tests/rpc_firmas_cancel_reagendar.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -376,6 +405,7 @@ supabase/
     019_rpc_avanzar_etapa_8_9.sql
     020_agenda_config_firmas_rules.sql
     021_rpc_book_firmas.sql
+    022_rpc_firmas_cancel_reagendar.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -395,14 +425,14 @@ supabase/
     rpc_enviar_retencion_mesa.sql
     rpc_avanzar_etapa_8_9.sql
     rpc_book_firmas.sql
+    rpc_firmas_cancel_reagendar.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- `cancel_firmas` / `reagendar_firmas` (P2C-19)
-- Avance etapa **9→10** (P2C-19)
+- Avance etapa **9→10** (P2C-20)
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
 
