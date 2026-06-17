@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P2C-15 — Avance Mesa 7→8:** extiende `avanzar_etapa_operativa` Notificación→Acuse/Aviso retención; gates conservadores Mesa + `en_proceso`; sin flujo de retención; sin tocar `fecha_cita`/bookings/docs/`cliente_datos`/`editor_decisions`; 23 pruebas SQL. Sin UI/Storage.
+
 - **P2C-14 — Avance Mesa 6→7:** extiende `avanzar_etapa_operativa` Inscripción→Notificación; gates conservadores Mesa + `en_proceso`; sin tocar `fecha_cita`/bookings/docs/retención/firmas; 22 pruebas SQL. Sin UI/Storage.
 
 - **P2C-13 — Avance Mesa 5→6:** extiende `avanzar_etapa_operativa` post-biométricos; exige `fecha_cita` + booking biométrico activo + **`fecha_cita <= now()`** (sin confirmar asistencia formal); conserva cita/booking; 25 pruebas SQL. Sin UI/Storage.

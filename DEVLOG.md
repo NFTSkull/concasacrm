@@ -1,5 +1,24 @@
 # Devlog
 
+## 2026-06-15 - P2C-15: avanzar_etapa_operativa 7→8
+
+### Decisión
+
+- Rama `7_8` en la misma RPC; gates espejo P2C-14: Mesa + `submitted_to_mesa` + `ciclo_estado=activo` + `subestado=en_proceso` + `etapa_actual=7`.
+- Sin retención (no crea/envía/valida), `fecha_cita`, bookings, documentos, `cliente_datos`, `editor_decisions` ni firmas.
+- `action_log` con `transition: 7_8`.
+
+### Archivos
+
+- `supabase/migrations/016_rpc_avanzar_etapa_7_8.sql`
+- `supabase/tests/rpc_avanzar_etapa_7_8.sql` (23 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+- Regresión mínima: `rpc_avanzar_etapa_6_7.sql` (fixture etapa 8 para no 8→9); `rpc_avanzar_etapa_operativa.sql`, `rpc_avanzar_etapa_4_5.sql`, `rpc_avanzar_etapa_5_6.sql` (fixtures wrong-etapa → 8)
+
+### No tocado
+
+- UI mock, seed, migraciones 001–015, Storage, `enviar_retencion_mesa`, avance 8→9, firmas, `DATA_MODE`.
+
 ## 2026-06-15 - P2C-14: avanzar_etapa_operativa 6→7
 
 ### Decisión

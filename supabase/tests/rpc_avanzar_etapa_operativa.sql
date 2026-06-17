@@ -254,10 +254,10 @@ BEGIN
   PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_not_sent, v_org_id);
   PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_not_sent, v_org_id, v_asesor_a1);
 
-  -- Etapa distinta de 1 (P2C-13: usar etapa 7; etapa 5 avanza 5→6)
+  -- Etapa distinta de 1 (P2C-15: usar etapa 8; etapa 7 avanza 7→8)
   PERFORM public.__rpc_avanzar_test_insert_expediente(
     v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90701600016',
-    'interno'::public.origen_mesa, true, 7::smallint, 'en_proceso'::public.operativo_subestado
+    'interno'::public.origen_mesa, true, 8::smallint, 'en_proceso'::public.operativo_subestado
   );
   PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_wrong_etapa, v_org_id);
   PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_wrong_etapa, v_org_id, v_asesor_a1);

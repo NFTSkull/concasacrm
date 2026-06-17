@@ -205,7 +205,7 @@ BEGIN
   PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_roles, v_org_id, v_asesor_a1);
 
   PERFORM public.__rpc_avanzar_45_test_insert_expediente(
-    v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90901500015', 'interno', true, 7::smallint, v_fecha_cita
+    v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90901500015', 'interno', true, 8::smallint, v_fecha_cita
   );
   PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_wrong_etapa, v_org_id, v_asesor_a1);
 

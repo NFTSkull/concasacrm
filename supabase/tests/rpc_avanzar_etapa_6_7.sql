@@ -293,7 +293,7 @@ BEGIN
     'en_proceso', NULL
   );
   PERFORM public.__rpc_avanzar_67_test_insert_expediente(
-    v_exp_etapa7, v_org_id, v_asesor_a1, '91602000020', 'interno', true, 7::smallint
+    v_exp_etapa7, v_org_id, v_asesor_a1, '91602000020', 'interno', true, 8::smallint
   );
   PERFORM public.__rpc_avanzar_67_test_insert_expediente(
     v_exp_skip, v_org_id, v_asesor_a1, '91602100021', 'interno', true, 6::smallint
@@ -392,10 +392,10 @@ BEGIN
     'test 11'
   );
 
-  -- 12. etapa 7 no avanza a 8
+  -- 12. etapa 8 no avanza a 9 (P2C-15: etapa 7 avanza 7→8)
   PERFORM public.__rpc_avanzar_67_test_assert(
     public.__rpc_avanzar_67_test_call_expect_fail(v_mesa_admin, v_exp_etapa7),
-    'test 12'
+    'test 12: no permite 8→9'
   );
 
   -- 13. no salto 6→8 en una llamada

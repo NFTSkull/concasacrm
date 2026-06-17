@@ -304,7 +304,7 @@ BEGIN
   PERFORM public.__rpc_avanzar_56_test_insert_booking(v_exp_skip, v_org_id, v_asesor_a1);
 
   PERFORM public.__rpc_avanzar_56_test_insert_expediente(
-    v_exp_etapa6, v_org_id, v_asesor_a1, '91502700027', 'interno', true, 7::smallint, v_fecha_cita_pasada
+    v_exp_etapa6, v_org_id, v_asesor_a1, '91502700027', 'interno', true, 8::smallint, v_fecha_cita_pasada
   );
   PERFORM public.__rpc_avanzar_56_test_insert_booking(v_exp_etapa6, v_org_id, v_asesor_a1);
 
@@ -505,7 +505,7 @@ BEGIN
   -- 19. no permite 7→8 (P2C-14: etapa 6 avanza 6→7)
   PERFORM public.__rpc_avanzar_56_test_assert(
     public.__rpc_avanzar_56_test_call_expect_fail(v_mesa_admin, v_exp_etapa6),
-    'test 19: no permite 7→8'
+    'test 19: no permite 8→9'
   );
 
   -- 20. regresión: rama 4→5 sigue evaluando gates (suite 008 cubre happy path)
