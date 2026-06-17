@@ -17,6 +17,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/012_agenda_config_biometricos_rules.sql` | ✅ reglas `agenda_config` biométricos (P2C-11) |
 | `migrations/013_rpc_avanzar_etapa_2_3_4.sql` | ✅ extensión `avanzar_etapa_operativa` 2→3 y 3→4 (P2C-12) |
 | `migrations/014_rpc_avanzar_etapa_5_6.sql` | ✅ extensión `avanzar_etapa_operativa` 5→6 (P2C-13) |
+| `migrations/015_rpc_avanzar_etapa_6_7.sql` | ✅ extensión `avanzar_etapa_operativa` 6→7 (P2C-14) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -30,7 +31,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `submitted_to_mesa = true`, `etapa_actual = 1`, `subestado = en_validacion_mesa` (no avanza a etapa 2)
 - **Tests:** `supabase/tests/rpc_enviar_a_mesa.sql`
 
-### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13)
+### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13 / P2C-14)
 
 - **Función:**
 
@@ -41,7 +42,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
   ) returns jsonb
   ```
 
-- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13); otras etapas rechazadas
+- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13), **6 → 7** (P2C-14); otras etapas rechazadas
 - **Roles permitidos:** `mesa_admin`, `mesa_interno`, `mesa_externo`, `super_admin` (vía `can_see_expediente`)
 - **Roles bloqueados:** `asesor`, `editor` — **`revisor` no existe en producción**
 
@@ -78,7 +79,13 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Retorno 5→6:** incluye `booking_id`, `fecha_cita`, `comentario`
 - **Tests:** `supabase/tests/rpc_avanzar_etapa_5_6.sql` (25 pruebas)
 
-- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6` según bloque)
+**6 → 7 (notificación — post-inscripción)**
+
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 6`; `subestado = en_proceso`; ciclo activo; visibilidad Mesa; **no** exige `fecha_cita` ni booking
+- **Efecto:** `etapa_actual = 7`, `subestado = en_proceso`; **no** modifica `fecha_cita`, bookings, documentos, `cliente_datos` ni retención/firmas
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_6_7.sql` (22 pruebas)
+
+- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6 | 6_7` según bloque)
 
 ### RPC `book_biometricos` (P2C-6)
 
@@ -249,6 +256,7 @@ Orden de ejecución (`npm run test:sql`):
 11. `supabase/tests/agenda_config_biometricos_rules.sql`
 12. `supabase/tests/rpc_avanzar_etapa_2_3_4.sql`
 13. `supabase/tests/rpc_avanzar_etapa_5_6.sql`
+14. `supabase/tests/rpc_avanzar_etapa_6_7.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -271,6 +279,7 @@ supabase/
     012_agenda_config_biometricos_rules.sql
     013_rpc_avanzar_etapa_2_3_4.sql
     014_rpc_avanzar_etapa_5_6.sql
+    015_rpc_avanzar_etapa_6_7.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -285,13 +294,14 @@ supabase/
     agenda_config_biometricos_rules.sql
     rpc_avanzar_etapa_2_3_4.sql
     rpc_avanzar_etapa_5_6.sql
+    rpc_avanzar_etapa_6_7.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Avance etapas **6→7**… (fuera de alcance actual)
+- Avance etapas **7→8**… (fuera de alcance actual)
 - Retención etapa 8 — RPCs de envío/validación retención
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`
