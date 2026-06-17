@@ -31,5 +31,6 @@ run_sql_test "supabase/tests/rpc_upsert_editor_decision.sql"
 run_sql_test "supabase/tests/rpc_save_cliente_datos.sql"
 run_sql_test "supabase/tests/agenda_config_biometricos_rules.sql"
 run_sql_test "supabase/tests/rpc_avanzar_etapa_2_3_4.sql"
+run_sql_test "supabase/tests/rpc_avanzar_etapa_5_6.sql"
 
 echo "SQL tests: ALL PASSED"

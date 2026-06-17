@@ -16,6 +16,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/011_rpc_save_cliente_datos.sql` | ✅ RPC `save_cliente_datos` (P2C-10) |
 | `migrations/012_agenda_config_biometricos_rules.sql` | ✅ reglas `agenda_config` biométricos (P2C-11) |
 | `migrations/013_rpc_avanzar_etapa_2_3_4.sql` | ✅ extensión `avanzar_etapa_operativa` 2→3 y 3→4 (P2C-12) |
+| `migrations/014_rpc_avanzar_etapa_5_6.sql` | ✅ extensión `avanzar_etapa_operativa` 5→6 (P2C-13) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -29,7 +30,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `submitted_to_mesa = true`, `etapa_actual = 1`, `subestado = en_validacion_mesa` (no avanza a etapa 2)
 - **Tests:** `supabase/tests/rpc_enviar_a_mesa.sql`
 
-### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12)
+### RPC `avanzar_etapa_operativa` (P2C-4 / P2C-7 / P2C-12 / P2C-13)
 
 - **Función:**
 
@@ -40,7 +41,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
   ) returns jsonb
   ```
 
-- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7); otras etapas rechazadas
+- **Alcance:** transiciones **1 → 2** (P2C-4), **2 → 3** y **3 → 4** (P2C-12), **4 → 5** (P2C-7), **5 → 6** (P2C-13); otras etapas rechazadas
 - **Roles permitidos:** `mesa_admin`, `mesa_interno`, `mesa_externo`, `super_admin` (vía `can_see_expediente`)
 - **Roles bloqueados:** `asesor`, `editor` — **`revisor` no existe en producción**
 
@@ -69,7 +70,15 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Efecto:** `etapa_actual = 4`, `subestado = en_proceso`; **no** exige booking biométrico aún
 - **Tests:** `supabase/tests/rpc_avanzar_etapa_2_3_4.sql` (transición 3→4, pruebas 13–21)
 
-- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4` en P2C-12)
+**5 → 6 (inscripción — post-biométricos)**
+
+- **Gates:** expediente enviado a Mesa; `etapa_actual = 5`; `subestado = en_proceso`; `fecha_cita IS NOT NULL`; **`fecha_cita <= now()`** (cita ya ocurrió; impide avance inmediato tras 4→5); booking `agenda_bookings` con `kind = biometricos` y `status = booked`
+- **No confirma asistencia biométrica** — gate mínimo temporal; confirmación formal queda para fase futura (columna/RPC específica)
+- **Efecto:** `etapa_actual = 6`, `subestado = en_proceso`; **no** modifica `fecha_cita` ni cancela bookings
+- **Retorno 5→6:** incluye `booking_id`, `fecha_cita`, `comentario`
+- **Tests:** `supabase/tests/rpc_avanzar_etapa_5_6.sql` (25 pruebas)
+
+- **Auditoría (todas las transiciones):** `action_log` → `expediente.avanzar_etapa_operativa` (payload `transition: 2_3 | 3_4 | 5_6` según bloque)
 
 ### RPC `book_biometricos` (P2C-6)
 
@@ -239,6 +248,7 @@ Orden de ejecución (`npm run test:sql`):
 10. `supabase/tests/rpc_save_cliente_datos.sql`
 11. `supabase/tests/agenda_config_biometricos_rules.sql`
 12. `supabase/tests/rpc_avanzar_etapa_2_3_4.sql`
+13. `supabase/tests/rpc_avanzar_etapa_5_6.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -260,6 +270,7 @@ supabase/
     011_rpc_save_cliente_datos.sql
     012_agenda_config_biometricos_rules.sql
     013_rpc_avanzar_etapa_2_3_4.sql
+    014_rpc_avanzar_etapa_5_6.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -273,13 +284,14 @@ supabase/
     rpc_save_cliente_datos.sql
     agenda_config_biometricos_rules.sql
     rpc_avanzar_etapa_2_3_4.sql
+    rpc_avanzar_etapa_5_6.sql
   seed.sql
   README.md
 ```
 
 ## Próximos archivos
 
-- Avance etapas **5→6**… (fuera de alcance actual)
+- Avance etapas **6→7**… (fuera de alcance actual)
 - Retención etapa 8 — RPCs de envío/validación retención
 - Storage — bucket + policies
 - Integración UI P3 — `DATA_MODE=mock|supabase`

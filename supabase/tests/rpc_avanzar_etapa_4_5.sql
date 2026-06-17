@@ -205,7 +205,7 @@ BEGIN
   PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_roles, v_org_id, v_asesor_a1);
 
   PERFORM public.__rpc_avanzar_45_test_insert_expediente(
-    v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90901500015', 'interno', true, 5::smallint, v_fecha_cita
+    v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90901500015', 'interno', true, 7::smallint, v_fecha_cita
   );
   PERFORM public.__rpc_avanzar_45_test_insert_booking(v_exp_wrong_etapa, v_org_id, v_asesor_a1);
 
@@ -383,20 +383,29 @@ BEGIN
     'test 15: action_log 4→5'
   );
 
-  -- Test 16: segundo avance falla
+  -- Test 16: tras 4→5 con cita futura, segundo avance no avanza a 6 (P2C-13 gate fecha_cita)
   SELECT count(*) INTO v_log_before
   FROM public.action_log
   WHERE entity_id = v_exp_double AND action = 'expediente.avanzar_etapa_operativa';
 
   v_result := public.__rpc_avanzar_45_test_call_as(v_mesa_admin, v_exp_double);
   PERFORM public.__rpc_avanzar_45_test_assert(
-    (v_result->>'ok')::boolean = true,
-    'test 16: primer avance double ok'
+    (v_result->>'ok')::boolean = true
+      AND (v_result->>'etapa_actual')::int = 5,
+    'test 16: primer avance 4→5 ok'
   );
 
   PERFORM public.__rpc_avanzar_45_test_assert(
     public.__rpc_avanzar_45_test_call_expect_fail(v_mesa_admin, v_exp_double),
-    'test 16: segundo avance falla'
+    'test 16: segundo avance bloqueado (cita futura)'
+  );
+
+  PERFORM public.__rpc_avanzar_45_test_assert(
+    EXISTS (
+      SELECT 1 FROM public.expedientes e
+      WHERE e.id = v_exp_double AND e.etapa_actual = 5
+    ),
+    'test 16: permanece en etapa 5'
   );
 
   SELECT count(*) INTO v_log_after
@@ -405,7 +414,7 @@ BEGIN
 
   PERFORM public.__rpc_avanzar_45_test_assert(
     v_log_after = v_log_before + 1,
-    'test 16: no duplica action_log'
+    'test 16: solo una entrada action_log (4→5)'
   );
 
   -- Test 17: rama 1→2 sigue activa (sanity sin docs validados en etapa 1)

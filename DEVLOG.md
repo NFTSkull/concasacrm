@@ -1,5 +1,26 @@
 # Devlog
 
+## 2026-06-15 - P2C-13: avanzar_etapa_operativa 5→6
+
+### Decisión
+
+- Rama `5_6` en la misma RPC; gates espejo de 4→5: `subestado=en_proceso`, `fecha_cita` y booking biométrico `booked` activo.
+- **Gate temporal adicional:** `fecha_cita <= now()` — evita encadenar 4→5→6 con cita futura; **no confirma asistencia** (fase futura con columna/RPC dedicada).
+- Error controlado: `avanzar_etapa_operativa: cita biométrica aún no ha ocurrido`.
+- No cancela ni crea bookings; no modifica `fecha_cita`; sin validación documental/retención/firmas.
+- `action_log` con `transition: 5_6`, `booking_id` y `fecha_cita` en payload.
+
+### Archivos
+
+- `supabase/migrations/014_rpc_avanzar_etapa_5_6.sql`
+- `supabase/tests/rpc_avanzar_etapa_5_6.sql` (25 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+- Regresión mínima: `rpc_avanzar_etapa_4_5.sql` (test 16: segundo avance bloqueado con cita futura), `rpc_avanzar_etapa_operativa.sql` (wrong etapa → 7)
+
+### No tocado
+
+- UI mock, seed, migraciones 001–013, Storage, retención, firmas, `DATA_MODE`.
+
 ## 2026-06-15 - P2C-12: avanzar_etapa_operativa 2→3 y 3→4
 
 ### Decisión
