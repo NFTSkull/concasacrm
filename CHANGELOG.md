@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P2C-12 — Avance Mesa 2→3 y 3→4:** extiende `avanzar_etapa_operativa` para transiciones operativas hacia biométricos; gates comunes Mesa + `en_proceso`; sin tocar `fecha_cita`/bookings/docs; 27 pruebas SQL. Sin UI/Storage.
+
 - **P2C-11 — Reglas `agenda_config` biométricos:** `book_biometricos` y `reagendar_biometricos` validan config estricta; normalización legacy `minLeadDays`→`min_lead_hours` vía trigger + migración; sin modo permisivo de sedes/horarios; 36 pruebas SQL. Sin UI/Storage.
 
 - **P2C-10 — RPC `save_cliente_datos`:** asesor dueño guarda RFC, teléfono normalizado, referencias e imágenes (metadata/rutas) en `cliente_datos`; validación RFC México; índice UNIQUE parcial por org en `telefono_normalizado` + pre-check RPC; teléfonos de referencias validados en RPC; `action_log` `cliente_datos.save`; 42 pruebas SQL. Sin UI/Storage binario.

@@ -254,10 +254,10 @@ BEGIN
   PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_not_sent, v_org_id);
   PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_not_sent, v_org_id, v_asesor_a1);
 
-  -- Etapa distinta de 1
+  -- Etapa distinta de 1 (P2C-12: usar etapa 5; etapa 2 avanza 2→3)
   PERFORM public.__rpc_avanzar_test_insert_expediente(
     v_exp_wrong_etapa, v_org_id, v_asesor_a1, '90701600016',
-    'interno'::public.origen_mesa, true, 2::smallint, 'en_proceso'::public.operativo_subestado
+    'interno'::public.origen_mesa, true, 5::smallint, 'en_proceso'::public.operativo_subestado
   );
   PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_wrong_etapa, v_org_id);
   PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_wrong_etapa, v_org_id, v_asesor_a1);
@@ -383,20 +383,21 @@ BEGIN
     'test 13: action_log creado'
   );
 
-  -- Test 14: segundo avance falla sin duplicar action_log
+  -- Test 14: avances encadenados 1→2→3 sin duplicar action_log en la misma transición
   SELECT count(*) INTO v_log_before
   FROM public.action_log
   WHERE entity_id = v_exp_double AND action = 'expediente.avanzar_etapa_operativa';
 
   v_result := public.__rpc_avanzar_test_call_as(v_mesa_admin, v_exp_double);
   PERFORM public.__rpc_avanzar_test_assert(
-    (v_result->>'ok')::boolean = true,
-    'test 14: primer avance double ok'
+    (v_result->>'ok')::boolean = true AND (v_result->>'etapa_actual')::int = 2,
+    'test 14: primer avance 1→2 ok'
   );
 
+  v_result := public.__rpc_avanzar_test_call_as(v_mesa_admin, v_exp_double);
   PERFORM public.__rpc_avanzar_test_assert(
-    public.__rpc_avanzar_test_call_expect_fail(v_mesa_admin, v_exp_double),
-    'test 14: segundo avance falla'
+    (v_result->>'ok')::boolean = true AND (v_result->>'etapa_actual')::int = 3,
+    'test 14: segundo avance 2→3 ok (P2C-12)'
   );
 
   SELECT count(*) INTO v_log_after
@@ -404,8 +405,8 @@ BEGIN
   WHERE entity_id = v_exp_double AND action = 'expediente.avanzar_etapa_operativa';
 
   PERFORM public.__rpc_avanzar_test_assert(
-    v_log_after = v_log_before + 1,
-    'test 14: no duplica action_log'
+    v_log_after = v_log_before + 2,
+    'test 14: dos action_log distintos (1→2 y 2→3)'
   );
 
   -- Test 15: visibilidad por origen tras avance

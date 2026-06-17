@@ -1,5 +1,24 @@
 # Devlog
 
+## 2026-06-15 - P2C-12: avanzar_etapa_operativa 2→3 y 3→4
+
+### Decisión
+
+- Misma RPC `avanzar_etapa_operativa(p_expediente_id, p_comentario)`; ramas `2_3` y `3_4` con gates conservadores (Mesa + `submitted_to_mesa` + `ciclo_estado=activo` + `subestado=en_proceso`).
+- Sin validación documental ni `cliente_datos` en 2→3/3→4 (API_CONTRATOS no detalla gates; mock aplica bloqueos solo en UI).
+- No modifica `fecha_cita`, bookings ni documentos; deja expediente en etapa 4 listo para `book_biometricos`.
+- `action_log` mantiene `expediente.avanzar_etapa_operativa` con `transition: 2_3 | 3_4`.
+
+### Archivos
+
+- `supabase/migrations/013_rpc_avanzar_etapa_2_3_4.sql`
+- `supabase/tests/rpc_avanzar_etapa_2_3_4.sql` (27 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`
+
+### No tocado
+
+- UI mock, seed, migraciones 001–012, Storage, retención, firmas, `DATA_MODE`.
+
 ## 2026-06-15 - P2C-11: agenda_config en biométricos
 
 ### Decisión
