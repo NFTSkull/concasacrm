@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-15 - P3B.1: admin listado read-only Supabase
+
+### Decisión
+
+- Flag datos: `NEXT_PUBLIC_DATA_MODE=supabase` (default mock); independiente de auth P3A.
+- Primer módulo datos: solo `/admin` → `listForAdmin()` read-only.
+- SELECT con JWT usuario (RLS); sin service role ni RPC nueva.
+- Mapper `map-supabase-row.ts`: `programa` enum DB → labels UI; `asesor_id` → email vía embed `profiles`; tolera `editor_decisions`/asesor ausentes.
+- Listado vacío = estado limpio; errores auth/config en `ExpedientesSupabaseError`.
+
+### Archivos
+
+- `src/lib/dataMode.ts`, `src/domain/expedientes/repo.ts`, `index.ts`, `supabase.repo.ts`, `map-supabase-row.ts`
+- `src/app/admin/page.tsx` — `useExpedientesRepo()`
+- Tests: `dataMode.test.ts`, `map-supabase-row.test.ts`
+
 ## 2026-06-15 - P3A: Auth Supabase mínima (login/logout)
 
 ### Decisión

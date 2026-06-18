@@ -11,7 +11,11 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { formatDateTimeMx } from "@/lib/filters";
-import { MockExpedientesRepo, type ExpedienteMock } from "@/domain/expedientes/mock.repo";
+import {
+  ExpedientesSupabaseError,
+  useExpedientesRepo,
+  type ExpedienteMock,
+} from "@/domain/expedientes";
 import {
   computeAdminFunnelByEtapa,
   computeAdminFunnelExclusive,
@@ -20,6 +24,7 @@ import {
   computeAdminTimeMetrics,
 } from "@/lib/adminDashboardStats";
 import { ETAPAS_LABELS } from "@/app/mesa-control/mockData";
+import { isDataModeSupabase } from "@/lib/dataMode";
 
 interface AdminPrecalMock {
   id: string;
@@ -166,8 +171,9 @@ const DAY_PAGE_SIZE = 20;
 
 export default function AdminDashboardPage() {
   const { sessionRepo, currentUser } = useSessionRepo();
-  const repo = useMemo(() => new MockExpedientesRepo(), []);
+  const repo = useExpedientesRepo();
   const [expedientesMock, setExpedientesMock] = useState<ExpedienteMock[]>([]);
+  const [listError, setListError] = useState<string | null>(null);
   const [buscar, setBuscar] = useState("");
   const [etapaFilter, setEtapaFilter] = useState<string>("todas");
   const [subestadoFilter, setSubestadoFilter] = useState<string>("todas");
@@ -185,16 +191,34 @@ export default function AdminDashboardPage() {
     if (!currentUser) return;
     repo
       .listForAdmin()
-      .then((list) => setExpedientesMock(list))
-      .catch(() => setExpedientesMock([]));
+      .then((list) => {
+        setExpedientesMock(list);
+        setListError(null);
+      })
+      .catch((err) => {
+        setExpedientesMock([]);
+        if (err instanceof ExpedientesSupabaseError) {
+          setListError(err.message);
+        } else {
+          setListError("No se pudo cargar el listado.");
+        }
+      });
   }, [currentUser, repo]);
 
   useEffect(() => {
     const reload = () => {
       repo
         .listForAdmin()
-        .then((list) => setExpedientesMock(list))
-        .catch(() => setExpedientesMock([]));
+        .then((list) => {
+          setExpedientesMock(list);
+          setListError(null);
+        })
+        .catch((err) => {
+          setExpedientesMock([]);
+          if (err instanceof ExpedientesSupabaseError) {
+            setListError(err.message);
+          }
+        });
     };
     const handler = (e: StorageEvent) => {
       if (
@@ -216,7 +240,7 @@ export default function AdminDashboardPage() {
       window.removeEventListener("mesa_control_inbox_updated", customHandler);
       window.removeEventListener("decisions_mock_updated", customHandler);
     };
-  }, []);
+  }, [repo]);
 
   const filteredList = useMemo(
     () => filterList(mockList, buscar, etapaFilter, subestadoFilter, soloMesa),
@@ -882,11 +906,14 @@ export default function AdminDashboardPage() {
         <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-gray-900">
-              Todas las precalificaciones (mock)
+              Todas las precalificaciones{isDataModeSupabase() ? "" : " (mock)"}
             </h2>
             <p className="mt-1 text-xs text-gray-500">
               Total: {filteredList.length} · Página {page} de {totalPages}
             </p>
+            {listError ? (
+              <p className="mt-2 text-xs text-red-600">{listError}</p>
+            ) : null}
           </div>
           <div className="border-b border-gray-100 px-4 py-3">
             <div className="flex flex-wrap items-end gap-4">
@@ -1005,7 +1032,11 @@ export default function AdminDashboardPage() {
                     colSpan={11}
                     className="px-4 py-8 text-center text-sm text-gray-500"
                   >
-                    No hay registros mock que coincidan con los filtros.
+                    {listError
+                      ? "No se pudo mostrar el listado."
+                      : expedientesMock.length === 0
+                        ? "No hay expedientes registrados."
+                        : "No hay registros que coincidan con los filtros."}
                   </td>
                 </tr>
               ) : (

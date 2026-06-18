@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P3B.1 — Admin listado read-only Supabase:** `NEXT_PUBLIC_DATA_MODE=supabase` + factory `ExpedientesRepo`; `SupabaseExpedientesRepo.listForAdmin()` con RLS; mapper `expedientes`+`editor_decisions`+asesor → `ExpedienteMock`; mock sigue default.
+
 - **P3A — Auth Supabase mínima:** login/logout real con `NEXT_PUBLIC_USE_SUPABASE_AUTH=true`; lectura de `profiles` (incl. validación `active`); mapeo `app_role`→rol mock UI; puente `mock_user`/`mock_role`/`mock_email`; fallback a login mock si flag off o Supabase no configurado. Sin datos operativos ni migraciones.
 
 - **P2C-21 — Backfill agenda_config firmas:** función `backfill_agenda_config_firmas()` idempotente por organización; deploy producción sin fila `kind=firmas`; 7 pruebas SQL.

@@ -7,6 +7,7 @@ import {
 import { origenMesaDesdeEmailAsesor } from "@/lib/asesorTipoMesaMock";
 import { hasActiveFirmasBookingForCita } from "@/lib/agendaFirmasBookingsGuard";
 import { getEffectiveMockRole } from "@/lib/mockUser";
+import type { ExpedientesRepo } from "./repo";
 
 export type EditorDecision = "pendiente" | "aprobado" | "no_cumple";
 export type OperativoSubestado =
@@ -251,7 +252,7 @@ function getInboxKey(i: RawOperativoInbox): string | null {
   return tryKey(i.idPrecal) ?? tryKey(i.id);
 }
 
-export class MockExpedientesRepo {
+export class MockExpedientesRepo implements ExpedientesRepo {
   private readPrecalificaciones(): RawPrecalificacion[] {
     if (typeof window === "undefined") return [];
     const raw = window.localStorage.getItem("precalificaciones_mock");
