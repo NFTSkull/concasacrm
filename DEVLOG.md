@@ -1,5 +1,26 @@
 # Devlog
 
+## 2026-06-15 - P3A: Auth Supabase mínima (login/logout)
+
+### Decisión
+
+- Solo auth: `signInWithPassword` + `SELECT` en `public.profiles` por `auth.uid()`.
+- Validar `profiles.active = true`; si inactivo → `signOut` + mensaje claro.
+- Mapeo `app_role` → rol mock UI (`mesa_admin`→`mesa_control_admin`, etc.); sin rol `revisor`.
+- `organization_id` se lee del perfil pero **no** se persiste en `mock_user` (contrato mock intacto).
+- Puente temporal: `persistMockUser` sincroniza `mock_user`, `mock_role`, `mock_email` para no romper UI mock.
+- Flag `NEXT_PUBLIC_USE_SUPABASE_AUTH=true` + `isSupabaseConfigured()`; si no → login mock actual.
+- Sin expedientes, agenda, documentos, editor_decisions, precalificaciones, migraciones ni `db push`.
+
+### Archivos
+
+- `src/lib/supabaseBrowser.ts` — `isSupabaseAuthEnabled()`
+- `src/domain/session/supabase.repo.ts` — `SupabaseSessionRepo`
+- `src/domain/session/index.ts` — factory mock/Supabase
+- `src/app/login/page.tsx` — dual mock/Supabase
+- `src/lib/loginRedirect.ts` — redirect post-login compartido
+- Tests: `supabase.repo.test.ts`, `loginRedirect.test.ts`
+
 ## 2026-06-15 - P2C-21: backfill agenda_config firmas
 
 ### Decisión

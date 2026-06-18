@@ -5,7 +5,10 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { persistMockUser } from "@/lib/mockUser";
+import { SupabaseSessionError, useSessionRepo } from "@/domain/session";
+import { redirectAfterLogin } from "@/lib/loginRedirect";
+import { getEffectiveMockRole, persistMockUser } from "@/lib/mockUser";
+import { isSupabaseAuthEnabled } from "@/lib/supabaseBrowser";
 
 type MockLoginRole =
   | "super_admin"
@@ -32,9 +35,12 @@ function defaultNameForVision(vision: MockLoginRole, emailLocal: string): string
 
 export default function LoginPage() {
   const router = useRouter();
+  const { sessionRepo } = useSessionRepo();
+  const supabaseAuth = isSupabaseAuthEnabled();
   const [vision, setVision] = useState<MockLoginRole>("asesor");
   const [nombre, setNombre] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const visionLabel = useMemo(
     () => VISION_OPTIONS.find((o) => o.value === vision)?.label ?? vision,
@@ -46,8 +52,36 @@ export default function LoginPage() {
     setLoginError(null);
     const form = e.currentTarget;
     const emailRaw = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
+    const password = (form.elements.namedItem("password") as HTMLInputElement).value;
+
+    if (supabaseAuth) {
+      if (!emailRaw || !password) {
+        setLoginError("Correo y contraseña son obligatorios.");
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await sessionRepo.login(emailRaw, password);
+        const mockRole = getEffectiveMockRole();
+        if (!mockRole) {
+          setLoginError("No se pudo resolver el rol de sesión.");
+          return;
+        }
+        redirectAfterLogin(router, mockRole);
+      } catch (err) {
+        const message =
+          err instanceof SupabaseSessionError
+            ? err.message
+            : "No se pudo iniciar sesión. Intenta de nuevo.";
+        setLoginError(message);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     const email = emailRaw || "anon@mock.local";
-    void (form.elements.namedItem("password") as HTMLInputElement).value;
+    void password;
 
     const emailLocal = email.includes("@") ? email.split("@")[0] ?? "" : email;
     const nameFinal =
@@ -62,17 +96,7 @@ export default function LoginPage() {
       });
     }
 
-    if (vision === "asesor") {
-      router.push("/asesor");
-    } else if (vision.startsWith("mesa_control")) {
-      router.push("/mesa-control");
-    } else if (vision === "super_admin") {
-      router.push("/admin");
-    } else if (vision === "editor") {
-      router.push("/editor");
-    } else {
-      router.push("/admin");
-    }
+    redirectAfterLogin(router, vision);
   }
 
   return (
@@ -81,53 +105,81 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
           ConCasa CRM
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Demo sin seguridad: no se valida contraseña; el correo puede ir vacío (se usa{" "}
-          <code className="text-[10px]">anon@mock.local</code>). Sesión en este navegador.
-        </p>
+        {supabaseAuth ? (
+          <p className="mt-1 text-sm text-slate-500">
+            Inicia sesión con tu cuenta de ConCasa. El rol se obtiene de tu perfil en Supabase.
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-slate-500">
+            Demo sin seguridad: no se valida contraseña; el correo puede ir vacío (se usa{" "}
+            <code className="text-[10px]">anon@mock.local</code>). Sesión en este navegador.
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <Input
             name="email"
-            type="text"
-            label="Correo (opcional)"
-            placeholder="cynthia@concasa.test · vacío = anon@mock.local"
+            type={supabaseAuth ? "email" : "text"}
+            label={supabaseAuth ? "Correo" : "Correo (opcional)"}
+            placeholder={
+              supabaseAuth
+                ? "tu.correo@concasa.com"
+                : "cynthia@concasa.test · vacío = anon@mock.local"
+            }
             autoComplete="username"
+            required={supabaseAuth}
           />
-          <div>
-            <Input
-              name="nombre"
-              type="text"
-              label="Nombre para mostrar"
-              placeholder="Ej. Cynthia López"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-            />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Opcional · si lo dejas vacío usamos un nombre según el perfil y tu correo.
-            </p>
-          </div>
+          {!supabaseAuth ? (
+            <div>
+              <Input
+                name="nombre"
+                type="text"
+                label="Nombre para mostrar"
+                placeholder="Ej. Cynthia López"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+              />
+              <p className="mt-1 text-[10px] text-slate-500">
+                Opcional · si lo dejas vacío usamos un nombre según el perfil y tu correo.
+              </p>
+            </div>
+          ) : null}
           <Input
             name="password"
             type="password"
-            label="Contraseña (ignorada)"
-            placeholder="cualquier valor o vacío"
+            label={supabaseAuth ? "Contraseña" : "Contraseña (ignorada)"}
+            placeholder={supabaseAuth ? "Tu contraseña" : "cualquier valor o vacío"}
             autoComplete="current-password"
+            required={supabaseAuth}
           />
-          <Select
-            label="Perfil (mock)"
-            name="vision"
-            value={vision}
-            onChange={(e) => setVision(e.target.value as MockLoginRole)}
-            options={VISION_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          />
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
-            Perfil seleccionado: <span className="font-medium text-slate-800">{visionLabel}</span>.
-            Los datos se guardan en <code className="text-[10px]">mock_user</code> (correo, rol y nombre)
-            y se sincronizan las claves legacy <code className="text-[10px]">mock_role</code> /{" "}
-            <code className="text-[10px]">mock_email</code>.
-          </p>
-          <Button type="submit" variant="primary" className="mt-1 w-full">
-            Entrar
+          {!supabaseAuth ? (
+            <>
+              <Select
+                label="Perfil (mock)"
+                name="vision"
+                value={vision}
+                onChange={(e) => setVision(e.target.value as MockLoginRole)}
+                options={VISION_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              />
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
+                Perfil seleccionado: <span className="font-medium text-slate-800">{visionLabel}</span>.
+                Los datos se guardan en <code className="text-[10px]">mock_user</code> (correo, rol y nombre)
+                y se sincronizan las claves legacy <code className="text-[10px]">mock_role</code> /{" "}
+                <code className="text-[10px]">mock_email</code>.
+              </p>
+            </>
+          ) : (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
+              Tras validar credenciales, leemos tu perfil en Supabase y sincronizamos{" "}
+              <code className="text-[10px]">mock_user</code> para compatibilidad con la UI actual.
+            </p>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            className="mt-1 w-full"
+            disabled={submitting}
+          >
+            {submitting ? "Entrando…" : "Entrar"}
           </Button>
           {loginError ? <p className="text-xs text-red-600">{loginError}</p> : null}
         </form>

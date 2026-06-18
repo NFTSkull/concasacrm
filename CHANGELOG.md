@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P3A — Auth Supabase mínima:** login/logout real con `NEXT_PUBLIC_USE_SUPABASE_AUTH=true`; lectura de `profiles` (incl. validación `active`); mapeo `app_role`→rol mock UI; puente `mock_user`/`mock_role`/`mock_email`; fallback a login mock si flag off o Supabase no configurado. Sin datos operativos ni migraciones.
+
 - **P2C-21 — Backfill agenda_config firmas:** función `backfill_agenda_config_firmas()` idempotente por organización; deploy producción sin fila `kind=firmas`; 7 pruebas SQL.
 
 - **P2C-20 — Avance Mesa 9→10:** extiende `avanzar_etapa_operativa` post-cita firmas; gates `fecha_cita` + booking `firmas` activo (`booked`); solo `mesa_admin`/`super_admin`; 14 pruebas SQL.
