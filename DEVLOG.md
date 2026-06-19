@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-15 - P3E: enviar a Mesa desde detalle asesor Supabase
+
+### Decisión
+
+- `enviarAMesa(expedienteId)` en contrato; Supabase llama RPC `enviar_a_mesa` (sin service role) y recarga con `getById`.
+- Errores RPC → `mapEnviarAMesaRpcError` (mensajes en español); la RPC es fuente de verdad de gates.
+- Mock: `enviarAMesaWithPayload` conserva flujo SeguimientoOperativoMock; `enviarAMesa(id)` wrapper para contrato.
+- UI Supabase: sección “Enviar a Mesa” con confirmación, loading, éxito/error; nota de validación Supabase.
+- Sin migraciones; sin conectar documentos/cliente_datos/editor UI en este bloque.
+
+### Archivos
+
+- `repo.ts`, `mock.repo.ts`, `supabase.repo.ts`, `supabase.error.ts`, `enviar-mesa-rpc-error.ts`
+- `src/app/asesor/expediente/[id]/page.tsx`
+- `enviar-mesa-rpc-error.test.ts`
+
 ## 2026-06-15 - P3D: detalle asesor read-only Supabase
 
 ### Decisión

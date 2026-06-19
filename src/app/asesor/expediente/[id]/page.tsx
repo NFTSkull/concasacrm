@@ -83,7 +83,10 @@ const MSJ_ESPERA_MONTO_REVISOR =
   "Debes esperar a que el editor apruebe un monto antes de capturar datos, subir documentos o enviar a mesa.";
 
 const MSJ_READONLY_SUPABASE =
-  "Vista read-only desde Supabase. Integración, documentos, datos extendidos y agenda se conectarán en fases posteriores.";
+  "Integración, documentos, datos extendidos y agenda se conectarán en fases posteriores.";
+
+const MSJ_VALIDACION_ENVIO_MESA_SUPABASE =
+  "La validación final la hace Supabase. Si faltan editor, datos del cliente o documentos reales, el envío será rechazado.";
 
 function editorDecisionLabel(decision?: string | null): string {
   if (decision === "aprobado") return "Aprobado";
@@ -137,6 +140,9 @@ export default function AsesorExpedientePage() {
     ExpedienteMock["editorDecision"] | null
   >(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [enviandoMesa, setEnviandoMesa] = useState(false);
+  const [enviarMesaError, setEnviarMesaError] = useState<string | null>(null);
+  const [enviarMesaExito, setEnviarMesaExito] = useState<string | null>(null);
 
   const puedeIntegrar = useMemo(
     () =>
@@ -196,6 +202,33 @@ export default function AsesorExpedientePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronizar expediente mock al montar
     void loadExpediente();
   }, [loadExpediente]);
+
+  const handleEnviarAMesaSupabase = useCallback(async () => {
+    if (!precal?.id || enviandoMesa || operativo?.submittedToMesa) return;
+
+    const confirmar = window.confirm(
+      "¿Confirmas enviar este expediente a Mesa de control? La validación la realiza Supabase.",
+    );
+    if (!confirmar) return;
+
+    setEnviandoMesa(true);
+    setEnviarMesaError(null);
+    setEnviarMesaExito(null);
+
+    try {
+      await repo.enviarAMesa(String(precal.id));
+      await loadExpediente();
+      setEnviarMesaExito("Expediente enviado a Mesa de control correctamente.");
+    } catch (err) {
+      if (err instanceof ExpedientesSupabaseError) {
+        setEnviarMesaError(err.message);
+      } else {
+        setEnviarMesaError("No se pudo enviar a Mesa. Intenta de nuevo más tarde.");
+      }
+    } finally {
+      setEnviandoMesa(false);
+    }
+  }, [enviandoMesa, loadExpediente, operativo?.submittedToMesa, precal?.id, repo]);
 
   useEffect(() => {
     if (dataSupabase || !precal?.id) return;
@@ -545,6 +578,45 @@ export default function AsesorExpedientePage() {
                   </p>
                 ) : null}
               </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+              <p className="text-sm font-semibold text-gray-900">Enviar a Mesa</p>
+              <p className="mt-2 text-xs text-gray-500">{MSJ_VALIDACION_ENVIO_MESA_SUPABASE}</p>
+              {enviarMesaExito ? (
+                <p
+                  role="status"
+                  className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900"
+                >
+                  {enviarMesaExito}
+                </p>
+              ) : null}
+              {enviarMesaError ? (
+                <p
+                  role="alert"
+                  className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
+                  {enviarMesaError}
+                </p>
+              ) : null}
+              {operativo?.submittedToMesa ? (
+                <p
+                  role="status"
+                  className="mt-3 inline-flex rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-900"
+                >
+                  Enviado a Mesa
+                </p>
+              ) : (
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={enviandoMesa}
+                    onClick={() => void handleEnviarAMesaSupabase()}
+                  >
+                    {enviandoMesa ? "Enviando a Mesa…" : "Enviar a Mesa"}
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -927,7 +999,7 @@ export default function AsesorExpedientePage() {
                 );
                 return false;
               }
-              await mockRepo.enviarAMesa(String(payload.id), {
+              await mockRepo.enviarAMesaWithPayload(String(payload.id), {
                 cliente_nombre: payload.cliente_nombre,
                 telefono_cliente: payload.telefono_cliente,
                 programa: payload.programa,

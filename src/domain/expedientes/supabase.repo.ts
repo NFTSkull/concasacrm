@@ -6,6 +6,8 @@ import type { ExpedientesRepo } from "./repo";
 import type { CreateExpedienteInput } from "./create-expediente.input";
 import type { ExpedienteMock } from "./mock.repo";
 import { mapProgramaUiToDb } from "./map-programa";
+import { ExpedientesSupabaseError } from "./supabase.error";
+import { mapEnviarAMesaRpcError } from "./enviar-mesa-rpc-error";
 import {
   mapCreateExpedienteRpcToExpedienteMock,
   mapSupabaseRowToExpedienteMock,
@@ -35,12 +37,7 @@ const EXPEDIENTES_LIST_SELECT = `
   asesor:profiles!expedientes_asesor_id_fkey ( email, full_name )
 `;
 
-export class ExpedientesSupabaseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ExpedientesSupabaseError";
-  }
-}
+export { ExpedientesSupabaseError } from "./supabase.error";
 
 function mapCreateExpedienteRpcError(error: {
   code?: string;
@@ -166,7 +163,7 @@ async function fetchExpedienteById(id: string): Promise<ExpedienteMock | null> {
 
 /**
  * Lectura vía RLS (JWT del usuario autenticado).
- * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`.
+ * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`; P3E: `enviarAMesa()`.
  */
 export class SupabaseExpedientesRepo implements ExpedientesRepo {
   async listForAdmin(): Promise<ExpedienteMock[]> {
@@ -207,5 +204,37 @@ export class SupabaseExpedientesRepo implements ExpedientesRepo {
       data as CreateExpedienteRpcResponse,
       input.asesorEmail,
     );
+  }
+
+  async enviarAMesa(expedienteId: string): Promise<ExpedienteMock> {
+    const idNorm = String(expedienteId).trim();
+    if (!idNorm) {
+      throw new ExpedientesSupabaseError("El identificador del expediente es obligatorio.");
+    }
+
+    const { client } = await requireSupabaseSession();
+
+    const { data, error } = await client.rpc("enviar_a_mesa", {
+      p_expediente_id: idNorm,
+    });
+
+    if (error) {
+      throw mapEnviarAMesaRpcError(error);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new ExpedientesSupabaseError(
+        "No se pudo enviar a Mesa. Respuesta vacía del servidor.",
+      );
+    }
+
+    const refreshed = await fetchExpedienteById(idNorm);
+    if (!refreshed) {
+      throw new ExpedientesSupabaseError(
+        "El envío a Mesa se registró, pero no se pudo recargar el expediente.",
+      );
+    }
+
+    return refreshed;
   }
 }

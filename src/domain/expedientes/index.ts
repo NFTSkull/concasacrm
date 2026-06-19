@@ -11,6 +11,7 @@ export type { CreateExpedienteInput } from "./create-expediente.input";
 export type { ExpedienteMock } from "./mock.repo";
 export { MockExpedientesRepo } from "./mock.repo";
 export { SupabaseExpedientesRepo, ExpedientesSupabaseError } from "./supabase.repo";
+export { mapEnviarAMesaRpcError } from "./enviar-mesa-rpc-error";
 export {
   mapProgramaDbToUi,
   mapProgramaUiToDb,

@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P3E — Enviar a Mesa desde detalle asesor Supabase:** `ExpedientesRepo.enviarAMesa()` vía RPC `enviar_a_mesa`; mapeo de errores en español; UI con confirmación/loading/éxito/error; mock intacto (`enviarAMesaWithPayload`).
+
 - **P3D — Detalle `/asesor/expediente/[id]` read-only Supabase:** `ExpedientesRepo.getById()`; carga real vía RLS; panel estado read-only; secciones mock de integración ocultas en Supabase.
 
 - **P3B.2 — Bandeja `/asesor` read-only Supabase:** `ExpedientesRepo.listForAsesor()`; `SupabaseExpedientesRepo` con RLS + filtro `asesor_id`; `/asesor` usa `useExpedientesRepo()`; errores visibles; mock intacto.

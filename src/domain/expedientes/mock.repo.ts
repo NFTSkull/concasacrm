@@ -617,7 +617,30 @@ export class MockExpedientesRepo implements ExpedientesRepo {
     return this.getById(idStr);
   }
 
-  async enviarAMesa(
+  /** Contrato P3E: delega al flujo mock con payload derivado del expediente. */
+  async enviarAMesa(expedienteId: string): Promise<ExpedienteMock> {
+    const exp = await this.getById(expedienteId);
+    if (!exp) {
+      throw new Error("Expediente no encontrado.");
+    }
+
+    const result = await this.enviarAMesaWithPayload(expedienteId, {
+      cliente_nombre: exp.base.cliente_nombre,
+      telefono_cliente: exp.base.telefono_cliente,
+      programa: exp.base.programa,
+      asesorNombre: exp.base.asesorId,
+      etapaActual: exp.operativo.etapaActual ?? 1,
+      subestado: "en_validacion_mesa",
+    });
+
+    if (!result) {
+      throw new Error("No se pudo enviar a mesa de control.");
+    }
+
+    return result;
+  }
+
+  async enviarAMesaWithPayload(
     id: string,
     payload: EnviarAMesaPayload,
   ): Promise<ExpedienteMock | null> {

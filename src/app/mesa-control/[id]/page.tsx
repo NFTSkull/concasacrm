@@ -2391,7 +2391,7 @@ export default function MesaControlExpedientePage() {
           contextPrograma={expediente.base.programa}
           contextAsesorId={expediente.base.asesorId}
           onEnviarAMesa={async (payload) => {
-            await repo.enviarAMesa(payload.id, {
+            await repo.enviarAMesaWithPayload(payload.id, {
               cliente_nombre: payload.cliente_nombre,
               telefono_cliente: payload.telefono_cliente,
               programa: payload.programa,
