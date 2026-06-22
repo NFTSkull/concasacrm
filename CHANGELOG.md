@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P3G — Datos generales cliente Supabase en detalle asesor:** `ExpedienteClienteDatosRepo` Supabase (lectura RLS + RPC `save_cliente_datos`); formulario real en `/asesor/expediente/[id]`; checklist Enviar a Mesa (editor + datos + documentos pendiente P3H); mock localStorage intacto.
+
 - **P3F.1b — Layout editor:** tabla `min-w-[1500px]` con anchos fijos; prioridad visual a monto/notas; asesor truncado.
 
 - **P3F.1 — UX legacy editor restaurada:** `/editor` vuelve a tabla con inputs monto/notas y decisión automática; sin botones por fila; autosave Supabase con debounce 750ms y estado por fila; mock con guardado inmediato en `onChange`.

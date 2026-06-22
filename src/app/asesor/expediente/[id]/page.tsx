@@ -7,6 +7,7 @@ import { useSessionRepo } from "@/domain/session";
 import { AgendaBiometricosCard } from "@/components/asesor/AgendaBiometricosCard";
 import { canMountAgendaBiometricosUI } from "@/lib/agendaFirmasBookingsGuard";
 import { AgendaFirmasAsesorCard } from "@/components/asesor/AgendaFirmasAsesorCard";
+import { ExpedienteClienteDatosFormSection } from "@/components/asesor/ExpedienteClienteDatosFormSection";
 import { Button } from "@/components/ui/Button";
 import { SeguimientoOperativoMock } from "@/components/seguimiento/SeguimientoOperativoMock";
 import {
@@ -26,7 +27,8 @@ import {
   getChecklistDocumentos,
 } from "@/domain/expediente-archivos";
 import {
-  MockExpedienteClienteDatosLocalStorageRepo,
+  ClienteDatosSupabaseError,
+  useExpedienteClienteDatosRepo,
   type ExpedienteClienteDatos,
 } from "@/domain/expediente-cliente-datos";
 import { getClienteDatosCamposFaltantes } from "@/lib/clienteDatosFormCompleteness";
@@ -79,22 +81,32 @@ type EstadoEtapa =
   | "aprobado"
   | "rechazado";
 
+/** P3H: pasar a `true` cuando documentos reales estén conectados en Supabase. */
+const DOCUMENTOS_REALES_CONECTADOS = false;
+
 const MSJ_ESPERA_MONTO_REVISOR =
   "Debes esperar a que el editor apruebe un monto antes de capturar datos, subir documentos o enviar a mesa.";
 
-const MSJ_READONLY_SUPABASE =
-  "Integración, documentos, datos extendidos y agenda se conectarán en fases posteriores.";
+const MSJ_READONLY_SUPABASE_DOCS =
+  "Los documentos reales se conectarán en la fase P3H.";
 
-const MSJ_VALIDACION_ENVIO_MESA_SUPABASE =
-  "La validación final la hace Supabase. Si faltan datos del cliente o documentos reales, el envío será rechazado.";
-
-const MSJ_PENDIENTE_EDITOR_ENVIO_MESA =
-  "Pendiente de aprobación del editor y monto aprobado para enviar a Mesa.";
+const MSJ_ENVIO_MESA_REQUISITOS =
+  "El envío a Mesa se habilitará cuando editor, datos generales y documentos estén completos.";
 
 function editorDecisionLabel(decision?: string | null): string {
   if (decision === "aprobado") return "Aprobado";
   if (decision === "no_cumple") return "No cumple";
   return "Pendiente";
+}
+
+function checklistLabel(ok: boolean): string {
+  return ok ? "OK" : "Falta";
+}
+
+function checklistClass(ok: boolean): string {
+  return ok
+    ? "text-green-800 bg-green-50 border-green-200"
+    : "text-amber-950 bg-amber-50 border-amber-200";
 }
 
 function formatDateTime(iso: string): string {
@@ -113,10 +125,7 @@ export default function AsesorExpedientePage() {
   const repo = useExpedientesRepo();
   const mockRepo = useMemo(() => new MockExpedientesRepo(), []);
   const dataSupabase = isDataModeSupabase();
-  const clienteDatosRepo = useMemo(
-    () => new MockExpedienteClienteDatosLocalStorageRepo(),
-    [],
-  );
+  const clienteDatosRepo = useExpedienteClienteDatosRepo();
   const [precal, setPrecal] = useState<PrecalificacionMock | null | undefined>(
     undefined
   );
@@ -138,6 +147,8 @@ export default function AsesorExpedientePage() {
     updatedBy: string;
   } | null>(null);
   const [clienteDatosSaving, setClienteDatosSaving] = useState(false);
+  const [clienteDatosLoading, setClienteDatosLoading] = useState(false);
+  const [clienteDatosSaved, setClienteDatosSaved] = useState(false);
   const [clienteDatosError, setClienteDatosError] = useState<string | null>(null);
   const [editorDecision, setEditorDecision] = useState<
     ExpedienteMock["editorDecision"] | null
@@ -152,6 +163,29 @@ export default function AsesorExpedientePage() {
       editorDecision !== null &&
       asesorPuedeIntegrarTrasMontoRevisor(editorDecision),
     [editorDecision],
+  );
+
+  const camposFaltantesClienteDatos = useMemo(
+    () => getClienteDatosCamposFaltantes(clienteDatos),
+    [clienteDatos],
+  );
+
+  const datosGeneralesCompletos = useMemo(() => {
+    if (camposFaltantesClienteDatos.length > 0) return false;
+    if (!clienteDatosMeta) return false;
+    return (
+      clienteDatosMeta.estado === "completo" ||
+      clienteDatosMeta.estado === "validado"
+    );
+  }, [camposFaltantesClienteDatos, clienteDatosMeta]);
+
+  const puedeEnviarAMesaSupabase = useMemo(
+    () =>
+      puedeIntegrar &&
+      datosGeneralesCompletos &&
+      DOCUMENTOS_REALES_CONECTADOS &&
+      !operativo?.submittedToMesa,
+    [datosGeneralesCompletos, operativo?.submittedToMesa, puedeIntegrar],
   );
 
   const initialSubestado: EstadoEtapa | undefined =
@@ -201,13 +235,18 @@ export default function AsesorExpedientePage() {
   }, [id, repo]);
 
   useEffect(() => {
-    // Carga inicial + refetch cuando cambia id/repo; setState tras async es el patrón de esta pantalla.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronizar expediente mock al montar
     void loadExpediente();
   }, [loadExpediente]);
 
   const handleEnviarAMesaSupabase = useCallback(async () => {
-    if (!precal?.id || enviandoMesa || operativo?.submittedToMesa || !puedeIntegrar) return;
+    if (
+      !precal?.id ||
+      enviandoMesa ||
+      operativo?.submittedToMesa ||
+      !puedeEnviarAMesaSupabase
+    ) {
+      return;
+    }
 
     const confirmar = window.confirm(
       "¿Confirmas enviar este expediente a Mesa de control? La validación la realiza Supabase.",
@@ -235,7 +274,7 @@ export default function AsesorExpedientePage() {
     enviandoMesa,
     loadExpediente,
     operativo?.submittedToMesa,
-    puedeIntegrar,
+    puedeEnviarAMesaSupabase,
     precal?.id,
     repo,
   ]);
@@ -283,47 +322,63 @@ export default function AsesorExpedientePage() {
   }, [dataSupabase, precal?.id]);
 
   useEffect(() => {
-    if (dataSupabase || !precal?.id) return;
+    if (!precal?.id) return;
     let cancelled = false;
 
+    const applyFound = (found: ExpedienteClienteDatos | null) => {
+      if (cancelled) return;
+      if (!found) {
+        setClienteDatos((prev) => ({
+          ...prev,
+          nombreCliente: prev.nombreCliente || precal.cliente_nombre || "",
+          nss: prev.nss || precal.nss || "",
+          celular: prev.celular || precal.telefono_cliente || "",
+        }));
+        setClienteDatosMeta(null);
+        return;
+      }
+      setClienteDatos({
+        ...found.datos,
+        rfc: found.datos.rfc ?? "",
+      });
+      setClienteDatosMeta({
+        estado: found.estado,
+        comentarioRechazo: found.comentarioRechazo,
+        validatedAt: found.validatedAt,
+        validatedBy: found.validatedBy,
+        rejectedAt: found.rejectedAt,
+        rejectedBy: found.rejectedBy,
+        updatedAt: found.updatedAt,
+        updatedBy: found.updatedBy,
+      });
+    };
+
     const load = () => {
+      if (dataSupabase) setClienteDatosLoading(true);
       void clienteDatosRepo
         .getByExpedienteId(String(precal.id))
         .then((found) => {
-          if (cancelled) return;
-          if (!found) {
-            // Prefill mínimo desde expediente base (sin imponer validación).
-            setClienteDatos((prev) => ({
-              ...prev,
-              nombreCliente: prev.nombreCliente || precal.cliente_nombre || "",
-              nss: prev.nss || precal.nss || "",
-              celular: prev.celular || precal.telefono_cliente || "",
-            }));
-            setClienteDatosMeta(null);
-            return;
-          }
-          setClienteDatos({
-            ...found.datos,
-            rfc: found.datos.rfc ?? "",
-          });
-          setClienteDatosMeta({
-            estado: found.estado,
-            comentarioRechazo: found.comentarioRechazo,
-            validatedAt: found.validatedAt,
-            validatedBy: found.validatedBy,
-            rejectedAt: found.rejectedAt,
-            rejectedBy: found.rejectedBy,
-            updatedAt: found.updatedAt,
-            updatedBy: found.updatedBy,
-          });
+          applyFound(found);
         })
-        .catch(() => {
+        .catch((err) => {
           if (cancelled) return;
           setClienteDatosMeta(null);
+          if (err instanceof ClienteDatosSupabaseError) {
+            setClienteDatosError(err.message);
+          }
+        })
+        .finally(() => {
+          if (!cancelled && dataSupabase) setClienteDatosLoading(false);
         });
     };
 
     load();
+
+    if (dataSupabase) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ expedienteId?: string | null }>;
@@ -349,7 +404,14 @@ export default function AsesorExpedientePage() {
         handler as EventListener,
       );
     };
-  }, [clienteDatosRepo, dataSupabase, precal?.cliente_nombre, precal?.id, precal?.nss, precal?.telefono_cliente]);
+  }, [
+    clienteDatosRepo,
+    dataSupabase,
+    precal?.cliente_nombre,
+    precal?.id,
+    precal?.nss,
+    precal?.telefono_cliente,
+  ]);
 
   useEffect(() => {
     const handler = (e: StorageEvent) => {
@@ -390,8 +452,19 @@ export default function AsesorExpedientePage() {
       window.alert(MSJ_ESPERA_MONTO_REVISOR);
       return { ok: false, message: MSJ_ESPERA_MONTO_REVISOR };
     }
+    if (dataSupabase) {
+      const camposFaltantes = getClienteDatosCamposFaltantes(clienteDatos);
+      if (camposFaltantes.length > 0) {
+        const message = `Completa los datos del cliente antes de guardar:\n\n- ${camposFaltantes.join(
+          "\n- ",
+        )}`;
+        setClienteDatosError(message);
+        return { ok: false, message };
+      }
+    }
     setClienteDatosSaving(true);
     setClienteDatosError(null);
+    setClienteDatosSaved(false);
     try {
       const saved = await clienteDatosRepo.save({
         expedienteId: String(precal.id),
@@ -408,10 +481,15 @@ export default function AsesorExpedientePage() {
         updatedAt: saved.updatedAt,
         updatedBy: saved.updatedBy,
       });
+      setClienteDatosSaved(true);
       return { ok: true };
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "No se pudo guardar los datos del cliente.";
+        err instanceof ClienteDatosSupabaseError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "No se pudo guardar los datos del cliente.";
       setClienteDatosError(message);
       return { ok: false, message };
     } finally {
@@ -421,6 +499,7 @@ export default function AsesorExpedientePage() {
     clienteDatos,
     clienteDatosRepo,
     currentUser?.email,
+    dataSupabase,
     precal?.id,
     puedeIntegrar,
   ]);
@@ -543,7 +622,7 @@ export default function AsesorExpedientePage() {
               role="status"
               className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"
             >
-              {MSJ_READONLY_SUPABASE}
+              {MSJ_READONLY_SUPABASE_DOCS}
             </div>
             <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
               <p className="text-sm font-semibold text-gray-900">
@@ -589,9 +668,51 @@ export default function AsesorExpedientePage() {
                 ) : null}
               </div>
             </div>
+            {!puedeIntegrar ? (
+              <div
+                role="status"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+              >
+                {MSJ_ESPERA_MONTO_REVISOR}
+              </div>
+            ) : null}
+            <ExpedienteClienteDatosFormSection
+              clienteDatos={clienteDatos}
+              setClienteDatos={setClienteDatos}
+              clienteDatosMeta={clienteDatosMeta}
+              clienteDatosSaving={clienteDatosSaving}
+              clienteDatosLoading={clienteDatosLoading}
+              clienteDatosSaved={clienteDatosSaved}
+              clienteDatosError={clienteDatosError}
+              camposFaltantes={camposFaltantesClienteDatos}
+              puedeIntegrar={puedeIntegrar}
+              dataSupabase
+              formatDateTime={formatDateTime}
+              onSave={handleSaveClienteDatos}
+              esperaMontoMessage={MSJ_ESPERA_MONTO_REVISOR}
+            />
             <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
               <p className="text-sm font-semibold text-gray-900">Enviar a Mesa</p>
-              <p className="mt-2 text-xs text-gray-500">{MSJ_VALIDACION_ENVIO_MESA_SUPABASE}</p>
+              <p className="mt-2 text-xs text-gray-500">{MSJ_ENVIO_MESA_REQUISITOS}</p>
+              <ul className="mt-3 space-y-2 text-xs">
+                <li
+                  className={`inline-flex rounded-full border px-2.5 py-1 font-medium ${checklistClass(
+                    puedeIntegrar,
+                  )}`}
+                >
+                  Editor aprobado: {checklistLabel(puedeIntegrar)}
+                </li>
+                <li
+                  className={`inline-flex rounded-full border px-2.5 py-1 font-medium ${checklistClass(
+                    datosGeneralesCompletos,
+                  )}`}
+                >
+                  Datos generales: {checklistLabel(datosGeneralesCompletos)}
+                </li>
+                <li className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-950">
+                  Documentos: Pendiente de conectar
+                </li>
+              </ul>
               {enviarMesaExito ? (
                 <p
                   role="status"
@@ -616,19 +737,11 @@ export default function AsesorExpedientePage() {
                   Enviado a Mesa
                 </p>
               ) : (
-                <div className="mt-3 space-y-3">
-                  {!puedeIntegrar ? (
-                    <p
-                      role="status"
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-                    >
-                      {MSJ_PENDIENTE_EDITOR_ENVIO_MESA}
-                    </p>
-                  ) : null}
+                <div className="mt-3">
                   <Button
                     type="button"
                     variant="primary"
-                    disabled={!puedeIntegrar || enviandoMesa}
+                    disabled={!puedeEnviarAMesaSupabase || enviandoMesa}
                     onClick={() => void handleEnviarAMesaSupabase()}
                   >
                     {enviandoMesa ? "Enviando a Mesa…" : "Enviar a Mesa"}
@@ -649,307 +762,19 @@ export default function AsesorExpedientePage() {
               </div>
             ) : null}
 
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
-              <fieldset
-                disabled={!puedeIntegrar}
-                className="min-w-0 border-0 p-0 disabled:opacity-70"
-              >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Datos Generales del Cliente
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {clienteDatosMeta
-                      ? `Estado: ${clienteDatosMeta.estado} · Actualizado: ${formatDateTime(
-                          clienteDatosMeta.updatedAt,
-                        )} · Por: ${clienteDatosMeta.updatedBy}`
-                      : "Aún no guardado en expediente."}{" "}
-                    <span className="text-gray-400">
-                      Al enviar a mesa se guardan automáticamente si el formulario está completo.
-                    </span>
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-xs"
-                  disabled={!puedeIntegrar || clienteDatosSaving}
-                  onClick={async () => {
-                    const r = await handleSaveClienteDatos();
-                    if (!r.ok && r.message && r.message !== MSJ_ESPERA_MONTO_REVISOR) {
-                      window.alert(r.message);
-                    }
-                  }}
-                >
-                  {clienteDatosSaving ? "Guardando..." : "Guardar borrador"}
-                </Button>
-              </div>
-
-              {clienteDatosError ? (
-                <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800">
-                  {clienteDatosError}
-                </p>
-              ) : null}
-
-              {clienteDatosMeta?.estado === "rechazado" ? (
-                <p
-                  className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-950"
-                  role="status"
-                >
-                  Los datos fueron rechazados por mesa. Corrige la información.{" "}
-                  {clienteDatosMeta.comentarioRechazo?.trim() ? (
-                    <span className="block pt-1 text-amber-950">
-                      Motivo: {clienteDatosMeta.comentarioRechazo}
-                    </span>
-                  ) : null}
-                  <span className="text-amber-900/90">
-                    (Actualizado: {formatDateTime(clienteDatosMeta.updatedAt)} · Por:{" "}
-                    {clienteDatosMeta.updatedBy})
-                  </span>
-                </p>
-              ) : null}
-              {clienteDatosMeta?.estado === "validado" ? (
-                <p
-                  className="mt-2 rounded-md border border-green-200 bg-green-50 px-2 py-1.5 text-xs text-green-900"
-                  role="status"
-                >
-                  Mesa-control validó tus datos generales.{" "}
-                  <span className="text-green-800/90">
-                    {clienteDatosMeta.validatedAt
-                      ? `(Validado: ${formatDateTime(clienteDatosMeta.validatedAt)}`
-                      : "(Validado"}
-                    {clienteDatosMeta.validatedBy
-                      ? ` · Por: ${clienteDatosMeta.validatedBy})`
-                      : ")"}
-                  </span>
-                </p>
-              ) : null}
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Nombre del cliente</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.nombreCliente}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({ ...p, nombreCliente: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">NSS</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.nss}
-                    onChange={(e) => setClienteDatos((p) => ({ ...p, nss: e.target.value }))}
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">CURP</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.curp}
-                    onChange={(e) => setClienteDatos((p) => ({ ...p, curp: e.target.value }))}
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">RFC</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm uppercase"
-                    value={clienteDatos.rfc}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({ ...p, rfc: e.target.value.toUpperCase() }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Celular</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.celular}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({ ...p, celular: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Correo</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.correo}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({ ...p, correo: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Empresa</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.empresa}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({ ...p, empresa: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Registro patronal</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.registroPatronal}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({
-                        ...p,
-                        registroPatronal: e.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">Teléfono empresa</span>
-                  <input
-                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                    value={clienteDatos.telefonoEmpresa}
-                    onChange={(e) =>
-                      setClienteDatos((p) => ({
-                        ...p,
-                        telefonoEmpresa: e.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-gray-200 p-3">
-                  <p className="text-xs font-semibold text-gray-900">Referencias</p>
-                  {[0, 1].map((idx) => (
-                    <div key={idx} className="mt-2 grid grid-cols-1 gap-2">
-                      <label className="grid gap-1 text-xs text-gray-600">
-                        <span className="font-medium text-gray-800">Nombre (ref {idx + 1})</span>
-                        <input
-                          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                          value={clienteDatos.referencias[idx]?.nombre ?? ""}
-                          onChange={(e) =>
-                            setClienteDatos((p) => {
-                              const nextRefs = [...p.referencias];
-                              nextRefs[idx] = { ...nextRefs[idx], nombre: e.target.value };
-                              return { ...p, referencias: nextRefs };
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-1 text-xs text-gray-600">
-                        <span className="font-medium text-gray-800">Celular (ref {idx + 1})</span>
-                        <input
-                          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                          value={clienteDatos.referencias[idx]?.celular ?? ""}
-                          onChange={(e) =>
-                            setClienteDatos((p) => {
-                              const nextRefs = [...p.referencias];
-                              nextRefs[idx] = { ...nextRefs[idx], celular: e.target.value };
-                              return { ...p, referencias: nextRefs };
-                            })
-                          }
-                        />
-                      </label>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-md border border-gray-200 p-3">
-                  <p className="text-xs font-semibold text-gray-900">Beneficiario</p>
-                  <div className="mt-2 grid grid-cols-1 gap-2">
-                    <label className="grid gap-1 text-xs text-gray-600">
-                      <span className="font-medium text-gray-800">Nombre</span>
-                      <input
-                        className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                        value={clienteDatos.beneficiario.nombre}
-                        onChange={(e) =>
-                          setClienteDatos((p) => ({
-                            ...p,
-                            beneficiario: { ...p.beneficiario, nombre: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs text-gray-600">
-                      <span className="font-medium text-gray-800">Parentesco</span>
-                      <input
-                        className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                        value={clienteDatos.beneficiario.parentesco}
-                        onChange={(e) =>
-                          setClienteDatos((p) => ({
-                            ...p,
-                            beneficiario: { ...p.beneficiario, parentesco: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-md border border-gray-200 p-3">
-                <p className="text-xs font-semibold text-gray-900">Dirección de la empresa</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="grid gap-1 text-xs text-gray-600 sm:col-span-2">
-                    <span className="font-medium text-gray-800">Calle</span>
-                    <input
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                      value={clienteDatos.direccionEmpresa.calle}
-                      onChange={(e) =>
-                        setClienteDatos((p) => ({
-                          ...p,
-                          direccionEmpresa: { ...p.direccionEmpresa, calle: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs text-gray-600">
-                    <span className="font-medium text-gray-800">Colonia</span>
-                    <input
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                      value={clienteDatos.direccionEmpresa.colonia}
-                      onChange={(e) =>
-                        setClienteDatos((p) => ({
-                          ...p,
-                          direccionEmpresa: { ...p.direccionEmpresa, colonia: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs text-gray-600">
-                    <span className="font-medium text-gray-800">Municipio</span>
-                    <input
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                      value={clienteDatos.direccionEmpresa.municipio}
-                      onChange={(e) =>
-                        setClienteDatos((p) => ({
-                          ...p,
-                          direccionEmpresa: { ...p.direccionEmpresa, municipio: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs text-gray-600">
-                    <span className="font-medium text-gray-800">CP</span>
-                    <input
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                      value={clienteDatos.direccionEmpresa.cp}
-                      onChange={(e) =>
-                        setClienteDatos((p) => ({
-                          ...p,
-                          direccionEmpresa: { ...p.direccionEmpresa, cp: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-              </fieldset>
-            </div>
+            <ExpedienteClienteDatosFormSection
+              clienteDatos={clienteDatos}
+              setClienteDatos={setClienteDatos}
+              clienteDatosMeta={clienteDatosMeta}
+              clienteDatosSaving={clienteDatosSaving}
+              clienteDatosError={clienteDatosError}
+              camposFaltantes={camposFaltantesClienteDatos}
+              puedeIntegrar={puedeIntegrar}
+              dataSupabase={false}
+              formatDateTime={formatDateTime}
+              onSave={handleSaveClienteDatos}
+              esperaMontoMessage={MSJ_ESPERA_MONTO_REVISOR}
+            />
 
             <SeguimientoOperativoMock
               asesorIntegracionHabilitada={puedeIntegrar}

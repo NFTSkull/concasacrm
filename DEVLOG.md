@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-15 - P3G: datos generales cliente Supabase en asesor
+
+### Decisión
+
+- RPC existente `save_cliente_datos(p_expediente_id, p_rfc, p_telefono, p_referencias, p_imagenes, p_datos, p_estado)` sin migración nueva.
+- `SupabaseExpedienteClienteDatosRepo`: SELECT `cliente_datos` con RLS; guardado vía RPC; mock `localStorage` sin cambios.
+- UI Supabase: formulario datos generales + estados cargando/guardando/guardado/error; checklist Enviar a Mesa.
+- Botón Enviar a Mesa bloqueado hasta editor aprobado + datos completos guardados + documentos (P3H: `documentosRealesConectados=false`).
+- Extracción `ExpedienteClienteDatosFormSection` compartida mock/Supabase.
+
+### Archivos
+
+- `src/domain/expediente-cliente-datos/*` (supabase.repo, mapper, rpc-error, tests)
+- `src/components/asesor/ExpedienteClienteDatosFormSection.tsx`
+- `src/app/asesor/expediente/[id]/page.tsx`
+
 ## 2026-06-15 - P3F.1b: layout editor prioriza monto/notas
 
 ### Decisión
