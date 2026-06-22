@@ -9,6 +9,7 @@ import { hasActiveFirmasBookingForCita } from "@/lib/agendaFirmasBookingsGuard";
 import { getEffectiveMockRole } from "@/lib/mockUser";
 import type { ExpedientesRepo } from "./repo";
 import type { CreateExpedienteInput } from "./create-expediente.input";
+import type { UpsertEditorDecisionInput } from "./upsert-editor-decision.input";
 
 export type EditorDecision = "pendiente" | "aprobado" | "no_cumple";
 export type OperativoSubestado =
@@ -483,6 +484,23 @@ export class MockExpedientesRepo implements ExpedientesRepo {
     window.dispatchEvent(new Event("decisions_mock_updated"));
 
     return this.getById(id);
+  }
+
+  async upsertEditorDecision(
+    expedienteId: string,
+    input: UpsertEditorDecisionInput,
+  ): Promise<ExpedienteMock> {
+    const result = await this.updateDecision(expedienteId, {
+      decision: input.decision,
+      monto_aprobado: input.monto_aprobado,
+      notas_revision: input.notas_revision ?? "",
+    });
+
+    if (!result) {
+      throw new Error("Expediente no encontrado.");
+    }
+
+    return result;
   }
 
   async updateOperativo(id: string, patch: UpdateOperativoPatch): Promise<ExpedienteMock | null> {

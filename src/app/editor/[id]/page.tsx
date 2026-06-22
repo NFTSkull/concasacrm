@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatDateTimeMx } from "@/lib/filters";
-import { MockExpedientesRepo } from "@/domain/expedientes/mock.repo";
+import {
+  ExpedientesSupabaseError,
+  useExpedientesRepo,
+} from "@/domain/expedientes";
 
 type Decision = "pendiente" | "aprobado" | "no_cumple";
 
@@ -50,7 +53,7 @@ function DecisionBadge({ decision }: { decision?: string }) {
 export default function EditorExpedientePage() {
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useSessionRepo();
-  const repo = useMemo(() => new MockExpedientesRepo(), []);
+  const repo = useExpedientesRepo();
   const [precal, setPrecal] = useState<PrecalInfo | null | undefined>(
     undefined,
   );
@@ -110,7 +113,12 @@ export default function EditorExpedientePage() {
       if (num !== null && num < 0) {
         throw new Error("El monto aprobado no puede ser negativo.");
       }
-      await repo.updateDecision(id, {
+      if (decision === "aprobado") {
+        if (num === null || num <= 0) {
+          throw new Error("El monto aprobado debe ser mayor a cero.");
+        }
+      }
+      await repo.upsertEditorDecision(id, {
         decision,
         monto_aprobado: num,
         notas_revision: notas.trim(),
@@ -118,7 +126,11 @@ export default function EditorExpedientePage() {
       setSavedMessage("Decisión guardada correctamente.");
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Error al guardar la decisión.";
+        err instanceof ExpedientesSupabaseError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Error al guardar la decisión.";
       setError(msg);
     } finally {
       setSaving(false);

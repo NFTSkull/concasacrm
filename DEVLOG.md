@@ -1,6 +1,20 @@
 # Devlog
 
-## 2026-06-15 - P3E: enviar a Mesa desde detalle asesor Supabase
+## 2026-06-15 - P3F: editor decisión real Supabase
+
+### Decisión
+
+- RPC `upsert_editor_decision(p_expediente_id, p_decision, p_monto_aprobado, p_motivo)` sin migración nueva.
+- Contrato: `listForEditor()` + `upsertEditorDecision()`; mock delega a `updateDecision` / `listForEditor` existentes.
+- `/editor` y `/editor/[id]` usan `useExpedientesRepo()`; errores `ExpedientesSupabaseError`; validación monto > 0 en aprobado.
+- RLS editor ya permite SELECT org; mutación solo RPC.
+
+### Archivos
+
+- `repo.ts`, `mock.repo.ts`, `supabase.repo.ts`, `upsert-editor-decision.*`
+- `src/app/editor/page.tsx`, `src/app/editor/[id]/page.tsx`
+
+## 2026-06-15 - P3E.1: bloqueo UI envío a Mesa sin editor
 
 ### Decisión
 

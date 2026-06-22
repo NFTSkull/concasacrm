@@ -8,10 +8,12 @@ import type { ExpedientesRepo } from "./repo";
 
 export type { ExpedientesRepo } from "./repo";
 export type { CreateExpedienteInput } from "./create-expediente.input";
-export type { ExpedienteMock } from "./mock.repo";
+export type { UpsertEditorDecisionInput } from "./upsert-editor-decision.input";
+export type { ExpedienteMock, EditorDecision } from "./mock.repo";
 export { MockExpedientesRepo } from "./mock.repo";
 export { SupabaseExpedientesRepo, ExpedientesSupabaseError } from "./supabase.repo";
 export { mapEnviarAMesaRpcError } from "./enviar-mesa-rpc-error";
+export { mapUpsertEditorDecisionRpcError } from "./upsert-editor-decision-rpc-error";
 export {
   mapProgramaDbToUi,
   mapProgramaUiToDb,

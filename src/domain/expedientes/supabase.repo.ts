@@ -8,6 +8,8 @@ import type { ExpedienteMock } from "./mock.repo";
 import { mapProgramaUiToDb } from "./map-programa";
 import { ExpedientesSupabaseError } from "./supabase.error";
 import { mapEnviarAMesaRpcError } from "./enviar-mesa-rpc-error";
+import { mapUpsertEditorDecisionRpcError } from "./upsert-editor-decision-rpc-error";
+import type { UpsertEditorDecisionInput } from "./upsert-editor-decision.input";
 import {
   mapCreateExpedienteRpcToExpedienteMock,
   mapSupabaseRowToExpedienteMock,
@@ -163,10 +165,14 @@ async function fetchExpedienteById(id: string): Promise<ExpedienteMock | null> {
 
 /**
  * Lectura vía RLS (JWT del usuario autenticado).
- * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`; P3E: `enviarAMesa()`.
+ * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`; P3E: `enviarAMesa()`; P3F: `listForEditor()` + `upsertEditorDecision()`.
  */
 export class SupabaseExpedientesRepo implements ExpedientesRepo {
   async listForAdmin(): Promise<ExpedienteMock[]> {
+    return fetchExpedientesList();
+  }
+
+  async listForEditor(): Promise<ExpedienteMock[]> {
     return fetchExpedientesList();
   }
 
@@ -232,6 +238,58 @@ export class SupabaseExpedientesRepo implements ExpedientesRepo {
     if (!refreshed) {
       throw new ExpedientesSupabaseError(
         "El envío a Mesa se registró, pero no se pudo recargar el expediente.",
+      );
+    }
+
+    return refreshed;
+  }
+
+  async upsertEditorDecision(
+    expedienteId: string,
+    input: UpsertEditorDecisionInput,
+  ): Promise<ExpedienteMock> {
+    const idNorm = String(expedienteId).trim();
+    if (!idNorm) {
+      throw new ExpedientesSupabaseError("El identificador del expediente es obligatorio.");
+    }
+
+    const { client } = await requireSupabaseSession();
+
+    const motivo = input.notas_revision?.trim() ?? "";
+    const rpcArgs: {
+      p_expediente_id: string;
+      p_decision: UpsertEditorDecisionInput["decision"];
+      p_monto_aprobado?: number | null;
+      p_motivo?: string | null;
+    } = {
+      p_expediente_id: idNorm,
+      p_decision: input.decision,
+    };
+
+    if (input.decision === "aprobado") {
+      rpcArgs.p_monto_aprobado = input.monto_aprobado;
+    }
+
+    if (motivo.length > 0) {
+      rpcArgs.p_motivo = motivo;
+    }
+
+    const { data, error } = await client.rpc("upsert_editor_decision", rpcArgs);
+
+    if (error) {
+      throw mapUpsertEditorDecisionRpcError(error);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new ExpedientesSupabaseError(
+        "No se pudo guardar la decisión. Respuesta vacía del servidor.",
+      );
+    }
+
+    const refreshed = await fetchExpedienteById(idNorm);
+    if (!refreshed) {
+      throw new ExpedientesSupabaseError(
+        "La decisión se guardó, pero no se pudo recargar el expediente.",
       );
     }
 

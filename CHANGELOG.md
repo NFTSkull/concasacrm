@@ -2,7 +2,9 @@
 
 ## 2026-06-15
 
-- **P3E — Enviar a Mesa desde detalle asesor Supabase:** `ExpedientesRepo.enviarAMesa()` vía RPC `enviar_a_mesa`; mapeo de errores en español; UI con confirmación/loading/éxito/error; mock intacto (`enviarAMesaWithPayload`).
+- **P3F — Editor decisión real Supabase:** `listForEditor()` + `upsertEditorDecision()` vía RPC `upsert_editor_decision`; `/editor` y `/editor/[id]` con `useExpedientesRepo()`; mock intacto.
+
+- **P3E.1 — Bloqueo UI envío a Mesa sin editor aprobado:** botón deshabilitado hasta `aprobado` + monto > 0 en detalle asesor Supabase.
 
 - **P3D — Detalle `/asesor/expediente/[id]` read-only Supabase:** `ExpedientesRepo.getById()`; carga real vía RLS; panel estado read-only; secciones mock de integración ocultas en Supabase.
 
