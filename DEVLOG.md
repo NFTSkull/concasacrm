@@ -1,5 +1,17 @@
 # Devlog
 
+## 2026-06-15 - P3F.1b: layout editor prioriza monto/notas
+
+### Decisión
+
+- Solo UX en `/editor`: `table-fixed` + `min-w-[1500px]` + `colgroup` con anchos por columna.
+- Monto (160–180px) y notas (280–320px) con fondo sutil; asesor/cliente truncados con `title`.
+- Contenedor amplio (`max-w-[min(100%,96rem)]`); scroll horizontal en wrapper. Sin cambios de lógica/autosave.
+
+### Archivos
+
+- `src/app/editor/page.tsx`
+
 ## 2026-06-15 - P3F.1: restaurar UX legacy editor
 
 ### Decisión

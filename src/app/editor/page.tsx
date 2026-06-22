@@ -433,7 +433,7 @@ export default function EditorDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
+        <div className="mx-auto flex w-full max-w-[min(100%,96rem)] items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-900">
             ConCasa CRM · Editor
           </h1>
@@ -464,7 +464,7 @@ export default function EditorDashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-4 sm:space-y-6 sm:py-6">
+      <main className="mx-auto w-full max-w-[min(100%,96rem)] space-y-4 px-4 py-4 sm:space-y-6 sm:py-6">
         <section className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-medium text-gray-900 sm:text-lg">
             Precalificaciones para revisión
@@ -487,7 +487,18 @@ export default function EditorDashboardPage() {
         ) : null}
 
         <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-[1500px] w-full table-fixed divide-y divide-gray-200 text-sm">
+            <colgroup>
+              <col className="w-[108px]" />
+              <col className="w-[88px]" />
+              <col className="w-[104px]" />
+              <col className="w-[128px]" />
+              <col className="w-[108px]" />
+              <col className="w-[96px]" />
+              <col className="w-[116px]" />
+              <col className="w-[176px]" />
+              <col className="w-[320px]" />
+            </colgroup>
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
@@ -511,10 +522,10 @@ export default function EditorDashboardPage() {
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
                   Decisión
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                <th className="bg-blue-50/60 px-3 py-2 text-left text-xs font-semibold uppercase text-gray-700">
                   Monto aprobado
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                <th className="bg-blue-50/60 px-3 py-2 text-left text-xs font-semibold uppercase text-gray-700">
                   Notas
                 </th>
               </tr>
@@ -538,44 +549,53 @@ export default function EditorDashboardPage() {
 
                   return (
                     <tr key={p.id} className="align-top hover:bg-gray-50">
-                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
+                      <td className="truncate px-3 py-2 text-xs text-gray-500">
                         {formatDateTimeMx(p.createdAt)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
+                      <td
+                        className="truncate px-3 py-2 text-sm text-gray-600"
+                        title={p.programa}
+                      >
                         {p.programa}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
+                      <td className="truncate px-3 py-2 text-sm text-gray-600">
                         {p.nss || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-900">
+                      <td
+                        className="truncate px-3 py-2 text-sm text-gray-900"
+                        title={p.cliente_nombre || undefined}
+                      >
                         {p.cliente_nombre || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
+                      <td className="truncate px-3 py-2 text-sm text-gray-600">
                         {p.telefono_cliente || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
+                      <td
+                        className="max-w-[6rem] truncate px-3 py-2 text-sm text-gray-600"
+                        title={p.asesorId || undefined}
+                      >
                         {p.asesorId || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2">
+                      <td className="px-3 py-2">
                         <DecisionBadge decision={p.decision} />
                         {dataSupabase ? (
                           <RowSaveIndicator state={saveState} />
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
+                      <td className="bg-blue-50/30 px-3 py-2">
                         <input
                           type="number"
                           min={0}
                           step={1}
-                          className="no-spinner w-32 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="no-spinner w-full min-w-[160px] max-w-[180px] rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           value={montoValue}
                           onChange={(e) => handleMontoChange(p, e.target.value)}
                         />
                       </td>
-                      <td className="max-w-[260px] px-3 py-2 text-xs text-gray-600">
+                      <td className="bg-blue-50/30 px-3 py-2">
                         <textarea
-                          className="w-full rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          rows={2}
+                          className="min-h-[4.5rem] w-full min-w-[280px] max-w-[320px] rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          rows={3}
                           value={p.notas_revision}
                           onChange={(e) => handleNotasChange(p, e.target.value)}
                           placeholder="Notas de revisión..."
