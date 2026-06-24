@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MesaExpedienteDetalleReadOnly } from "@/components/mesa-control/MesaExpedienteDetalleReadOnly";
 import { useSessionRepo } from "@/domain/session";
 import { Button } from "@/components/ui/Button";
+import { isDataModeSupabase } from "@/lib/dataMode";
 import {
   SeguimientoOperativoMock,
   type SeguimientoOperativoMockSummary,
@@ -174,7 +176,7 @@ function findNextPendingTipo(
   return null;
 }
 
-export default function MesaControlExpedientePage() {
+function MesaControlExpedienteMockPage() {
   const { id } = useParams<{ id: string }>();
   /** Misma clave que localStorage / eventos (evita desajuste string vs otro tipo). */
   const routeExpedienteId =
@@ -2634,4 +2636,11 @@ export default function MesaControlExpedientePage() {
       ) : null}
     </div>
   );
+}
+
+export default function MesaControlExpedientePage() {
+  if (isDataModeSupabase()) {
+    return <MesaExpedienteDetalleReadOnly />;
+  }
+  return <MesaControlExpedienteMockPage />;
 }

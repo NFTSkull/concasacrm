@@ -1,5 +1,19 @@
 # Devlog
 
+## 2026-06-15 - P3J.2: detalle Mesa Control read-only (Supabase)
+
+### Decisión
+
+- Wrapper en `page.tsx`: `isDataModeSupabase()` → `MesaExpedienteDetalleReadOnly`; mock sin cambios (`MesaControlExpedienteMockPage`).
+- `getById` vía RLS: null = no acceso o no existe (mensaje unificado).
+- Documentos: checklist integración asesor (5+1) read-only; sin validar/rechazar/preview.
+- Reutiliza `AsesorSeguimientoOperativo` para timeline 12 etapas.
+
+### Archivos
+
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+- `src/app/mesa-control/[id]/page.tsx` (wrapper)
+
 ## 2026-06-15 - P3J.1: bandeja Mesa Control read-only (Supabase)
 
 ### Decisión
