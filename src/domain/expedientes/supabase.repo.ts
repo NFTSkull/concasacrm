@@ -140,6 +140,32 @@ async function fetchExpedientesList(options?: {
   );
 }
 
+async function fetchExpedientesListForMesaControl(): Promise<ExpedienteMock[]> {
+  const { client } = await requireSupabaseSession();
+
+  const { data, error } = await client
+    .from("expedientes")
+    .select(EXPEDIENTES_LIST_SELECT)
+    .is("deleted_at", null)
+    .eq("submitted_to_mesa", true)
+    .eq("ciclo_estado", "activo")
+    .order("fecha_envio_mesa", { ascending: false });
+
+  if (error) {
+    throw new ExpedientesSupabaseError(
+      "No se pudo cargar la bandeja de Mesa de control. Intenta de nuevo más tarde.",
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return data.map((row) =>
+    mapSupabaseRowToExpedienteMock(row as SupabaseExpedienteListRow),
+  );
+}
+
 async function fetchExpedienteById(id: string): Promise<ExpedienteMock | null> {
   const idNorm = String(id).trim();
   if (!idNorm) return null;
@@ -166,7 +192,7 @@ async function fetchExpedienteById(id: string): Promise<ExpedienteMock | null> {
 
 /**
  * Lectura vía RLS (JWT del usuario autenticado).
- * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`; P3E: `enviarAMesa()`; P3F: `listForEditor()` + `upsertEditorDecision()`.
+ * P3B.1: `listForAdmin()`; P3B.2: `listForAsesor()`; P3C: `createExpediente()`; P3D: `getById()`; P3E: `enviarAMesa()`; P3F: `listForEditor()` + `upsertEditorDecision()`; P3J.1: `listForMesaControl()`.
  */
 export class SupabaseExpedientesRepo implements ExpedientesRepo {
   async listForAdmin(): Promise<ExpedienteMock[]> {
@@ -175,6 +201,10 @@ export class SupabaseExpedientesRepo implements ExpedientesRepo {
 
   async listForEditor(): Promise<ExpedienteMock[]> {
     return fetchExpedientesList();
+  }
+
+  async listForMesaControl(): Promise<ExpedienteMock[]> {
+    return fetchExpedientesListForMesaControl();
   }
 
   async listForAsesor(_asesorEmail: string): Promise<ExpedienteMock[]> {

@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-06-15 - P3J.1: bandeja Mesa Control read-only (Supabase)
+
+### Decisión
+
+- `listForMesaControl()` en contrato expedientes; Supabase consulta `expedientes` con `submitted_to_mesa`, `ciclo_estado=activo`, `deleted_at IS NULL`; orden `fecha_envio_mesa DESC`.
+- RLS `can_see_expediente` filtra por `mesa_admin` / `mesa_interno` / `mesa_externo`; sin filtro cliente duplicado en Supabase.
+- `/mesa-control` deja de instanciar `MockExpedientesRepo` directo; mock conserva inbox LS + `filterExpedientesByRole`.
+- Detalle `/mesa-control/[id]` fuera de alcance (sigue mock).
+
+### Archivos
+
+- `src/domain/expedientes/repo.ts`, `mock.repo.ts`, `supabase.repo.ts`
+- `src/app/mesa-control/page.tsx`, `mockData.ts`
+- `src/domain/expedientes/list-for-mesa-control.test.ts`
+
 ## 2026-06-15 - P3I.1: timeline operativo asesor read-only (Supabase)
 
 ### Decisión

@@ -10,6 +10,7 @@ export interface CasoMock {
   cliente_nombre: string;
   telefono_cliente: string;
   programa: string;
+  nss?: string;
   asesorNombre: string;
   etapaActual: number;
   subestado: Subestado;

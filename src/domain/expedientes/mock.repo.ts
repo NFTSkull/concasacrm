@@ -437,6 +437,14 @@ export class MockExpedientesRepo implements ExpedientesRepo {
     return all.filter((e) => e.operativo.submittedToMesa);
   }
 
+  async listForMesaControl(): Promise<ExpedienteMock[]> {
+    const mesa = await this.listForMesa();
+    return mesa.filter((e) => {
+      const ciclo = e.operativo.cicloEstado;
+      return ciclo == null || ciclo === "activo";
+    });
+  }
+
   async getById(id: string): Promise<ExpedienteMock | null> {
     const idNorm = String(id).trim();
     if (!idNorm) return null;

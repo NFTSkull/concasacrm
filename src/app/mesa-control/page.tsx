@@ -16,12 +16,17 @@ import {
   getTodayYMD,
   type CasoMock,
 } from "./mockData";
-import { MockExpedientesRepo, type ExpedienteMock } from "@/domain/expedientes/mock.repo";
+import {
+  ExpedientesSupabaseError,
+  useExpedientesRepo,
+  type ExpedienteMock,
+} from "@/domain/expedientes";
 import {
   deriveResumenDocumental,
-  MockExpedienteArchivosIndexedDbRepo,
+  useExpedienteArchivosRepo,
   type CategoriaResumenDocumental,
 } from "@/domain/expediente-archivos";
+import { isDataModeSupabase } from "@/lib/dataMode";
 import {
   subestadoOperativoBadgeClass,
   subestadoOperativoLabel,
@@ -172,9 +177,12 @@ function rowSurfaceClass(c: CasoConDocs): string {
 export default function MesaControlPage() {
   const router = useRouter();
   const { sessionRepo, currentUser } = useSessionRepo();
-  const repo = useMemo(() => new MockExpedientesRepo(), []);
-  const archivosRepo = useMemo(() => new MockExpedienteArchivosIndexedDbRepo(), []);
+  const repo = useExpedientesRepo();
+  const archivosRepo = useExpedienteArchivosRepo();
+  const dataSupabase = isDataModeSupabase();
   const [casos, setCasos] = useState<CasoConDocs[]>([]);
+  const [listError, setListError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState("");
   const [etapaFilter, setEtapaFilter] = useState<string>("todas");
   const [subestadoFilter, setSubestadoFilter] = useState<string>("todas");
@@ -197,11 +205,15 @@ export default function MesaControlPage() {
   }
 
   const mapExpToCaso = useCallback((exp: ExpedienteMock): CasoMock => {
+    const rawFe = exp.operativo.fechaEnvioMesa;
+    const fechaEnvioMesa =
+      typeof rawFe === "string" && rawFe.trim() !== "" ? rawFe : undefined;
     return {
       id: exp.id,
       cliente_nombre: exp.base.cliente_nombre,
       telefono_cliente: exp.base.telefono_cliente,
       programa: exp.base.programa,
+      nss: exp.base.nss || undefined,
       asesorNombre: exp.base.asesorId,
       etapaActual: exp.operativo.etapaActual ?? 1,
       subestado: exp.operativo.subestado ?? "pendiente",
@@ -211,6 +223,7 @@ export default function MesaControlPage() {
       updatedAt: exp.operativo.updatedAt ?? new Date().toISOString(),
       submittedToMesa: exp.operativo.submittedToMesa,
       origenMesa: exp.base.origenMesa ?? "interno",
+      fechaEnvioMesa,
     };
   }, []);
 
@@ -219,50 +232,82 @@ export default function MesaControlPage() {
     [todayYMD],
   );
 
-  const loadCasos = useCallback(() => {
-    void repo.listForMesa().then(async (exps) => {
-      const mockRole =
-        typeof window !== "undefined" ? getEffectiveMockRole() : null;
-      const visibles = filterExpedientesByRole({ mockRole }, exps);
-      const inboxMap =
-        typeof window !== "undefined"
-          ? mergeMesaControlInboxByLatestUpdated(readMesaControlInboxSafe())
-          : new Map();
-      const base = visibles.map((exp) => {
-        const c = mapExpToCaso(exp);
-        const row = inboxMap.get(exp.id);
-        const rawFe = row?.fechaEnvioMesa;
-        const fechaEnvioMesa =
-          typeof rawFe === "string" && rawFe.trim() !== "" ? rawFe : undefined;
-        return fechaEnvioMesa !== undefined ? { ...c, fechaEnvioMesa } : c;
-      });
-      const sorted = [...base].sort((a, b) => {
-        const prioridadDiff =
-          getPrioridad(a.subestado) - getPrioridad(b.subestado);
-        if (prioridadDiff !== 0) return prioridadDiff;
-        return getFechaUrgenciaBandejaMesa(a) - getFechaUrgenciaBandejaMesa(b);
-      });
-      if (typeof window === "undefined") {
-        setCasos(sorted);
-        return;
+  const loadCasos = useCallback((opciones?: { silencioso?: boolean }) => {
+    if (!currentUser) return;
+    void (async () => {
+      if (!opciones?.silencioso) setLoading(true);
+      setListError(null);
+      try {
+        const exps = await repo.listForMesaControl();
+        let visibles = exps;
+        if (!dataSupabase) {
+          const mockRole =
+            typeof window !== "undefined" ? getEffectiveMockRole() : null;
+          visibles = filterExpedientesByRole({ mockRole }, exps);
+        }
+        const inboxMap =
+          !dataSupabase && typeof window !== "undefined"
+            ? mergeMesaControlInboxByLatestUpdated(readMesaControlInboxSafe())
+            : new Map();
+        const base = visibles.map((exp) => {
+          const c = mapExpToCaso(exp);
+          if (dataSupabase) return c;
+          const row = inboxMap.get(exp.id);
+          const rawFe = row?.fechaEnvioMesa;
+          const fechaEnvioMesa =
+            typeof rawFe === "string" && rawFe.trim() !== "" ? rawFe : undefined;
+          return fechaEnvioMesa !== undefined ? { ...c, fechaEnvioMesa } : c;
+        });
+        const sorted = [...base].sort((a, b) => {
+          const prioridadDiff =
+            getPrioridad(a.subestado) - getPrioridad(b.subestado);
+          if (prioridadDiff !== 0) return prioridadDiff;
+          return getFechaUrgenciaBandejaMesa(a) - getFechaUrgenciaBandejaMesa(b);
+        });
+        if (typeof window === "undefined") {
+          setCasos(sorted);
+          return;
+        }
+        const enriched: CasoConDocs[] = await Promise.all(
+          sorted.map(async (c) => {
+            try {
+              const r = await archivosRepo.listResumenByExpediente(c.id);
+              return { ...c, resumenDocumental: deriveResumenDocumental(r) };
+            } catch {
+              return { ...c, resumenDocumental: "faltantes" };
+            }
+          }),
+        );
+        setCasos(enriched);
+      } catch (err) {
+        setCasos([]);
+        if (err instanceof ExpedientesSupabaseError) {
+          setListError(err.message);
+        } else {
+          setListError("No se pudo cargar la bandeja de Mesa de control.");
+        }
+      } finally {
+        setLoading(false);
       }
-      const enriched: CasoConDocs[] = await Promise.all(
-        sorted.map(async (c) => {
-          try {
-            const r = await archivosRepo.listResumenByExpediente(c.id);
-            return { ...c, resumenDocumental: deriveResumenDocumental(r) };
-          } catch {
-            return { ...c, resumenDocumental: "faltantes" };
-          }
-        }),
-      );
-      setCasos(enriched);
-    });
-  }, [archivosRepo, mapExpToCaso, repo]);
+    })();
+  }, [archivosRepo, currentUser, dataSupabase, mapExpToCaso, repo]);
 
   useEffect(() => {
+    if (!currentUser) return;
     loadCasos();
-    if (typeof window === "undefined") return;
+    if (dataSupabase || typeof window === "undefined") {
+      const archivosHandler = () => loadCasos();
+      window.addEventListener(
+        "expediente_archivos_updated",
+        archivosHandler as EventListener,
+      );
+      return () => {
+        window.removeEventListener(
+          "expediente_archivos_updated",
+          archivosHandler as EventListener,
+        );
+      };
+    }
 
     const storageHandler = (e: StorageEvent) => {
       if (e.key === "mesa_control_inbox") loadCasos();
@@ -282,7 +327,7 @@ export default function MesaControlPage() {
         archivosHandler as EventListener,
       );
     };
-  }, [loadCasos]);
+  }, [currentUser, dataSupabase, loadCasos]);
 
   const allCasos = useMemo(() => {
     const list = [...casos];
@@ -456,6 +501,14 @@ export default function MesaControlPage() {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-5">
+        {listError ? (
+          <p
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            {listError}
+          </p>
+        ) : null}
         {showAdminOrigenTabs ? (
           <section className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm sm:p-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -655,7 +708,13 @@ export default function MesaControlPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredCasos.map((c) => (
+            {loading ? (
+              <p className="col-span-full py-10 text-center text-sm text-slate-500">
+                Cargando expedientes…
+              </p>
+            ) : null}
+            {!loading
+              ? filteredCasos.map((c) => (
               <article
                 key={c.id}
                 role="button"
@@ -687,6 +746,11 @@ export default function MesaControlPage() {
                 <p className="mt-1 text-[11px] text-slate-600">
                   <span className="font-medium text-slate-700">Programa:</span> {c.programa}
                 </p>
+                {c.nss ? (
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    <span className="font-medium text-slate-700">NSS:</span> {c.nss}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-800">
                     Etapa {c.etapaActual}: {ETAPAS_LABELS[c.etapaActual] ?? "—"}
@@ -713,12 +777,14 @@ export default function MesaControlPage() {
                 ) : null}
                 <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-slate-100/80 pt-2 text-[10px] text-slate-500">
                   <span>Cita: {formatDate(c.fechaCita)}</span>
-                  <span className="tabular-nums">{formatDateTime(c.updatedAt)}</span>
+                  <span>Envío Mesa: {formatDate(c.fechaEnvioMesa ?? undefined)}</span>
+                  <span className="tabular-nums">Actualizado: {formatDateTime(c.updatedAt)}</span>
                 </div>
               </article>
-            ))}
+            ))
+              : null}
           </div>
-          {filteredCasos.length === 0 ? (
+          {!loading && filteredCasos.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-500">
               No hay casos que coincidan con los filtros.
             </p>

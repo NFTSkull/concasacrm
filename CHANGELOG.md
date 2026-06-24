@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- **P3J.1 — Bandeja Mesa Control read-only Supabase:** `ExpedientesRepo.listForMesaControl()`; `/mesa-control` usa factories `useExpedientesRepo` + `useExpedienteArchivosRepo`; filtro `submitted_to_mesa` + `ciclo_estado=activo` + RLS por rol mesa; mock inbox/ACL intacto en modo mock.
+
 - **P3H.2b — Catálogo documental sin duplicados:** migración `028` redefine listas asesor (5 oblig / 1 opc / 6 upload / 7 Mesa); elimina legacy `ine`/`estado_cuenta`/`direccion` del panel y gates; `cliente_semanas_cotizadas` upload opcional; acta y constancia SAT solo Mesa de Control (no panel/upload asesor); UI asesor con secciones obligatorios/opcionales; progreso `N/5`.
 - **P3I.1 — Timeline operativo asesor (Supabase):** componente read-only `AsesorSeguimientoOperativo` con 12 etapas oficiales; resumen etapa/subestado/envío; mapper incluye `fecha_envio_mesa` y `ciclo_estado`.
 
