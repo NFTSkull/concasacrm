@@ -2,7 +2,9 @@
 
 ## 2026-06-25
 
-- **P3K.1 — Continuar integración Mesa (1→2):** botón **Continuar** en detalle Mesa Supabase; RPC `avanzar_etapa_operativa`; gates UI espejo SQL (datos `validado` + 7 docs `validado`); recarga etapa/subestado/timeline tras avance.
+- **P3K.2 — Complementarios Mesa opcionales:** migración `032` redefine `integration_doc_tipos_obligatorios()` a 5 (solo asesor); semanas/acta/SAT no bloquean validación ni avance 1→2; UI complementarios sin revisión (solo subir/ver/descargar/reemplazar).
+
+- **P3K.1 — Continuar integración Mesa (1→2):** botón **Continuar** en detalle Mesa Supabase; RPC `avanzar_etapa_operativa`; gates UI espejo SQL (datos `validado` + 5 docs asesor `validado`); recarga etapa/subestado/timeline tras avance.
 
 - **P3J Cloud — Migraciones 029/030/031 en Production:** aplicadas manualmente en Supabase SQL Editor (orden 029 → 030 → 031); verificación post-SQL OK (6 RPCs/helpers + policies Storage INSERT/DELETE con 3 ramas OR). Sin `supabase db push`. Frontend P3J.3–P3J.6 pendiente de deploy.
 

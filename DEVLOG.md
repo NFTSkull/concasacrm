@@ -1,5 +1,24 @@
 # Devlog
 
+## 2026-06-25 - P3K.2: complementarios Mesa opcionales (no bloquean 1→2)
+
+### Decisión
+
+- Regla corregida: `cliente_semanas_cotizadas`, `cliente_acta_nacimiento`, `cliente_constancia_sat` son complementarios opcionales.
+- Migración `032`: `integration_doc_tipos_obligatorios()` = `integration_doc_tipos_asesor_envio()` (5). `integration_doc_tipos_mesa_upload()` sin cambio (3 tipos).
+- Avance 1→2 vía `avanzar_etapa_operativa` + `integration_docs_todos_validados`: solo 5 docs asesor `validado` + `cliente_datos.validado`.
+- UI complementarios: sin sección Revisión; badge «Opcional / Complementario»; presencia «Faltante» / «Cargado».
+- **No aplicar 032 en Cloud hasta commit local y smoke post-migración.**
+
+### Archivos
+
+- `supabase/migrations/032_mesa_complementarios_opcionales.sql`
+- `supabase/tests/mesa_complementarios_opcionales.sql`
+- `src/domain/expediente-archivos/integration-docs-completos.ts`
+- `src/domain/expediente-archivos/mesa-complementarios-docs.ts`
+- `src/components/mesa-control/MesaControlDocumentosComplementariosSection.tsx`
+- `src/domain/expedientes/mesa-avance-integracion.ts`
+
 ## 2026-06-25 - P3K.1: Continuar integración Mesa (1→2)
 
 ### Decisión

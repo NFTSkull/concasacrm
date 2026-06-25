@@ -1,0 +1,54 @@
+-- P3K.2: complementarios Mesa opcionales — obligatorios = 5 asesor; mesa_upload = 3 tipos
+
+DO $$
+DECLARE
+  v_oblig TEXT[];
+  v_mesa TEXT[];
+BEGIN
+  v_oblig := public.integration_doc_tipos_obligatorios();
+  v_mesa := public.integration_doc_tipos_mesa_upload();
+
+  IF cardinality(v_oblig) <> 5 THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: se esperaban 5 obligatorios, hay %', cardinality(v_oblig);
+  END IF;
+
+  IF NOT (v_oblig @> ARRAY[
+    'nss',
+    'cliente_ine_frente',
+    'cliente_ine_reverso',
+    'cliente_comprobante_domicilio',
+    'cliente_estado_cuenta'
+  ]::TEXT[]) THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: obligatorios no coinciden con asesor_envio';
+  END IF;
+
+  IF 'cliente_semanas_cotizadas' = ANY(v_oblig) THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: semanas no debe ser obligatorio';
+  END IF;
+  IF 'cliente_acta_nacimiento' = ANY(v_oblig) THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: acta no debe ser obligatorio';
+  END IF;
+  IF 'cliente_constancia_sat' = ANY(v_oblig) THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: SAT no debe ser obligatorio';
+  END IF;
+
+  IF cardinality(v_mesa) <> 3 THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: se esperaban 3 mesa_upload, hay %', cardinality(v_mesa);
+  END IF;
+
+  IF NOT (v_mesa @> ARRAY[
+    'cliente_semanas_cotizadas',
+    'cliente_acta_nacimiento',
+    'cliente_constancia_sat'
+  ]::TEXT[]) THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: mesa_upload incompleto';
+  END IF;
+
+  IF public.integration_doc_tipos_obligatorios()
+    <> public.integration_doc_tipos_asesor_envio() THEN
+    RAISE EXCEPTION 'mesa_complementarios_opcionales: obligatorios debe igualar asesor_envio';
+  END IF;
+
+  RAISE NOTICE 'mesa_complementarios_opcionales: OK (5 obligatorios, 3 mesa_upload)';
+END;
+$$;

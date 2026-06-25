@@ -53,9 +53,11 @@ export {
 } from "./mesa-integration-docs";
 export {
   buildMesaComplementariosDocViews,
+  complementariosMesaSonOpcionales,
+  labelPresenciaComplementario,
   semanasCotizadasEsOpcionalMesa,
   type MesaComplementarioDocView,
-  type MesaComplementarioEtiqueta,
+  type MesaComplementarioPresencia,
 } from "./mesa-complementarios-docs";
 export {
   asesorDebeUsarCorreccionDocumento,

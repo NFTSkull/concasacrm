@@ -59,13 +59,7 @@ export function deriveBloqueosContinuarIntegracion(
     const label = labelDocumento(tipo);
 
     if (estatus === "faltante") {
-      if (tipo === "cliente_acta_nacimiento") {
-        bloqueos.push("Falta acta de nacimiento (debe subirla Mesa de control).");
-      } else if (tipo === "cliente_constancia_sat") {
-        bloqueos.push("Falta constancia SAT (debe subirla Mesa de control).");
-      } else {
-        bloqueos.push(`Documento obligatorio faltante: ${label}.`);
-      }
+      bloqueos.push(`Documento obligatorio faltante: ${label}.`);
       continue;
     }
 

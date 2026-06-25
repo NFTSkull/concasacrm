@@ -25,13 +25,14 @@ function resumenCompletoAsesor(
 }
 
 describe("INTEGRATION_DOC_TIPOS_VALIDACION_MESA", () => {
-  it("incluye 5 asesor + acta + constancia SAT", () => {
+  it("validación Mesa y avance 1→2 solo con 5 documentos del asesor", () => {
     assert.equal(INTEGRATION_DOC_TIPOS_ASESOR_ENVIO.length, 5);
     assert.equal(INTEGRATION_DOC_TIPOS_ASESOR_OPCIONALES.length, 1);
     assert.equal(INTEGRATION_DOC_TIPOS_ASESOR_UPLOAD.length, 6);
-    assert.equal(INTEGRATION_DOC_TIPOS_VALIDACION_MESA.length, 7);
-    assert.ok(INTEGRATION_DOC_TIPOS_VALIDACION_MESA.includes("cliente_acta_nacimiento"));
-    assert.ok(INTEGRATION_DOC_TIPOS_VALIDACION_MESA.includes("cliente_constancia_sat"));
+    assert.equal(INTEGRATION_DOC_TIPOS_VALIDACION_MESA.length, 5);
+    assert.deepEqual(INTEGRATION_DOC_TIPOS_VALIDACION_MESA, INTEGRATION_DOC_TIPOS_ASESOR_ENVIO);
+    assert.ok(!(INTEGRATION_DOC_TIPOS_VALIDACION_MESA as readonly string[]).includes("cliente_acta_nacimiento"));
+    assert.ok(!(INTEGRATION_DOC_TIPOS_VALIDACION_MESA as readonly string[]).includes("cliente_constancia_sat"));
     assert.ok(!(INTEGRATION_DOC_TIPOS_ASESOR_ENVIO as readonly string[]).includes("ine"));
     assert.ok(!(INTEGRATION_DOC_TIPOS_ASESOR_ENVIO as readonly string[]).includes("estado_cuenta"));
     assert.ok(!(INTEGRATION_DOC_TIPOS_ASESOR_ENVIO as readonly string[]).includes("direccion"));
@@ -148,20 +149,23 @@ describe("integrationDocsCompletos", () => {
 });
 
 describe("integrationDocsTodosValidados", () => {
-  it("requiere 7 validados incluyendo acta y SAT", () => {
+  it("requiere 5 validados del asesor; acta/SAT no cuentan", () => {
     const soloAsesor = INTEGRATION_DOC_TIPOS_ASESOR_ENVIO.map((tipo) => ({
       tipo_documento: tipo,
       estatus_revision: "validado" as const,
     }));
     assert.equal(countIntegrationDocsValidados(soloAsesor), 5);
-    assert.equal(integrationDocsTodosValidados(soloAsesor), false);
+    assert.equal(integrationDocsTodosValidados(soloAsesor), true);
 
-    const completo = INTEGRATION_DOC_TIPOS_VALIDACION_MESA.map((tipo) => ({
-      tipo_documento: tipo,
-      estatus_revision: "validado" as const,
-    }));
-    assert.equal(countIntegrationDocsValidados(completo), 7);
-    assert.equal(integrationDocsTodosValidados(completo), true);
+    const conComplementariosFaltantes = [
+      ...soloAsesor,
+      { tipo_documento: "cliente_acta_nacimiento" as const, estatus_revision: "faltante" as const },
+      { tipo_documento: "cliente_constancia_sat" as const, estatus_revision: "faltante" as const },
+    ];
+    assert.equal(integrationDocsTodosValidados(conComplementariosFaltantes), true);
+
+    const incompleto = soloAsesor.slice(0, 4);
+    assert.equal(integrationDocsTodosValidados(incompleto), false);
   });
 
   it("resubido no cuenta como validado para Mesa 1→2", () => {

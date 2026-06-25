@@ -349,23 +349,6 @@ export function MesaExpedienteDetalleReadOnly() {
     [persistRevision],
   );
 
-  const handleGuardarRechazoComplementario = useCallback(
-    async (
-      tipo: IntegrationDocMesaUploadTipo,
-      documentoId: string,
-      comentario: string,
-    ): Promise<boolean> => {
-      return persistRevision(tipo, documentoId, "rechazado", comentario);
-    },
-    [persistRevision],
-  );
-
-  const handleValidarComplementario = useCallback(
-    async (tipo: IntegrationDocMesaUploadTipo, documentoId: string) => {
-      await persistRevision(tipo, documentoId, "validado", null);
-    },
-    [persistRevision],
-  );
 
   const handleVerComplementario = useCallback(
     async (tipo: IntegrationDocMesaUploadTipo, archivo: ExpedienteArchivoResumen) => {
@@ -760,14 +743,10 @@ export function MesaExpedienteDetalleReadOnly() {
         puedeOperar={puedeRevisar}
         archivoLoadingTipo={complementarioArchivoLoadingTipo}
         uploadLoadingTipo={uploadLoadingTipo}
-        revisionSavingTipo={revisionSavingTipo as IntegrationDocMesaUploadTipo | null}
         archivoErrorByTipo={complementarioArchivoErrorByTipo}
         uploadErrorByTipo={uploadErrorByTipo}
-        revisionErrorByTipo={revisionErrorByTipo}
         onVer={(tipo, archivo) => void handleVerComplementario(tipo, archivo)}
         onDescargar={(tipo, archivo) => void handleDescargarComplementario(tipo, archivo)}
-        onValidar={(tipo, documentoId) => void handleValidarComplementario(tipo, documentoId)}
-        onGuardarRechazo={handleGuardarRechazoComplementario}
         onSubir={handleSubirComplementario}
         onReemplazar={handleReemplazarComplementario}
       />

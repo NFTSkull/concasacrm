@@ -277,12 +277,12 @@ BEGIN
     'test 9b: semanas fuera obligatorios Mesa'
   );
   PERFORM public.__rpc_mdoc_test_assert(
-    'cliente_acta_nacimiento' = ANY(public.integration_doc_tipos_obligatorios()),
-    'test 9c: acta en obligatorios'
+    NOT ('cliente_acta_nacimiento' = ANY(public.integration_doc_tipos_obligatorios())),
+    'test 9c: acta fuera obligatorios (complementario opcional)'
   );
   PERFORM public.__rpc_mdoc_test_assert(
-    'cliente_constancia_sat' = ANY(public.integration_doc_tipos_obligatorios()),
-    'test 9d: sat en obligatorios'
+    NOT ('cliente_constancia_sat' = ANY(public.integration_doc_tipos_obligatorios())),
+    'test 9d: sat fuera obligatorios (complementario opcional)'
   );
 
   RAISE NOTICE 'RPC register_mesa_documento: 9 grupos OK';

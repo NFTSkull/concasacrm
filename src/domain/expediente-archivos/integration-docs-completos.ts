@@ -33,18 +33,16 @@ export const INTEGRATION_DOC_TIPOS_ASESOR_UPLOAD = [
 ] as const;
 
 /**
- * Espejo de `integration_doc_tipos_obligatorios()` — validación Mesa (7).
- * Incluye acta y constancia SAT (sube Mesa de Control).
+ * Espejo de `integration_doc_tipos_obligatorios()` — validación Mesa y avance 1→2 (5).
+ * Complementarios Mesa (semanas/acta/SAT) son opcionales (migración 032).
  */
 export const INTEGRATION_DOC_TIPOS_VALIDACION_MESA = [
   ...INTEGRATION_DOC_TIPOS_ASESOR_ENVIO,
-  "cliente_acta_nacimiento",
-  "cliente_constancia_sat",
 ] as const;
 
 /**
  * Espejo de `integration_doc_tipos_mesa_upload()` (migración 030).
- * Semanas cotizadas (opcional) + acta + constancia SAT.
+ * Semanas, acta y constancia SAT — opcionales; Mesa puede subirlos.
  */
 export const INTEGRATION_DOC_TIPOS_MESA_UPLOAD = [
   "cliente_semanas_cotizadas",
@@ -119,7 +117,7 @@ export function estatusCuentaComoValidadoMesa(estatus: ResumenEstatus): boolean 
   return estatus === "validado";
 }
 
-/** Espejo de `count_integration_docs_validados` — lista de 7 tipos obligatorios Mesa. */
+/** Espejo de `count_integration_docs_validados` — lista de 5 tipos obligatorios Mesa. */
 export function countIntegrationDocsValidados(
   resumen: IntegrationDocsResumenInput,
 ): number {

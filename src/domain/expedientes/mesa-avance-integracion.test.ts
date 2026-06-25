@@ -79,22 +79,16 @@ describe("deriveBloqueosContinuarIntegracion", () => {
     assert.equal(puedeContinuarIntegracion(baseCtx({ clienteDatosEstado: "completo" })), false);
   });
 
-  it("bloqueado si falta acta de nacimiento", () => {
-    const archivos = resumenTodosValidados().filter(
-      (a) => a.tipo_documento !== "cliente_acta_nacimiento",
-    );
+  it("bloqueado si falta documento obligatorio del asesor", () => {
+    const archivos = resumenTodosValidados().filter((a) => a.tipo_documento !== "nss");
     const bloqueos = deriveBloqueosContinuarIntegracion(baseCtx({ archivosResumen: archivos }));
-    assert.ok(bloqueos.some((b) => /acta de nacimiento/i.test(b)));
+    assert.ok(bloqueos.some((b) => /nss/i.test(b)));
     assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), false);
   });
 
-  it("bloqueado si falta constancia SAT", () => {
-    const archivos = resumenTodosValidados().filter(
-      (a) => a.tipo_documento !== "cliente_constancia_sat",
-    );
-    const bloqueos = deriveBloqueosContinuarIntegracion(baseCtx({ archivosResumen: archivos }));
-    assert.ok(bloqueos.some((b) => /constancia sat/i.test(b)));
-    assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), false);
+  it("no bloquea si faltan complementarios Mesa (acta/SAT/semanas)", () => {
+    assert.deepEqual(deriveBloqueosContinuarIntegracion(baseCtx()), []);
+    assert.equal(puedeContinuarIntegracion(baseCtx()), true);
   });
 
   it("bloqueado si hay documento resubido sin validar", () => {
@@ -106,7 +100,7 @@ describe("deriveBloqueosContinuarIntegracion", () => {
     assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), false);
   });
 
-  it("habilitado si datos + 7 docs están validados", () => {
+  it("habilitado si datos + 5 docs asesor están validados", () => {
     assert.deepEqual(deriveBloqueosContinuarIntegracion(baseCtx()), []);
     assert.equal(puedeContinuarIntegracion(baseCtx()), true);
   });
