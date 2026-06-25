@@ -3,6 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabaseBrowser";
 import { mapBookBiometricosRpcError } from "./book-biometricos-rpc-error";
+import { mapCancelBiometricosRpcError } from "./cancel-biometricos-rpc-error";
+import { mapReagendarBiometricosRpcError } from "./reagendar-biometricos-rpc-error";
 import { SupabaseAgendaBiometricosConfigRepo } from "./supabase.repo";
 import { AgendaBiometricosSupabaseError } from "./supabase.error";
 import type {
@@ -10,6 +12,8 @@ import type {
   AgendaBiometricosBookedSlot,
   AgendaBiometricosBookingRepo,
   BookBiometricosResult,
+  CancelBiometricosResult,
+  ReagendarBiometricosResult,
 } from "./repo";
 
 const BOOKING_SELECT = `
@@ -40,6 +44,25 @@ type BookRpcRow = Readonly<{
   booking_date?: string;
   booking_time?: string;
   location_id?: string;
+  etapa_actual?: number;
+}>;
+
+type CancelRpcRow = Readonly<{
+  ok?: boolean;
+  expediente_id?: string;
+  booking_id?: string;
+  status?: string;
+  etapa_actual?: number;
+}>;
+
+type ReagendarRpcRow = Readonly<{
+  ok?: boolean;
+  expediente_id?: string;
+  booking_anterior_id?: string;
+  booking_nuevo_id?: string;
+  scheduled_at?: string;
+  status?: string;
+  kind?: string;
   etapa_actual?: number;
 }>;
 
@@ -218,6 +241,87 @@ export class SupabaseAgendaBiometricosBookingRepo implements AgendaBiometricosBo
       bookingDate: String(row.booking_date ?? ""),
       bookingTime: normalizeBookingTime(String(row.booking_time ?? "")),
       locationId: String(row.location_id ?? params.locationId),
+      etapaActual: Number(row.etapa_actual ?? 4),
+    };
+  }
+
+  async cancelBiometricos(params: {
+    expedienteId: string;
+    motivo?: string | null;
+  }): Promise<CancelBiometricosResult> {
+    const { client } = await requireSupabaseSession();
+
+    const { data, error } = await client.rpc("cancel_biometricos", {
+      p_expediente_id: params.expedienteId,
+      p_motivo: params.motivo?.trim() || null,
+    });
+
+    if (error) {
+      throw mapCancelBiometricosRpcError(error);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new AgendaBiometricosSupabaseError(
+        "Respuesta inválida al cancelar la cita biométrica.",
+      );
+    }
+
+    const row = data as CancelRpcRow;
+    if (!row.ok) {
+      throw new AgendaBiometricosSupabaseError(
+        "La RPC no confirmó la cancelación biométrica.",
+      );
+    }
+
+    return {
+      ok: true,
+      expedienteId: String(row.expediente_id ?? params.expedienteId),
+      bookingId: String(row.booking_id ?? ""),
+      status: "cancelled",
+      etapaActual: Number(row.etapa_actual ?? 4),
+    };
+  }
+
+  async reagendarBiometricos(params: {
+    expedienteId: string;
+    scheduledAt: string;
+    locationId: string;
+    note?: string | null;
+  }): Promise<ReagendarBiometricosResult> {
+    const { client } = await requireSupabaseSession();
+
+    const { data, error } = await client.rpc("reagendar_biometricos", {
+      p_expediente_id: params.expedienteId,
+      p_scheduled_at: params.scheduledAt,
+      p_location_id: params.locationId,
+      p_note: params.note ?? null,
+    });
+
+    if (error) {
+      throw mapReagendarBiometricosRpcError(error);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new AgendaBiometricosSupabaseError(
+        "Respuesta inválida al reagendar la cita biométrica.",
+      );
+    }
+
+    const row = data as ReagendarRpcRow;
+    if (!row.ok) {
+      throw new AgendaBiometricosSupabaseError(
+        "La RPC no confirmó el reagendado biométrico.",
+      );
+    }
+
+    return {
+      ok: true,
+      expedienteId: String(row.expediente_id ?? params.expedienteId),
+      bookingAnteriorId: String(row.booking_anterior_id ?? ""),
+      bookingNuevoId: String(row.booking_nuevo_id ?? ""),
+      scheduledAt: String(row.scheduled_at ?? params.scheduledAt),
+      status: "booked",
+      kind: "biometricos",
       etapaActual: Number(row.etapa_actual ?? 4),
     };
   }

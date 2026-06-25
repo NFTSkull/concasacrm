@@ -16,6 +16,9 @@ export * from "./repo";
 export { AgendaBiometricosSupabaseError } from "./supabase.error";
 export { mapUpsertAgendaConfigBiometricosRpcError } from "./upsert-agenda-config-rpc-error";
 export { mapBookBiometricosRpcError } from "./book-biometricos-rpc-error";
+export { mapCancelBiometricosRpcError } from "./cancel-biometricos-rpc-error";
+export { mapReagendarBiometricosRpcError } from "./reagendar-biometricos-rpc-error";
+export { canShowBiometricosManageActions } from "./biometricos-booking-actions";
 export { SupabaseAgendaBiometricosConfigRepo } from "./supabase.repo";
 export { SupabaseAgendaBiometricosBookingRepo } from "./supabase-booking.repo";
 

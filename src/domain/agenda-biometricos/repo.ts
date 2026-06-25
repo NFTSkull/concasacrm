@@ -55,6 +55,25 @@ export type BookBiometricosResult = Readonly<{
   etapaActual: number;
 }>;
 
+export type CancelBiometricosResult = Readonly<{
+  ok: true;
+  expedienteId: string;
+  bookingId: string;
+  status: "cancelled";
+  etapaActual: number;
+}>;
+
+export type ReagendarBiometricosResult = Readonly<{
+  ok: true;
+  expedienteId: string;
+  bookingAnteriorId: string;
+  bookingNuevoId: string;
+  scheduledAt: string;
+  status: "booked";
+  kind: "biometricos";
+  etapaActual: number;
+}>;
+
 export interface AgendaBiometricosBookingRepo {
   getBiometricosConfig(): Promise<AgendaBiometricosConfigRecord | null>;
   listBookedSlots(params: {
@@ -69,4 +88,14 @@ export interface AgendaBiometricosBookingRepo {
     locationId: string;
     note?: string | null;
   }): Promise<BookBiometricosResult>;
+  cancelBiometricos(params: {
+    expedienteId: string;
+    motivo?: string | null;
+  }): Promise<CancelBiometricosResult>;
+  reagendarBiometricos(params: {
+    expedienteId: string;
+    scheduledAt: string;
+    locationId: string;
+    note?: string | null;
+  }): Promise<ReagendarBiometricosResult>;
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **P3M.4 — Cancel/reagenda biométricos asesor (Supabase):** `cancel_biometricos` y `reagendar_biometricos` en repo + UI `AgendaBiometricosSupabaseCard` (etapa 4); Mesa sigue solo lectura; sin no-show ni migraciones.
+
 - **P3M.3 — Mesa avance 4→5 biométricos (Supabase):** resumen de cita activa en detalle Mesa etapa 4; panel avance 4→5 con gates UI (`fecha_cita` + booking `booked`); reutiliza RPC `avanzar_etapa_operativa`; mapeo de errores biométricos.
 
 ## 2026-06-25

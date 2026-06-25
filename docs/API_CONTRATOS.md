@@ -244,6 +244,50 @@ Convenciones:
 
 ---
 
+## 8.2 Cancelar biométricos (asesor) — P3M.4
+
+**Operación:** `POST /agenda/biometricos/bookings/cancel` · RPC `cancel_biometricos`
+
+### Request
+
+```json
+{
+  "expediente_id": "uuid",
+  "motivo": "string?"
+}
+```
+
+### Reglas
+
+- Solo `asesor` dueño; expediente etapa **4**; booking activo `kind=biometricos`, `status=booked`.
+- `agenda_bookings.status → cancelled`; `expedientes.fecha_cita = null`; **no** cambia etapa.
+- Libera cupo del slot cancelado.
+
+---
+
+## 8.3 Reagendar biométricos (asesor) — P3M.4
+
+**Operación:** `POST /agenda/biometricos/bookings/reagendar` · RPC `reagendar_biometricos`
+
+### Request
+
+```json
+{
+  "expediente_id": "uuid",
+  "scheduled_at": "ISO-8601",
+  "location_id": "string",
+  "note": "string?"
+}
+```
+
+### Reglas
+
+- Solo `asesor` dueño; expediente etapa **4**; booking activo.
+- Cancela booking anterior + crea nuevo `booked`; actualiza `fecha_cita`; valida `agenda_config` (P2C-11).
+- **No** cambia etapa.
+
+---
+
 ## 8.1 Configurar disponibilidad biométricos (Mesa) — P3M.1
 
 **Operación:** `PUT /agenda/biometricos/config` · RPC `upsert_agenda_config_biometricos`

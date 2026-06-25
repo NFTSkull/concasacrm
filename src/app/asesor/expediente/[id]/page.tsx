@@ -905,6 +905,7 @@ export default function AsesorExpedientePage() {
             precal?.id ? (
               <AgendaBiometricosSupabaseCard
                 expedienteId={String(precal.id)}
+                etapaActual={operativo?.etapaActual}
                 fechaCita={operativo?.fechaCita}
                 onUpdated={() => void loadExpediente()}
               />

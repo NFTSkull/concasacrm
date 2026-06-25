@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-06-25 - P3M.4: cancel/reagenda biométricos asesor Supabase
+
+### Decisión
+
+- UI asesor en etapa 4 con booking activo: botones Cancelar / Reagendar sobre RPCs P2C-8 existentes.
+- Cancel limpia `fecha_cita` y deja etapa 4; reagenda cancela booking anterior + nuevo `booked`.
+- Mesa sin acciones (solo lectura); tras cancel Mesa no puede 4→5 (gates P3M.3).
+- No-show fuera de alcance; sin migraciones ni cambios enum `booking_status`.
+
+### Archivos
+
+- `src/domain/agenda-biometricos/supabase-booking.repo.ts` + mappers cancel/reagenda
+- `src/components/asesor/AgendaBiometricosSupabaseCard.tsx`
+- `docs/API_CONTRATOS.md` §8.2/8.3
+
 ## 2026-06-25 - P3M.3: Mesa resumen cita biométrica y avance 4→5
 
 ### Decisión
