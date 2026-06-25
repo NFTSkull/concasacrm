@@ -31,6 +31,7 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 | `migrations/026_integration_doc_tipos_asesor_envio.sql` | ✅ P3H.1c: listas asesor/Mesa (supersedido por 028) |
 | `migrations/027_rpc_register_expediente_documento.sql` | ✅ P3H.2: bucket `expediente-documentos` + RPC `register_expediente_documento` |
 | `migrations/028_integration_doc_tipos_sin_duplicados.sql` | ✅ P3H.2b: 5 oblig / 1 opc / 6 upload / 7 Mesa |
+| `migrations/034_rpc_upsert_agenda_config_biometricos.sql` | ✅ RPC `upsert_agenda_config_biometricos` (P3M.1A) |
 | Roles `app_role` | `asesor`, `editor`, `mesa_*`, `super_admin` — **sin `revisor`** |
 | Supabase CLI local | `npx supabase start` / `db reset` |
 | UI mock | Sin conexión; `/revisor` legacy redirige a `/editor` |
@@ -296,6 +297,42 @@ Migraciones SQL para producción. **No conectadas a la UI mock** en esta fase.
 - **Índice P2C-6:** se mantiene `agenda_bookings_one_active_biometricos_per_expediente_idx` (no reemplazado)
 - **Tests:** `supabase/tests/agenda_config_biometricos_rules.sql` (36 pruebas)
 
+### RPC `upsert_agenda_config_biometricos` (P3M.1A)
+
+- **Migración:** `034_rpc_upsert_agenda_config_biometricos.sql`
+- **Función:**
+
+  ```sql
+  public.upsert_agenda_config_biometricos(
+    p_config jsonb,
+    p_organization_id uuid default null
+  ) returns jsonb
+  ```
+
+- **Alcance:** `mesa_admin` / `super_admin` persisten `agenda_config` (`kind = biometricos`); modelo semanal canónico
+- **Roles permitidos:** `mesa_admin` (org propia), `super_admin` (cross-org con `p_organization_id`)
+- **Roles bloqueados:** `mesa_interno`, `mesa_externo`, `asesor`, `editor`
+- **Estructura `config` JSONB (canónica P3M.1):**
+
+  ```json
+  {
+    "enabled": true,
+    "timezone": "America/Monterrey",
+    "min_lead_hours": 24,
+    "allowed_weekdays": [1, 2, 3, 4, 5],
+    "locations": {
+      "mty-centro": { "enabled": true, "capacity_per_slot": 3, "label": "Centro" }
+    },
+    "slots": ["09:00", "10:00", "11:00"]
+  }
+  ```
+
+- **Helpers:** `agenda_biometricos_validate_config`, `agenda_biometricos_config_upsert_warnings`
+- **Warnings:** si reduce slots/sedes/días con bookings futuros activos → `warnings[]` sin bloquear ni cancelar citas
+- **Auditoría:** `action_log` → `agenda.biometricos.config_upsert`
+- **Tests:** `supabase/tests/rpc_upsert_agenda_config_biometricos.sql` (18 pruebas)
+- **No en P3M.1:** vigencia por fecha, excepciones por día, UI mock, deploy Cloud
+
 ### RPC `cancel_biometricos` / `reagendar_biometricos` (P2C-8)
 
 - **Funciones:**
@@ -414,17 +451,18 @@ Orden de ejecución (`npm run test:sql`):
 9. `supabase/tests/rpc_upsert_editor_decision.sql`
 10. `supabase/tests/rpc_save_cliente_datos.sql`
 11. `supabase/tests/agenda_config_biometricos_rules.sql`
-12. `supabase/tests/rpc_avanzar_etapa_2_3_4.sql`
-13. `supabase/tests/rpc_avanzar_etapa_5_6.sql`
-14. `supabase/tests/rpc_avanzar_etapa_6_7.sql`
-15. `supabase/tests/rpc_avanzar_etapa_7_8.sql`
-16. `supabase/tests/rpc_enviar_retencion_mesa.sql`
-17. `supabase/tests/rpc_avanzar_etapa_8_9.sql`
-18. `supabase/tests/rpc_book_firmas.sql`
-19. `supabase/tests/rpc_firmas_cancel_reagendar.sql`
-20. `supabase/tests/rpc_avanzar_etapa_9_10.sql`
-21. `supabase/tests/backfill_agenda_config_firmas.sql`
-22. `supabase/tests/rpc_create_expediente.sql`
+12. `supabase/tests/rpc_upsert_agenda_config_biometricos.sql`
+13. `supabase/tests/rpc_avanzar_etapa_2_3_4.sql`
+14. `supabase/tests/rpc_avanzar_etapa_5_6.sql`
+15. `supabase/tests/rpc_avanzar_etapa_6_7.sql`
+16. `supabase/tests/rpc_avanzar_etapa_7_8.sql`
+17. `supabase/tests/rpc_enviar_retencion_mesa.sql`
+18. `supabase/tests/rpc_avanzar_etapa_8_9.sql`
+19. `supabase/tests/rpc_book_firmas.sql`
+20. `supabase/tests/rpc_firmas_cancel_reagendar.sql`
+21. `supabase/tests/rpc_avanzar_etapa_9_10.sql`
+22. `supabase/tests/backfill_agenda_config_firmas.sql`
+23. `supabase/tests/rpc_create_expediente.sql`
 
 Variables opcionales: `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_NAME` (defaults: `127.0.0.1:54322`, usuario `postgres`).
 
@@ -458,6 +496,7 @@ supabase/
     023_rpc_avanzar_etapa_9_10.sql
     024_backfill_agenda_config_firmas.sql
     025_rpc_create_expediente.sql
+    034_rpc_upsert_agenda_config_biometricos.sql
   tests/
     rls_policies.sql
     audit_document_history.sql
@@ -470,6 +509,7 @@ supabase/
     rpc_upsert_editor_decision.sql
     rpc_save_cliente_datos.sql
     agenda_config_biometricos_rules.sql
+    rpc_upsert_agenda_config_biometricos.sql
     rpc_avanzar_etapa_2_3_4.sql
     rpc_avanzar_etapa_5_6.sql
     rpc_avanzar_etapa_6_7.sql

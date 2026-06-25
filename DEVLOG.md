@@ -1,5 +1,26 @@
 # Devlog
 
+## 2026-06-25 - P3M.1A: RPC upsert_agenda_config_biometricos
+
+### Decisión
+
+- Numeración migración **034** (033 reservado en `production-backend`).
+- Escritura solo `mesa_admin` / `super_admin`; Cynthia opera como `mesa_admin`.
+- Modelo semanal SQL canónico; sin portar mock por día; sin vigencia por fecha ni excepciones por día en P3M.1.
+- `kind = biometricos` fijo; claves `config`: `enabled`, `timezone`, `min_lead_hours`, `allowed_weekdays`, `slots`, `locations`.
+- Reducción de disponibilidad con bookings futuros: `warnings` no bloqueantes + `action_log`; sin cancelación automática.
+- Reutiliza `agenda_biometricos_normalize_config` (012); validación nueva `agenda_biometricos_validate_config`.
+
+### Archivos
+
+- `supabase/migrations/034_rpc_upsert_agenda_config_biometricos.sql`
+- `supabase/tests/rpc_upsert_agenda_config_biometricos.sql` (18 pruebas)
+- `scripts/test-sql.sh`, `supabase/README.md`, `docs/API_CONTRATOS.md`
+
+### No tocado
+
+- UI (`AgendaBiometricosConfigPanel`, `AgendaBiometricosCard`), avance 4→5, cancel/reagendar UI, Cloud deploy, migración 033, mock/Storage/DATA_MODE.
+
 ## 2026-06-25 - P3L.2: avance operativo Mesa 3→4 (UI Supabase)
 
 ### Decisión

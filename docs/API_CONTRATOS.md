@@ -244,6 +244,65 @@ Convenciones:
 
 ---
 
+## 8.1 Configurar disponibilidad biométricos (Mesa) — P3M.1
+
+**Operación:** `PUT /agenda/biometricos/config` · RPC `upsert_agenda_config_biometricos`
+
+### Request
+
+```json
+{
+  "config": {
+    "enabled": true,
+    "timezone": "America/Monterrey",
+    "min_lead_hours": 24,
+    "allowed_weekdays": [1, 2, 3, 4, 5],
+    "slots": ["09:00", "10:00", "11:00"],
+    "locations": {
+      "mty-centro": {
+        "enabled": true,
+        "capacity_per_slot": 3,
+        "label": "Centro MTY"
+      }
+    }
+  },
+  "organization_id": "uuid?"
+}
+```
+
+`organization_id` opcional: default = org del actor. Solo `super_admin` puede apuntar a otra org.
+
+### Reglas
+
+- **Escritura:** `mesa_admin`, `super_admin` (Cynthia opera como `mesa_admin`).
+- **Bloqueados:** `mesa_interno`, `mesa_externo`, `asesor`, `editor`.
+- `kind = biometricos` fijo; tabla `agenda_config`.
+- Modelo **semanal** canónico (sin calendario por día mock, sin vigencia por fecha, sin excepciones por día en P3M.1).
+- Validación estricta de claves permitidas; `locations` no vacío si `enabled=true`; al menos una sede `enabled=true`.
+- Si el upsert **reduce** disponibilidad y hay bookings futuros `booked`: **no bloquea**; retorna `warnings[]`; registra `action_log` → `agenda.biometricos.config_upsert`; **no** cancela bookings.
+
+### Response
+
+```json
+{
+  "ok": true,
+  "agenda_config_id": "uuid",
+  "organization_id": "uuid",
+  "kind": "biometricos",
+  "config": { },
+  "created": true,
+  "updated_at": "ISO-8601",
+  "updated_by": "uuid",
+  "warnings": []
+}
+```
+
+- Migración: `034_rpc_upsert_agenda_config_biometricos.sql`.
+- Tests: `supabase/tests/rpc_upsert_agenda_config_biometricos.sql` (18 pruebas).
+- UI / `DATA_MODE` fuera de alcance P3M.1A.
+
+---
+
 ## 9. Enviar retención a Mesa (asesor)
 
 **Operación:** `POST /expedientes/{id}/retencion/enviar` · RPC `enviar_retencion_mesa`
