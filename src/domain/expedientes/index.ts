@@ -17,8 +17,11 @@ export { mapAvanzarEtapaRpcError } from "./avanzar-etapa-rpc-error";
 export { mapUpsertEditorDecisionRpcError } from "./upsert-editor-decision-rpc-error";
 export {
   deriveBloqueosContinuarIntegracion,
+  deriveCierreValidacionDocumentalView,
+  etapaTrasAvanceIntegracion1a2,
   puedeContinuarIntegracion,
   puedeMostrarContinuarIntegracion,
+  type CierreValidacionDocumentalView,
   type MesaContinuarIntegracionContext,
 } from "./mesa-avance-integracion";
 export {

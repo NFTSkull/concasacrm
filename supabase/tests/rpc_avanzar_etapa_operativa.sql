@@ -196,6 +196,56 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.__rpc_avanzar_test_insert_complementarios(
+  p_expediente_id UUID,
+  p_org_id UUID,
+  p_mesa_id UUID,
+  p_acta_estatus public.estatus_revision DEFAULT 'subido',
+  p_sat_estatus public.estatus_revision DEFAULT 'rechazado',
+  p_insert_semanas BOOLEAN DEFAULT false,
+  p_semanas_estatus public.estatus_revision DEFAULT 'subido'
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO public.expediente_documentos (
+    organization_id, expediente_id, tipo_documento,
+    storage_path, nombre_original, mime_type, size_bytes,
+    estatus_revision, uploaded_by, uploaded_by_role
+  ) VALUES (
+    p_org_id, p_expediente_id, 'cliente_acta_nacimiento',
+    'dev/avanzar/' || p_expediente_id::text || '/acta.pdf',
+    'acta.pdf', 'application/pdf', 100,
+    p_acta_estatus, p_mesa_id, 'mesa_admin'
+  );
+
+  INSERT INTO public.expediente_documentos (
+    organization_id, expediente_id, tipo_documento,
+    storage_path, nombre_original, mime_type, size_bytes,
+    estatus_revision, uploaded_by, uploaded_by_role
+  ) VALUES (
+    p_org_id, p_expediente_id, 'cliente_constancia_sat',
+    'dev/avanzar/' || p_expediente_id::text || '/sat.pdf',
+    'sat.pdf', 'application/pdf', 100,
+    p_sat_estatus, p_mesa_id, 'mesa_admin'
+  );
+
+  IF p_insert_semanas THEN
+    INSERT INTO public.expediente_documentos (
+      organization_id, expediente_id, tipo_documento,
+      storage_path, nombre_original, mime_type, size_bytes,
+      estatus_revision, uploaded_by, uploaded_by_role
+    ) VALUES (
+      p_org_id, p_expediente_id, 'cliente_semanas_cotizadas',
+      'dev/avanzar/' || p_expediente_id::text || '/semanas.pdf',
+      'semanas.pdf', 'application/pdf', 100,
+      p_semanas_estatus, p_mesa_id, 'mesa_admin'
+    );
+  END IF;
+END;
+$$;
+
 -- UUIDs dev (ver seed.sql)
 
 DO $$
@@ -220,6 +270,8 @@ DECLARE
   v_exp_optional UUID := '00000000-0000-4000-9007-000000000019';
   v_exp_double UUID := '00000000-0000-4000-9007-000000000020';
   v_exp_vis UUID := '00000000-0000-4000-9007-000000000021';
+  v_exp_complementarios UUID := '00000000-0000-4000-9007-000000000022';
+  v_exp_no_datos_val UUID := '00000000-0000-4000-9007-000000000023';
 
   v_result JSONB;
   v_log_before BIGINT;
@@ -286,6 +338,19 @@ BEGIN
   PERFORM public.__rpc_avanzar_test_insert_expediente(v_exp_vis, v_org_id, v_asesor_a1, '90702100021', 'interno');
   PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_vis, v_org_id);
   PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_vis, v_org_id, v_asesor_a1);
+
+  -- P3K.1: complementarios sin validar no bloquean 1→2
+  PERFORM public.__rpc_avanzar_test_insert_expediente(v_exp_complementarios, v_org_id, v_asesor_a1, '90702200022', 'interno');
+  PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_complementarios, v_org_id);
+  PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_complementarios, v_org_id, v_asesor_a1);
+  PERFORM public.__rpc_avanzar_test_insert_complementarios(
+    v_exp_complementarios, v_org_id, v_mesa_admin, 'subido', 'rechazado', false
+  );
+
+  -- P3K.1: datos cliente no validados bloquean
+  PERFORM public.__rpc_avanzar_test_insert_expediente(v_exp_no_datos_val, v_org_id, v_asesor_a1, '90702300023', 'interno');
+  PERFORM public.__rpc_avanzar_test_insert_cliente(v_exp_no_datos_val, v_org_id, 'completo');
+  PERFORM public.__rpc_avanzar_test_insert_docs(v_exp_no_datos_val, v_org_id, v_asesor_a1);
 
   -- Test 1: mesa_admin avanza expediente interno validado
   v_result := public.__rpc_avanzar_test_call_as(v_mesa_admin, v_exp_admin, 'integración aprobada');
@@ -424,10 +489,24 @@ BEGIN
     'test 15: mesa_externo no ve expediente interno'
   );
 
-  RAISE NOTICE 'RPC avanzar_etapa_operativa: 15 pruebas OK';
+  -- Test 16: complementarios acta subido / SAT rechazado / semanas faltante — avanza 1→2
+  v_result := public.__rpc_avanzar_test_call_as(v_mesa_admin, v_exp_complementarios);
+  PERFORM public.__rpc_avanzar_test_assert(
+    (v_result->>'ok')::boolean = true AND (v_result->>'etapa_actual')::int = 2,
+    'test 16: complementarios no bloquean avance'
+  );
+
+  -- Test 17: datos cliente no validados bloquean
+  PERFORM public.__rpc_avanzar_test_assert(
+    public.__rpc_avanzar_test_call_expect_fail(v_mesa_admin, v_exp_no_datos_val),
+    'test 17: cliente_datos no validado bloquea'
+  );
+
+  RAISE NOTICE 'RPC avanzar_etapa_operativa: 17 pruebas OK';
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.__rpc_avanzar_test_insert_complementarios(UUID, UUID, UUID, public.estatus_revision, public.estatus_revision, BOOLEAN, public.estatus_revision);
 DROP FUNCTION IF EXISTS public.__rpc_avanzar_test_insert_docs(UUID, UUID, UUID, public.estatus_revision, TEXT, public.estatus_revision);
 DROP FUNCTION IF EXISTS public.__rpc_avanzar_test_insert_cliente(UUID, UUID, public.cliente_datos_estado);
 DROP FUNCTION IF EXISTS public.__rpc_avanzar_test_insert_expediente(UUID, UUID, UUID, CHAR, public.origen_mesa, BOOLEAN, SMALLINT, public.operativo_subestado);

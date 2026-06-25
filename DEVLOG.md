@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-06-25 - P3K.1: cierre validación documental y avance 1→2 (UI)
+
+### Decisión
+
+- Sin migración SQL nueva: reutilizar `avanzar_etapa_operativa` + gates ya alineados con 032 (5 obligatorios).
+- Panel «Cierre de validación documental» en detalle Mesa Supabase read-only: checklist, bloqueos explícitos, modal de confirmación, RPC y `load()` post-avance.
+- `deriveCierreValidacionDocumentalView` centraliza vista UI; complementarios solo informativos.
+
+### Archivos
+
+- `src/components/mesa-control/MesaCierreValidacionDocumentalSection.tsx`
+- `src/domain/expedientes/mesa-avance-integracion.ts`
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+- `supabase/tests/rpc_avanzar_etapa_operativa.sql` (tests 16–17 complementarios / datos no validados)
+
 ## 2026-06-25 - P3K.2: complementarios Mesa opcionales (no bloquean 1→2)
 
 ### Decisión

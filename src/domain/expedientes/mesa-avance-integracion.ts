@@ -1,8 +1,13 @@
 import {
+  INTEGRATION_DOC_TIPOS_MESA_UPLOAD,
   INTEGRATION_DOC_TIPOS_VALIDACION_MESA,
   integrationDocsResumenFromArchivoResumen,
   integrationDocsTodosValidados,
 } from "@/domain/expediente-archivos/integration-docs-completos";
+import {
+  labelPresenciaComplementario,
+  type MesaComplementarioPresencia,
+} from "@/domain/expediente-archivos/mesa-complementarios-docs";
 import {
   DOCUMENTO_CATALOGO_MAP,
   type ExpedienteArchivoResumen,
@@ -18,6 +23,31 @@ export type MesaContinuarIntegracionContext = {
   archivosResumen: readonly ExpedienteArchivoResumen[];
 };
 
+export type CierreDocumentalDocAsesorItem = {
+  tipo: (typeof INTEGRATION_DOC_TIPOS_VALIDACION_MESA)[number];
+  label: string;
+  estatus: ResumenEstatus;
+  completo: boolean;
+  detalle: string | null;
+};
+
+export type CierreDocumentalComplementarioItem = {
+  tipo: (typeof INTEGRATION_DOC_TIPOS_MESA_UPLOAD)[number];
+  label: string;
+  presencia: MesaComplementarioPresencia;
+  detalle: string;
+};
+
+export type CierreValidacionDocumentalView = {
+  mostrar: boolean;
+  datosGeneralesValidados: boolean;
+  datosGeneralesDetalle: string;
+  documentosAsesor: CierreDocumentalDocAsesorItem[];
+  complementarios: CierreDocumentalComplementarioItem[];
+  puedeAvanzar: boolean;
+  bloqueos: string[];
+};
+
 function labelDocumento(tipo: (typeof INTEGRATION_DOC_TIPOS_VALIDACION_MESA)[number]): string {
   return DOCUMENTO_CATALOGO_MAP[tipo]?.label ?? tipo;
 }
@@ -26,10 +56,16 @@ function mensajeEstatusPendiente(estatus: ResumenEstatus): string {
   if (estatus === "rechazado") return "rechazado";
   if (estatus === "resubido") return "resubido (pendiente de validar)";
   if (estatus === "subido") return "subido (pendiente de validar)";
+  if (estatus === "faltante") return "faltante";
   return estatus;
 }
 
-/** Muestra el bloque Continuar solo en integración post-envío (etapa 1, en validación Mesa). */
+function mapComplementarioPresencia(estatus: ResumenEstatus): MesaComplementarioPresencia {
+  if (estatus === "faltante") return "faltante";
+  return "cargado";
+}
+
+/** Muestra el panel de cierre solo en integración post-envío (etapa 1, en validación Mesa). */
 export function puedeMostrarContinuarIntegracion(ctx: MesaContinuarIntegracionContext): boolean {
   if (!ctx.submittedToMesa) return false;
   if (ctx.cicloEstado != null && ctx.cicloEstado !== "activo") return false;
@@ -76,4 +112,59 @@ export function puedeContinuarIntegracion(ctx: MesaContinuarIntegracionContext):
   if (ctx.clienteDatosEstado !== "validado") return false;
   const resumen = integrationDocsResumenFromArchivoResumen(ctx.archivosResumen);
   return integrationDocsTodosValidados(resumen);
+}
+
+/** Vista estructurada para el panel «Cierre de validación documental». */
+export function deriveCierreValidacionDocumentalView(
+  ctx: MesaContinuarIntegracionContext,
+): CierreValidacionDocumentalView {
+  const mostrar = puedeMostrarContinuarIntegracion(ctx);
+  const bloqueos = deriveBloqueosContinuarIntegracion(ctx);
+  const resumen = integrationDocsResumenFromArchivoResumen(ctx.archivosResumen);
+  const byTipo = new Map(resumen.map((r) => [r.tipo_documento, r.estatus_revision]));
+
+  const datosGeneralesValidados = ctx.clienteDatosEstado === "validado";
+  const datosGeneralesDetalle = datosGeneralesValidados
+    ? "Validados por Mesa de control"
+    : ctx.clienteDatosEstado
+      ? `Estado actual: ${ctx.clienteDatosEstado}`
+      : "Pendientes de validar";
+
+  const documentosAsesor = INTEGRATION_DOC_TIPOS_VALIDACION_MESA.map((tipo) => {
+    const estatus = byTipo.get(tipo) ?? "faltante";
+    const completo = estatus === "validado";
+    return {
+      tipo,
+      label: labelDocumento(tipo),
+      estatus,
+      completo,
+      detalle: completo ? "Validado" : mensajeEstatusPendiente(estatus),
+    };
+  });
+
+  const complementarios = INTEGRATION_DOC_TIPOS_MESA_UPLOAD.map((tipo) => {
+    const estatus = byTipo.get(tipo) ?? "faltante";
+    const presencia = mapComplementarioPresencia(estatus);
+    return {
+      tipo,
+      label: DOCUMENTO_CATALOGO_MAP[tipo].label,
+      presencia,
+      detalle: `${labelPresenciaComplementario(presencia)} — opcional, no bloquea`,
+    };
+  });
+
+  return {
+    mostrar,
+    datosGeneralesValidados,
+    datosGeneralesDetalle,
+    documentosAsesor,
+    complementarios,
+    puedeAvanzar: mostrar && bloqueos.length === 0,
+    bloqueos,
+  };
+}
+
+/** Tras avance 1→2 el panel no debe mostrarse y la etapa operativa pasa a 2. */
+export function etapaTrasAvanceIntegracion1a2(etapaActual: number | null): number | null {
+  return etapaActual != null && etapaActual >= 2 ? etapaActual : etapaActual;
 }

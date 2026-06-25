@@ -9,6 +9,7 @@ import {
   type MesaArchivoPreviewState,
 } from "@/components/mesa-control/MesaArchivoPreviewDialog";
 import { MesaClienteDatosReadOnlySection } from "@/components/mesa-control/MesaClienteDatosReadOnlySection";
+import { MesaCierreValidacionDocumentalSection } from "@/components/mesa-control/MesaCierreValidacionDocumentalSection";
 import { MesaControlDocumentosComplementariosSection } from "@/components/mesa-control/MesaControlDocumentosComplementariosSection";
 import { MesaDocumentosAsesorSection } from "@/components/mesa-control/MesaDocumentosAsesorSection";
 import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
@@ -32,9 +33,7 @@ import {
 import {
   ExpedientesSupabaseError,
   useExpedientesRepo,
-  puedeContinuarIntegracion,
-  puedeMostrarContinuarIntegracion,
-  deriveBloqueosContinuarIntegracion,
+  deriveCierreValidacionDocumentalView,
   type ExpedienteMock,
 } from "@/domain/expedientes";
 import { useSessionRepo, type Rol } from "@/domain/session";
@@ -533,23 +532,13 @@ export function MesaExpedienteDetalleReadOnly() {
     [archivosResumen, clienteDatos?.estado, expediente],
   );
 
-  const mostrarContinuar = useMemo(
-    () => puedeMostrarContinuarIntegracion(continuarContext),
+  const cierreValidacionView = useMemo(
+    () => deriveCierreValidacionDocumentalView(continuarContext),
     [continuarContext],
   );
 
-  const bloqueosContinuar = useMemo(
-    () => deriveBloqueosContinuarIntegracion(continuarContext),
-    [continuarContext],
-  );
-
-  const continuarHabilitado = useMemo(
-    () => puedeContinuarIntegracion(continuarContext),
-    [continuarContext],
-  );
-
-  const handleContinuarIntegracion = useCallback(async () => {
-    if (!routeExpedienteId || !continuarHabilitado) return;
+  const handleAvanzarIntegracion = useCallback(async () => {
+    if (!routeExpedienteId || !cierreValidacionView.puedeAvanzar) return;
     setContinuarLoading(true);
     setContinuarError(null);
     setContinuarSuccess(null);
@@ -566,7 +555,7 @@ export function MesaExpedienteDetalleReadOnly() {
     } finally {
       setContinuarLoading(false);
     }
-  }, [continuarHabilitado, expedientesRepo, load, routeExpedienteId]);
+  }, [cierreValidacionView.puedeAvanzar, expedientesRepo, load, routeExpedienteId]);
 
   if (currentUser === undefined) {
     return (
@@ -751,48 +740,14 @@ export function MesaExpedienteDetalleReadOnly() {
         onReemplazar={handleReemplazarComplementario}
       />
 
-      {continuarSuccess ? (
-        <p
-          role="status"
-          className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-900"
-        >
-          {continuarSuccess}
-        </p>
-      ) : null}
-
-      {mostrarContinuar && puedeRevisar ? (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Continuar integración</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Cuando datos generales y los 7 documentos obligatorios estén validados (incluye acta
-            de nacimiento y constancia SAT), avanza el expediente a Registro (etapa 2).
-          </p>
-          {continuarError ? (
-            <p
-              role="alert"
-              className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-            >
-              {continuarError}
-            </p>
-          ) : null}
-          {bloqueosContinuar.length > 0 ? (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-950">
-              {bloqueosContinuar.map((bloqueo) => (
-                <li key={bloqueo}>{bloqueo}</li>
-              ))}
-            </ul>
-          ) : null}
-          <div className="mt-4">
-            <Button
-              type="button"
-              onClick={() => void handleContinuarIntegracion()}
-              disabled={!continuarHabilitado || continuarLoading}
-            >
-              {continuarLoading ? "Avanzando…" : "Continuar"}
-            </Button>
-          </div>
-        </section>
-      ) : null}
+      <MesaCierreValidacionDocumentalSection
+        view={cierreValidacionView}
+        puedeOperar={puedeRevisar}
+        loading={continuarLoading}
+        error={continuarError}
+        success={continuarSuccess}
+        onAvanzar={handleAvanzarIntegracion}
+      />
 
       {preview ? (
         <MesaArchivoPreviewDialog

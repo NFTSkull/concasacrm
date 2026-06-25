@@ -6,6 +6,8 @@ import {
 import type { ExpedienteArchivoResumen } from "@/domain/expediente-archivos/types";
 import {
   deriveBloqueosContinuarIntegracion,
+  deriveCierreValidacionDocumentalView,
+  etapaTrasAvanceIntegracion1a2,
   puedeContinuarIntegracion,
   puedeMostrarContinuarIntegracion,
   type MesaContinuarIntegracionContext,
@@ -24,6 +26,25 @@ function row(
     size_bytes: 100,
     created_at: "2026-06-25T00:00:00.000Z",
     uploaded_by_role: "asesor",
+    uploaded_by_email: null,
+    estatus_revision: estatus,
+    comentario_mesa: null,
+  };
+}
+
+function complementarioRow(
+  tipo: "cliente_semanas_cotizadas" | "cliente_acta_nacimiento" | "cliente_constancia_sat",
+  estatus: ExpedienteArchivoResumen["estatus_revision"],
+): ExpedienteArchivoResumen {
+  return {
+    expediente_id: "exp-1",
+    tipo_documento: tipo,
+    id: `doc-${tipo}`,
+    nombre_original: `${tipo}.pdf`,
+    mime_type: "application/pdf",
+    size_bytes: 100,
+    created_at: "2026-06-25T00:00:00.000Z",
+    uploaded_by_role: "mesa",
     uploaded_by_email: null,
     estatus_revision: estatus,
     comentario_mesa: null,
@@ -86,9 +107,27 @@ describe("deriveBloqueosContinuarIntegracion", () => {
     assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), false);
   });
 
+  it("bloqueado si un doc asesor está subido sin validar", () => {
+    const archivos = resumenTodosValidados().map((a) =>
+      a.tipo_documento === "cliente_ine_frente" ? row("cliente_ine_frente", "subido") : a,
+    );
+    assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), false);
+  });
+
   it("no bloquea si faltan complementarios Mesa (acta/SAT/semanas)", () => {
     assert.deepEqual(deriveBloqueosContinuarIntegracion(baseCtx()), []);
     assert.equal(puedeContinuarIntegracion(baseCtx()), true);
+  });
+
+  it("complementarios subidos o rechazados sin validar no bloquean", () => {
+    const archivos = [
+      ...resumenTodosValidados(),
+      complementarioRow("cliente_acta_nacimiento", "subido"),
+      complementarioRow("cliente_constancia_sat", "rechazado"),
+      complementarioRow("cliente_semanas_cotizadas", "resubido"),
+    ];
+    assert.deepEqual(deriveBloqueosContinuarIntegracion(baseCtx({ archivosResumen: archivos })), []);
+    assert.equal(puedeContinuarIntegracion(baseCtx({ archivosResumen: archivos })), true);
   });
 
   it("bloqueado si hay documento resubido sin validar", () => {
@@ -104,8 +143,51 @@ describe("deriveBloqueosContinuarIntegracion", () => {
     assert.deepEqual(deriveBloqueosContinuarIntegracion(baseCtx()), []);
     assert.equal(puedeContinuarIntegracion(baseCtx()), true);
   });
+});
 
-  it("semanas cotizadas opcional no bloquea", () => {
-    assert.equal(puedeContinuarIntegracion(baseCtx()), true);
+describe("deriveCierreValidacionDocumentalView", () => {
+  it("checklist con 5 docs asesor y 3 complementarios informativos", () => {
+    const view = deriveCierreValidacionDocumentalView(baseCtx());
+    assert.equal(view.mostrar, true);
+    assert.equal(view.datosGeneralesValidados, true);
+    assert.equal(view.documentosAsesor.length, 5);
+    assert.equal(view.complementarios.length, 3);
+    assert.ok(view.complementarios.every((c) => /no bloquea/i.test(c.detalle)));
+    assert.equal(view.puedeAvanzar, true);
+    assert.deepEqual(view.bloqueos, []);
+  });
+
+  it("botón deshabilitado si datos no validados", () => {
+    const view = deriveCierreValidacionDocumentalView(
+      baseCtx({ clienteDatosEstado: "completo" }),
+    );
+    assert.equal(view.puedeAvanzar, false);
+    assert.ok(view.bloqueos.some((b) => /datos generales/i.test(b)));
+  });
+
+  it("botón deshabilitado si un doc asesor no está validado", () => {
+    const archivos = resumenTodosValidados().map((a) =>
+      a.tipo_documento === "nss" ? row("nss", "rechazado") : a,
+    );
+    const view = deriveCierreValidacionDocumentalView(baseCtx({ archivosResumen: archivos }));
+    assert.equal(view.puedeAvanzar, false);
+    assert.ok(view.documentosAsesor.find((d) => d.tipo === "nss")?.completo === false);
+  });
+
+  it("complementarios faltantes no impiden puedeAvanzar", () => {
+    const view = deriveCierreValidacionDocumentalView(baseCtx());
+    assert.equal(view.puedeAvanzar, true);
+    assert.ok(view.complementarios.every((c) => c.presencia === "faltante"));
+  });
+});
+
+describe("etapaTrasAvanceIntegracion1a2", () => {
+  it("panel oculto y timeline en etapa 2 tras avance", () => {
+    assert.equal(puedeMostrarContinuarIntegracion(baseCtx({ etapaActual: 2 })), false);
+    assert.equal(etapaTrasAvanceIntegracion1a2(2), 2);
+    assert.equal(
+      deriveCierreValidacionDocumentalView(baseCtx({ etapaActual: 2 })).mostrar,
+      false,
+    );
   });
 });
