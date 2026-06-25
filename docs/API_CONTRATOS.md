@@ -368,6 +368,15 @@ Convenciones:
 - Upsert `retencion_envios` (`enviado`, `estado = enviado`).
 - Bloquea cambio opción A/B mientras `estado = enviado` (corrección libera).
 
+### UI asesor (P3O.2)
+
+- Panel `RetencionAcuseAvisoSupabaseCard` en `/asesor/expediente/[id]` si `DATA_MODE=supabase`, `etapa_actual = 8`, `submitted_to_mesa`.
+- Opción A/B en estado local hasta envío; persistencia vía RPC al enviar.
+- Upload: Storage `expediente-documentos` + RPC `register_expediente_documento_retencion`.
+- Reemplazo asesor solo `faltante` / `rechazado`; bloqueado si `validado`.
+- Botón «Enviar a Mesa» si checklist completo y `retencionPuedeReenviarAMesa`.
+- Sin botón 8→9 ni validación Mesa (P3O.3).
+
 ---
 
 ## 10. Validar / rechazar retención (Mesa)

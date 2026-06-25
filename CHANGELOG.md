@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **P3O.2 — Retención etapa 8 asesor (Supabase):** `RetencionAcuseAvisoSupabaseCard` en `/asesor/expediente/[id]` (etapa 8 + enviado a Mesa); opción A/B local hasta RPC `enviar_retencion_mesa`; upload Storage + `register_expediente_documento_retencion`; sin UI Mesa validación ni botón 8→9.
+
 - **P3N.3 — Mesa avance 7→8 notificación→acuse/aviso retención (Supabase):** panel avance etapa 7 con gates UI (`en_proceso`, ciclo activo, enviado a Mesa); reutiliza RPC `avanzar_etapa_operativa`; sin retención ni firmas ni migraciones.
 
 - **P3N.2 — Mesa avance 6→7 inscripción→notificación (Supabase):** panel avance etapa 6 con gates UI (`en_proceso`, ciclo activo, enviado a Mesa); reutiliza RPC `avanzar_etapa_operativa`; sin migraciones ni firmas.

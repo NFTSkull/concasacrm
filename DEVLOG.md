@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-25 - P3O.2: Retención etapa 8 asesor Supabase
+
+### Decisión
+
+- Backend P3O.1 + P2C-16 suficiente: no RPC separado para guardar opción A/B; `enviar_retencion_mesa` hace upsert en `retencion_opciones` + `retencion_envios`.
+- Opción A/B en estado local (`opcionDraft`) hasta primer envío; tras envío bloqueada hasta `correccion_requerida`.
+- Upload: bucket `expediente-documentos` + RPC `register_expediente_documento_retencion` (gates etapa 8, `submitted_to_mesa`, `en_proceso`).
+- Copy asesor: “Mesa revisará después del envío”; no implica validación Mesa ni avance 8→9 (P3O.3 / posterior).
+- Mock intacto; sin migraciones ni Cloud schema.
+
+### Archivos
+
+- `expediente-retencion/supabase.repo.ts`, `asesor-retencion-panel.ts`, mappers errores RPC
+- `RetencionAcuseAvisoSupabaseCard.tsx`, wire en `asesor/expediente/[id]/page.tsx`
+- `docs/API_CONTRATOS.md` §9 UI asesor
+
 ## 2026-06-25 - P3N.3: Mesa avance 7→8 Supabase
 
 ### Decisión

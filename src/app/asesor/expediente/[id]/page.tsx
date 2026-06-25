@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { AgendaBiometricosCard } from "@/components/asesor/AgendaBiometricosCard";
 import { AgendaBiometricosSupabaseCard } from "@/components/asesor/AgendaBiometricosSupabaseCard";
+import { RetencionAcuseAvisoSupabaseCard } from "@/components/asesor/RetencionAcuseAvisoSupabaseCard";
 import { AsesorIntegracionDocsUpload } from "@/components/asesor/AsesorIntegracionDocsUpload";
 import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
 import { canMountAgendaBiometricosUI } from "@/lib/agendaFirmasBookingsGuard";
@@ -23,6 +24,7 @@ import {
   MockExpedientesRepo,
 } from "@/domain/expedientes/mock.repo";
 import { isDataModeSupabase } from "@/lib/dataMode";
+import { canShowAsesorRetencionSupabasePanel } from "@/domain/expediente-retencion";
 import {
   DOCUMENTO_CATALOGO_MAP,
   ExpedienteArchivosSupabaseError,
@@ -908,6 +910,20 @@ export default function AsesorExpedientePage() {
                 etapaActual={operativo?.etapaActual}
                 fechaCita={operativo?.fechaCita}
                 onUpdated={() => void loadExpediente()}
+              />
+            ) : null}
+            {canShowAsesorRetencionSupabasePanel({
+              dataModeSupabase: isDataModeSupabase(),
+              etapaActual: operativo?.etapaActual,
+              submittedToMesa: operativo?.submittedToMesa ?? false,
+            }) && precal?.id ? (
+              <RetencionAcuseAvisoSupabaseCard
+                expedienteId={String(precal.id)}
+                archivosResumen={archivosResumen}
+                onUpdated={() => {
+                  refreshArchivos();
+                  void loadExpediente();
+                }}
               />
             ) : null}
           </>
