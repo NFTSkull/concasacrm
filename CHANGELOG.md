@@ -2,6 +2,8 @@
 
 ## 2026-06-25
 
+- **P3L.1 — Avance operativo Mesa 2→3:** panel «Avance operativo Mesa» en detalle Supabase; botón con confirmación vía RPC `avanzar_etapa_operativa`; gates etapa 2 + `en_proceso` + enviado a Mesa; recarga expediente tras éxito.
+
 - **P3K.2 — Complementarios Mesa opcionales:** migración `032` redefine `integration_doc_tipos_obligatorios()` a 5 (solo asesor); semanas/acta/SAT no bloquean validación ni avance 1→2; UI complementarios sin revisión (solo subir/ver/descargar/reemplazar).
 
 - **P3K.1 — Cierre validación documental Mesa (1→2):** panel con checklist (datos + 5 docs asesor + complementarios informativos), confirmación y botón «Avanzar a Registro» vía RPC `avanzar_etapa_operativa`; gates alineados con 5 obligatorios post-032.

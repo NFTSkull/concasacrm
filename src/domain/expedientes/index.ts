@@ -16,12 +16,16 @@ export { mapEnviarAMesaRpcError } from "./enviar-mesa-rpc-error";
 export { mapAvanzarEtapaRpcError } from "./avanzar-etapa-rpc-error";
 export { mapUpsertEditorDecisionRpcError } from "./upsert-editor-decision-rpc-error";
 export {
+  deriveAvanceOperativo2a3View,
   deriveBloqueosContinuarIntegracion,
   deriveCierreValidacionDocumentalView,
   etapaTrasAvanceIntegracion1a2,
+  puedeMostrarAvanceOperativo2a3,
   puedeContinuarIntegracion,
   puedeMostrarContinuarIntegracion,
+  type AvanceOperativo2a3View,
   type CierreValidacionDocumentalView,
+  type MesaAvanceOperativoContext,
   type MesaContinuarIntegracionContext,
 } from "./mesa-avance-integracion";
 export {

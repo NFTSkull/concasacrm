@@ -5,11 +5,14 @@ import {
 } from "@/domain/expediente-archivos/integration-docs-completos";
 import type { ExpedienteArchivoResumen } from "@/domain/expediente-archivos/types";
 import {
+  deriveAvanceOperativo2a3View,
   deriveBloqueosContinuarIntegracion,
   deriveCierreValidacionDocumentalView,
   etapaTrasAvanceIntegracion1a2,
   puedeContinuarIntegracion,
+  puedeMostrarAvanceOperativo2a3,
   puedeMostrarContinuarIntegracion,
+  type MesaAvanceOperativoContext,
   type MesaContinuarIntegracionContext,
 } from "./mesa-avance-integracion";
 
@@ -189,5 +192,58 @@ describe("etapaTrasAvanceIntegracion1a2", () => {
       deriveCierreValidacionDocumentalView(baseCtx({ etapaActual: 2 })).mostrar,
       false,
     );
+  });
+});
+
+function avanceCtx(
+  overrides: Partial<MesaAvanceOperativoContext> = {},
+): MesaAvanceOperativoContext {
+  return {
+    submittedToMesa: true,
+    cicloEstado: "activo",
+    etapaActual: 2,
+    subestado: "en_proceso",
+    ...overrides,
+  };
+}
+
+describe("puedeMostrarAvanceOperativo2a3", () => {
+  it("visible en etapa 2 / en_proceso con envío a Mesa", () => {
+    assert.equal(puedeMostrarAvanceOperativo2a3(avanceCtx()), true);
+  });
+
+  it("no visible en etapa distinta de 2", () => {
+    assert.equal(puedeMostrarAvanceOperativo2a3(avanceCtx({ etapaActual: 1 })), false);
+    assert.equal(puedeMostrarAvanceOperativo2a3(avanceCtx({ etapaActual: 3 })), false);
+  });
+
+  it("no visible sin submitted_to_mesa", () => {
+    assert.equal(puedeMostrarAvanceOperativo2a3(avanceCtx({ submittedToMesa: false })), false);
+  });
+
+  it("no visible si subestado distinto de en_proceso", () => {
+    assert.equal(
+      puedeMostrarAvanceOperativo2a3(avanceCtx({ subestado: "en_validacion_mesa" })),
+      false,
+    );
+  });
+
+  it("no visible si ciclo no activo", () => {
+    assert.equal(puedeMostrarAvanceOperativo2a3(avanceCtx({ cicloEstado: "cerrado" })), false);
+  });
+});
+
+describe("deriveAvanceOperativo2a3View", () => {
+  it("habilita avance cuando gates 2→3 se cumplen", () => {
+    const view = deriveAvanceOperativo2a3View(avanceCtx());
+    assert.equal(view.mostrar, true);
+    assert.equal(view.puedeAvanzar, true);
+    assert.deepEqual(view.bloqueos, []);
+  });
+
+  it("oculto tras avance a etapa 3", () => {
+    const view = deriveAvanceOperativo2a3View(avanceCtx({ etapaActual: 3 }));
+    assert.equal(view.mostrar, false);
+    assert.equal(view.puedeAvanzar, false);
   });
 });

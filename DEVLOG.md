@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-06-25 - P3L.1: avance operativo Mesa 2→3 (UI Supabase)
+
+### Decisión
+
+- Panel separado «Avance operativo Mesa» (no timeline mock); visible solo etapa 2 + `en_proceso` + enviado + ciclo activo.
+- RPC existente `avanzar_etapa_operativa` vía `SupabaseExpedientesRepo.avanzarEtapaOperativa`; sin avance optimista; `load()` tras éxito.
+- Sin 3→4, denegar operativo ni `SeguimientoOperativoMock` en Supabase.
+
+### Archivos
+
+- `src/components/mesa-control/MesaAvanceOperativoSection.tsx`
+- `src/domain/expedientes/mesa-avance-integracion.ts` + tests
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+- `src/domain/expedientes/index.ts`
+
 ## 2026-06-25 - P3K.1: cierre validación documental y avance 1→2 (UI)
 
 ### Decisión

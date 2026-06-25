@@ -168,3 +168,37 @@ export function deriveCierreValidacionDocumentalView(
 export function etapaTrasAvanceIntegracion1a2(etapaActual: number | null): number | null {
   return etapaActual != null && etapaActual >= 2 ? etapaActual : etapaActual;
 }
+
+// —— P3L.1: avance operativo Mesa 2 → 3 ——
+
+export type MesaAvanceOperativoContext = {
+  submittedToMesa: boolean;
+  cicloEstado?: string | null;
+  etapaActual: number | null;
+  subestado?: string | null;
+};
+
+export type AvanceOperativo2a3View = {
+  mostrar: boolean;
+  puedeAvanzar: boolean;
+  bloqueos: string[];
+};
+
+/** Panel visible solo en etapa 2 / en_proceso post-registro (P2C-12). */
+export function puedeMostrarAvanceOperativo2a3(ctx: MesaAvanceOperativoContext): boolean {
+  if (!ctx.submittedToMesa) return false;
+  if (ctx.cicloEstado != null && ctx.cicloEstado !== "activo") return false;
+  if (ctx.etapaActual !== 2) return false;
+  return ctx.subestado === "en_proceso";
+}
+
+export function deriveAvanceOperativo2a3View(
+  ctx: MesaAvanceOperativoContext,
+): AvanceOperativo2a3View {
+  const mostrar = puedeMostrarAvanceOperativo2a3(ctx);
+  return {
+    mostrar,
+    puedeAvanzar: mostrar,
+    bloqueos: [],
+  };
+}
