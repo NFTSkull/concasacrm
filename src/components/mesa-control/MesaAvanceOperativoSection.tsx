@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import type { AvanceOperativoEtapaView } from "@/domain/expedientes/mesa-avance-integracion";
 
 export type MesaAvanceOperativoCopy = {
+  titulo?: string;
   descripcion: string;
   etiquetaBoton: string;
   mensajeConfirmacion: string;
@@ -24,6 +25,14 @@ export const MESA_AVANCE_OPERATIVO_3A4_COPY: MesaAvanceOperativoCopy = {
   etiquetaBoton: "Avanzar a Cita agendada (biométricos)",
   mensajeConfirmacion:
     "¿Confirmas avanzar este expediente a etapa 4: Cita agendada (biométricos)?",
+};
+
+export const MESA_AVANCE_OPERATIVO_4A5_COPY: MesaAvanceOperativoCopy = {
+  titulo: "Avanzar a etapa 5",
+  descripcion:
+    "Confirma que la cita biométrica está agendada para continuar a resultado biométrico.",
+  etiquetaBoton: "Avanzar a etapa 5",
+  mensajeConfirmacion: "¿Confirmas avanzar este expediente a etapa 5?",
 };
 
 type Props = {
@@ -60,11 +69,27 @@ export function MesaAvanceOperativoSection({
         aria-label="Avance operativo Mesa"
       >
         <header className="border-b border-sky-100 bg-white px-4 py-4">
-          <h2 className="text-base font-semibold text-gray-900">Avance operativo Mesa</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            {copy.titulo ?? "Avance operativo Mesa"}
+          </h2>
           <p className="mt-1 max-w-2xl text-xs text-gray-500">{copy.descripcion}</p>
         </header>
 
         <div className="space-y-3 p-4">
+          {view.bloqueos.length > 0 ? (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+            >
+              <p className="font-medium">Requisitos pendientes</p>
+              <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs">
+                {view.bloqueos.map((bloqueo) => (
+                  <li key={bloqueo}>{bloqueo}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {error ? (
             <p
               role="alert"

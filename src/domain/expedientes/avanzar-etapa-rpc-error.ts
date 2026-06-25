@@ -86,6 +86,18 @@ export function mapAvanzarEtapaRpcError(error: {
     );
   }
 
+  if (msg.includes("falta fecha de cita biométrica")) {
+    return new ExpedientesSupabaseError(
+      "Falta la fecha de cita biométrica. El asesor debe agendar la cita antes de avanzar a etapa 5.",
+    );
+  }
+
+  if (msg.includes("falta booking biométrico activo")) {
+    return new ExpedientesSupabaseError(
+      "No hay reserva biométrica activa. Verifica que la cita siga agendada en Supabase.",
+    );
+  }
+
   if (msg.includes("transición no soportada") || msg.includes("no soportada para etapa")) {
     return new ExpedientesSupabaseError(
       "No hay una transición de etapa disponible para el estado actual del expediente.",

@@ -35,6 +35,20 @@ describe("mapAvanzarEtapaRpcError", () => {
     assert.match(err.message, /permiso/i);
   });
 
+  it("mapea falta fecha de cita biométrica", () => {
+    const err = mapAvanzarEtapaRpcError({
+      message: "avanzar_etapa_operativa: falta fecha de cita biométrica",
+    });
+    assert.match(err.message, /fecha de cita biométrica/i);
+  });
+
+  it("mapea falta booking biométrico activo", () => {
+    const err = mapAvanzarEtapaRpcError({
+      message: "avanzar_etapa_operativa: falta booking biométrico activo",
+    });
+    assert.match(err.message, /reserva biométrica activa/i);
+  });
+
   it("mapea error inesperado", () => {
     const err = mapAvanzarEtapaRpcError({
       message: "algo totalmente desconocido",

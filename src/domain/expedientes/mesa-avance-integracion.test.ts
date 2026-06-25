@@ -7,13 +7,16 @@ import type { ExpedienteArchivoResumen } from "@/domain/expediente-archivos/type
 import {
   deriveAvanceOperativo2a3View,
   deriveAvanceOperativo3a4View,
+  deriveAvanceOperativo4a5View,
   deriveBloqueosContinuarIntegracion,
   deriveCierreValidacionDocumentalView,
   etapaTrasAvanceIntegracion1a2,
   puedeContinuarIntegracion,
   puedeMostrarAvanceOperativo2a3,
   puedeMostrarAvanceOperativo3a4,
+  puedeMostrarAvanceOperativo4a5,
   puedeMostrarContinuarIntegracion,
+  type MesaAvanceOperativo4a5Context,
   type MesaAvanceOperativoContext,
   type MesaContinuarIntegracionContext,
 } from "./mesa-avance-integracion";
@@ -315,6 +318,97 @@ describe("deriveAvanceOperativo3a4View", () => {
 
   it("oculto tras avance a etapa 4", () => {
     const view = deriveAvanceOperativo3a4View(avance3a4Ctx({ etapaActual: 4 }));
+    assert.equal(view.mostrar, false);
+    assert.equal(view.puedeAvanzar, false);
+  });
+});
+
+function avance4a5Ctx(
+  overrides: Partial<MesaAvanceOperativo4a5Context> = {},
+): MesaAvanceOperativo4a5Context {
+  return {
+    submittedToMesa: true,
+    cicloEstado: "activo",
+    etapaActual: 4,
+    subestado: "en_proceso",
+    fechaCita: "2026-06-29T16:00:00.000Z",
+    hasActiveBiometricBooking: true,
+    ...overrides,
+  };
+}
+
+describe("puedeMostrarAvanceOperativo4a5", () => {
+  it("visible en etapa 4 con ciclo activo y enviado a Mesa", () => {
+    assert.equal(puedeMostrarAvanceOperativo4a5(avance4a5Ctx()), true);
+  });
+
+  it("no visible en etapa 3", () => {
+    assert.equal(puedeMostrarAvanceOperativo4a5(avance4a5Ctx({ etapaActual: 3 })), false);
+  });
+
+  it("no visible en etapa 5", () => {
+    assert.equal(puedeMostrarAvanceOperativo4a5(avance4a5Ctx({ etapaActual: 5 })), false);
+  });
+
+  it("no visible sin submitted_to_mesa", () => {
+    assert.equal(
+      puedeMostrarAvanceOperativo4a5(avance4a5Ctx({ submittedToMesa: false })),
+      false,
+    );
+  });
+
+  it("no visible si ciclo no activo", () => {
+    assert.equal(
+      puedeMostrarAvanceOperativo4a5(avance4a5Ctx({ cicloEstado: "cerrado" })),
+      false,
+    );
+  });
+});
+
+describe("deriveAvanceOperativo4a5View", () => {
+  it("habilita avance cuando fecha y booking activo", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx());
+    assert.equal(view.mostrar, true);
+    assert.equal(view.puedeAvanzar, true);
+    assert.deepEqual(view.bloqueos, []);
+  });
+
+  it("bloquea sin fecha de cita", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx({ fechaCita: null }));
+    assert.equal(view.mostrar, true);
+    assert.equal(view.puedeAvanzar, false);
+    assert.match(view.bloqueos.join(" "), /falta cita biométrica/i);
+  });
+
+  it("bloquea sin booking activo", () => {
+    const view = deriveAvanceOperativo4a5View(
+      avance4a5Ctx({ hasActiveBiometricBooking: false }),
+    );
+    assert.equal(view.mostrar, true);
+    assert.equal(view.puedeAvanzar, false);
+    assert.match(view.bloqueos.join(" "), /reserva biométrica activa/i);
+  });
+
+  it("oculto en etapa 3", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx({ etapaActual: 3 }));
+    assert.equal(view.mostrar, false);
+    assert.equal(view.puedeAvanzar, false);
+  });
+
+  it("oculto en etapa 5", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx({ etapaActual: 5 }));
+    assert.equal(view.mostrar, false);
+    assert.equal(view.puedeAvanzar, false);
+  });
+
+  it("oculto sin envío a Mesa", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx({ submittedToMesa: false }));
+    assert.equal(view.mostrar, false);
+    assert.equal(view.puedeAvanzar, false);
+  });
+
+  it("oculto con ciclo no activo", () => {
+    const view = deriveAvanceOperativo4a5View(avance4a5Ctx({ cicloEstado: "cerrado" }));
     assert.equal(view.mostrar, false);
     assert.equal(view.puedeAvanzar, false);
   });

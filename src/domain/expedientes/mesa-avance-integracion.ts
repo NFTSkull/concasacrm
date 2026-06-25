@@ -227,3 +227,55 @@ export function deriveAvanceOperativo3a4View(
     bloqueos: [],
   };
 }
+
+// —— P3M.3: avance operativo Mesa 4 → 5 ——
+
+export type MesaAvanceOperativo4a5Context = MesaAvanceOperativoContext & {
+  fechaCita?: string | null;
+  hasActiveBiometricBooking: boolean;
+};
+
+/** Panel visible solo en etapa 4 post-cita biométrica (P3M.3). */
+export function puedeMostrarAvanceOperativo4a5(ctx: MesaAvanceOperativo4a5Context): boolean {
+  if (!ctx.submittedToMesa) return false;
+  if (ctx.cicloEstado !== "activo") return false;
+  if (ctx.etapaActual !== 4) return false;
+  return true;
+}
+
+/** Bloqueos alineados con `avanzar_etapa_operativa` transición 4→5. */
+export function deriveBloqueosAvanceOperativo4a5(
+  ctx: MesaAvanceOperativo4a5Context,
+): string[] {
+  if (!puedeMostrarAvanceOperativo4a5(ctx)) {
+    return [];
+  }
+
+  const bloqueos: string[] = [];
+  const hasFecha =
+    typeof ctx.fechaCita === "string" && ctx.fechaCita.trim() !== "";
+
+  if (!hasFecha) {
+    bloqueos.push(
+      "Falta cita biométrica. El asesor debe agendar la cita desde su expediente.",
+    );
+  }
+
+  if (!ctx.hasActiveBiometricBooking) {
+    bloqueos.push("No hay reserva biométrica activa en Supabase.");
+  }
+
+  return bloqueos;
+}
+
+export function deriveAvanceOperativo4a5View(
+  ctx: MesaAvanceOperativo4a5Context,
+): AvanceOperativoEtapaView {
+  const mostrar = puedeMostrarAvanceOperativo4a5(ctx);
+  const bloqueos = deriveBloqueosAvanceOperativo4a5(ctx);
+  return {
+    mostrar,
+    puedeAvanzar: mostrar && bloqueos.length === 0,
+    bloqueos,
+  };
+}

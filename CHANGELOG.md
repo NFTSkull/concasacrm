@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **P3M.3 — Mesa avance 4→5 biométricos (Supabase):** resumen de cita activa en detalle Mesa etapa 4; panel avance 4→5 con gates UI (`fecha_cita` + booking `booked`); reutiliza RPC `avanzar_etapa_operativa`; mapeo de errores biométricos.
+
 ## 2026-06-25
 
 - **P3M.2 — Agenda biométricos asesor (Supabase):** nuevo `AgendaBiometricosSupabaseCard` en expediente asesor etapa 4; repo booking + disponibilidad semanal + RPC `book_biometricos`; mock/localStorage intacto.

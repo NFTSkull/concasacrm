@@ -1,5 +1,23 @@
 # Devlog
 
+## 2026-06-25 - P3M.3: Mesa resumen cita biométrica y avance 4→5
+
+### Decisión
+
+- Solo ruta Supabase (`MesaExpedienteDetalleReadOnly`); mock gigante de `mesa-control/[id]` sin cambios.
+- Gates UI en `deriveAvanceOperativo4a5View` espejan RPC 4→5: `fecha_cita` + booking `biometricos/booked`; subestado no bloquea.
+- Booking activo vía `SupabaseAgendaBiometricosBookingRepo.getActiveBooking`; label sede desde `agenda_config`.
+- Avance con `expedientesRepo.avanzarEtapaOperativa` existente; no modifica booking ni `fecha_cita`.
+- Sin migraciones, sin Cloud schema, sin 5→6, cancel/reagendar ni firmas.
+
+### Archivos
+
+- `src/components/mesa-control/MesaCitaBiometricosResumenSection.tsx` (nuevo)
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+- `src/components/mesa-control/MesaAvanceOperativoSection.tsx` (`MESA_AVANCE_OPERATIVO_4A5_COPY`, bloqueos)
+- `src/domain/expedientes/mesa-avance-integracion.ts` + tests
+- `src/domain/expedientes/avanzar-etapa-rpc-error.ts` + tests
+
 ## 2026-06-25 - P3M.2: agenda biométricos asesor Supabase (etapa 4)
 
 ### Decisión

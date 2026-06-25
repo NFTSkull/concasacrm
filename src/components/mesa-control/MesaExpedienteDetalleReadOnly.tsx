@@ -9,7 +9,8 @@ import {
   type MesaArchivoPreviewState,
 } from "@/components/mesa-control/MesaArchivoPreviewDialog";
 import { MesaClienteDatosReadOnlySection } from "@/components/mesa-control/MesaClienteDatosReadOnlySection";
-import { MesaAvanceOperativoSection, MESA_AVANCE_OPERATIVO_2A3_COPY, MESA_AVANCE_OPERATIVO_3A4_COPY } from "@/components/mesa-control/MesaAvanceOperativoSection";
+import { MesaCitaBiometricosResumenSection } from "@/components/mesa-control/MesaCitaBiometricosResumenSection";
+import { MesaAvanceOperativoSection, MESA_AVANCE_OPERATIVO_2A3_COPY, MESA_AVANCE_OPERATIVO_3A4_COPY, MESA_AVANCE_OPERATIVO_4A5_COPY } from "@/components/mesa-control/MesaAvanceOperativoSection";
 import { MesaCierreValidacionDocumentalSection } from "@/components/mesa-control/MesaCierreValidacionDocumentalSection";
 import { MesaControlDocumentosComplementariosSection } from "@/components/mesa-control/MesaControlDocumentosComplementariosSection";
 import { MesaDocumentosAsesorSection } from "@/components/mesa-control/MesaDocumentosAsesorSection";
@@ -36,9 +37,15 @@ import {
   useExpedientesRepo,
   deriveAvanceOperativo2a3View,
   deriveAvanceOperativo3a4View,
+  deriveAvanceOperativo4a5View,
   deriveCierreValidacionDocumentalView,
   type ExpedienteMock,
 } from "@/domain/expedientes";
+import {
+  useAgendaBiometricosBookingRepo,
+  type AgendaBiometricosActiveBooking,
+  type AgendaBiometricosConfigRecord,
+} from "@/domain/agenda-biometricos";
 import { useSessionRepo, type Rol } from "@/domain/session";
 import { subestadoOperativoLabel } from "@/lib/subestadoOperativoUi";
 
@@ -101,6 +108,7 @@ export function MesaExpedienteDetalleReadOnly() {
   const expedientesRepo = useExpedientesRepo();
   const archivosRepo = useExpedienteArchivosRepo();
   const clienteDatosRepo = useExpedienteClienteDatosRepo();
+  const agendaBookingRepo = useAgendaBiometricosBookingRepo();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -135,6 +143,13 @@ export function MesaExpedienteDetalleReadOnly() {
   const [avance3a4Loading, setAvance3a4Loading] = useState(false);
   const [avance3a4Error, setAvance3a4Error] = useState<string | null>(null);
   const [avance3a4Success, setAvance3a4Success] = useState<string | null>(null);
+  const [activeBiometricBooking, setActiveBiometricBooking] =
+    useState<AgendaBiometricosActiveBooking | null>(null);
+  const [biometricosConfig, setBiometricosConfig] =
+    useState<AgendaBiometricosConfigRecord | null>(null);
+  const [avance4a5Loading, setAvance4a5Loading] = useState(false);
+  const [avance4a5Error, setAvance4a5Error] = useState<string | null>(null);
+  const [avance4a5Success, setAvance4a5Success] = useState<string | null>(null);
 
   const puedeRevisar = puedeRevisarDocumentos(currentUser?.role);
 
@@ -148,28 +163,40 @@ export function MesaExpedienteDetalleReadOnly() {
         if (!exp) {
           setExpediente(null);
           setClienteDatos(null);
-          setArchivosResumen([]);
-          setArchivosLista([]);
-          setLoadState("not_found");
+        setArchivosResumen([]);
+        setArchivosLista([]);
+        setActiveBiometricBooking(null);
+        setBiometricosConfig(null);
+        setLoadState("not_found");
           return;
         }
 
-        const [datos, archivos, lista] = await Promise.all([
+        const [datos, archivos, lista, booking, bioConfig] = await Promise.all([
           clienteDatosRepo.getByExpedienteId(routeExpedienteId).catch(() => null),
           archivosRepo.listResumenByExpediente(routeExpedienteId).catch(() => []),
           archivosRepo.listByExpediente(routeExpedienteId).catch(() => []),
+          agendaBookingRepo
+            ? agendaBookingRepo.getActiveBooking(routeExpedienteId).catch(() => null)
+            : Promise.resolve(null),
+          agendaBookingRepo
+            ? agendaBookingRepo.getBiometricosConfig().catch(() => null)
+            : Promise.resolve(null),
         ]);
 
         setExpediente(exp);
         setClienteDatos(datos);
         setArchivosResumen(archivos);
         setArchivosLista(lista);
+        setActiveBiometricBooking(booking);
+        setBiometricosConfig(bioConfig);
         setLoadState("ready");
       } catch (err) {
         setExpediente(null);
         setClienteDatos(null);
         setArchivosResumen([]);
         setArchivosLista([]);
+        setActiveBiometricBooking(null);
+        setBiometricosConfig(null);
         setLoadState("error");
         if (err instanceof ExpedientesSupabaseError) {
           setErrorMsg(err.message);
@@ -180,6 +207,7 @@ export function MesaExpedienteDetalleReadOnly() {
     })();
   }, [
     archivosRepo,
+    agendaBookingRepo,
     clienteDatosRepo,
     currentUser,
     expedientesRepo,
@@ -566,6 +594,31 @@ export function MesaExpedienteDetalleReadOnly() {
     [avanceOperativoContext],
   );
 
+  const biometricLocationLabel = useMemo(() => {
+    if (!activeBiometricBooking) return null;
+    const loc = biometricosConfig?.config.locations.find(
+      (l) => l.id === activeBiometricBooking.locationId,
+    );
+    return loc?.label ?? activeBiometricBooking.locationId;
+  }, [activeBiometricBooking, biometricosConfig]);
+
+  const avanceOperativo4a5Context = useMemo(
+    () => ({
+      submittedToMesa: expediente?.operativo.submittedToMesa ?? false,
+      cicloEstado: expediente?.operativo.cicloEstado,
+      etapaActual: expediente?.operativo.etapaActual ?? null,
+      subestado: expediente?.operativo.subestado,
+      fechaCita: expediente?.operativo.fechaCita ?? null,
+      hasActiveBiometricBooking: activeBiometricBooking != null,
+    }),
+    [activeBiometricBooking, expediente],
+  );
+
+  const avanceOperativo4a5View = useMemo(
+    () => deriveAvanceOperativo4a5View(avanceOperativo4a5Context),
+    [avanceOperativo4a5Context],
+  );
+
   const handleAvanzarIntegracion = useCallback(async () => {
     if (!routeExpedienteId || !cierreValidacionView.puedeAvanzar) return;
     setContinuarLoading(true);
@@ -629,6 +682,26 @@ export function MesaExpedienteDetalleReadOnly() {
       setAvance3a4Loading(false);
     }
   }, [avanceOperativo3a4View.puedeAvanzar, expedientesRepo, load, routeExpedienteId]);
+
+  const handleAvanzarOperativo4a5 = useCallback(async () => {
+    if (!routeExpedienteId || !avanceOperativo4a5View.puedeAvanzar) return;
+    setAvance4a5Loading(true);
+    setAvance4a5Error(null);
+    setAvance4a5Success(null);
+    try {
+      await expedientesRepo.avanzarEtapaOperativa(routeExpedienteId);
+      setAvance4a5Success("Expediente avanzado a etapa 5 (Biometría — resultado)");
+      load();
+    } catch (err) {
+      setAvance4a5Error(
+        err instanceof ExpedientesSupabaseError
+          ? err.message
+          : "No se pudo avanzar la etapa del expediente.",
+      );
+    } finally {
+      setAvance4a5Loading(false);
+    }
+  }, [avanceOperativo4a5View.puedeAvanzar, expedientesRepo, load, routeExpedienteId]);
 
   if (currentUser === undefined) {
     return (
@@ -840,6 +913,23 @@ export function MesaExpedienteDetalleReadOnly() {
         error={avance3a4Error}
         success={avance3a4Success}
         onAvanzar={handleAvanzarOperativo3a4}
+      />
+
+      <MesaCitaBiometricosResumenSection
+        etapaActual={op.etapaActual}
+        fechaCita={op.fechaCita}
+        booking={activeBiometricBooking}
+        locationLabel={biometricLocationLabel}
+      />
+
+      <MesaAvanceOperativoSection
+        view={avanceOperativo4a5View}
+        copy={MESA_AVANCE_OPERATIVO_4A5_COPY}
+        puedeOperar={puedeRevisar}
+        loading={avance4a5Loading}
+        error={avance4a5Error}
+        success={avance4a5Success}
+        onAvanzar={handleAvanzarOperativo4a5}
       />
 
       {preview ? (
