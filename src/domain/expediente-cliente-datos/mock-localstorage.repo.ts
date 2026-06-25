@@ -177,6 +177,19 @@ export class MockExpedienteClienteDatosLocalStorageRepo implements ExpedienteCli
     return next;
   }
 
+  async saveCorreccion(input: SaveExpedienteClienteDatosInput): Promise<ExpedienteClienteDatos> {
+    const saved = await this.save(input);
+    return {
+      ...saved,
+      estado: "completo",
+      comentarioRechazo: undefined,
+      rejectedAt: undefined,
+      rejectedBy: undefined,
+      validatedAt: undefined,
+      validatedBy: undefined,
+    };
+  }
+
   async updateEstado(
     input: UpdateEstadoExpedienteClienteDatosInput,
   ): Promise<ExpedienteClienteDatos | null> {

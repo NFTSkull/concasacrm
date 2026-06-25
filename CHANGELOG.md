@@ -2,6 +2,8 @@
 
 ## 2026-06-25
 
+- **P3J.4 — Datos generales completos y revisión documental Mesa:** secciones read-only de `cliente_datos` (incl. referencias, beneficiario, evidencias); validar/rechazar documentos vía RPC `update_documento_revision` con motivos sugeridos; validar/rechazar datos generales vía RPC `update_cliente_datos_revision` (migración `029`); panel Mesa rediseñado; asesor ve `comentario_mesa` y `comentario_rechazo` de datos.
+
 - **P3J.3 — Preview/descarga documentos Mesa Control:** `SupabaseExpedienteArchivosRepo.getArchivoBlob()` vía Storage + RLS; botones Ver/Descargar en detalle Mesa read-only.
 
 ## 2026-06-15

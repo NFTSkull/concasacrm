@@ -3,26 +3,27 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
-import { Button } from "@/components/ui/Button";
 import {
   MesaArchivoPreviewDialog,
   openBlobUrlInNewTab,
   type MesaArchivoPreviewState,
 } from "@/components/mesa-control/MesaArchivoPreviewDialog";
+import { MesaClienteDatosReadOnlySection } from "@/components/mesa-control/MesaClienteDatosReadOnlySection";
+import { MesaDocumentosAsesorSection } from "@/components/mesa-control/MesaDocumentosAsesorSection";
+import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
+import { Button } from "@/components/ui/Button";
 import {
   useExpedienteClienteDatosRepo,
+  ClienteDatosSupabaseError,
   type ExpedienteClienteDatos,
 } from "@/domain/expediente-cliente-datos";
 import {
   buildMesaIntegrationDocViews,
   ExpedienteArchivosSupabaseError,
-  mesaPuedeAbrirArchivo,
+  type EstatusRevision,
   type ExpedienteArchivoListItem,
   type ExpedienteArchivoResumen,
   type IntegrationDocAsesorUploadTipo,
-  type IntegrationDocChecklistItem,
-  type MesaIntegrationDocView,
   useExpedienteArchivosRepo,
 } from "@/domain/expediente-archivos";
 import {
@@ -30,7 +31,7 @@ import {
   useExpedientesRepo,
   type ExpedienteMock,
 } from "@/domain/expedientes";
-import { useSessionRepo } from "@/domain/session";
+import { useSessionRepo, type Rol } from "@/domain/session";
 import { subestadoOperativoLabel } from "@/lib/subestadoOperativoUi";
 
 type LoadState = "loading" | "ready" | "not_found" | "error";
@@ -57,25 +58,6 @@ function origenMesaLabel(origen: string | null | undefined): string {
   return "—";
 }
 
-function estatusRevisionLabel(estatus: IntegrationDocChecklistItem["estatus_revision"]): string {
-  if (estatus === "faltante") return "Faltante";
-  if (estatus === "subido") return "Subido";
-  if (estatus === "resubido") return "Resubido";
-  if (estatus === "validado") return "Validado";
-  if (estatus === "rechazado") return "Rechazado";
-  return estatus;
-}
-
-function estatusRevisionBadgeClass(
-  estatus: IntegrationDocChecklistItem["estatus_revision"],
-): string {
-  if (estatus === "validado") return "bg-emerald-50 text-emerald-900 ring-emerald-200";
-  if (estatus === "rechazado") return "bg-red-50 text-red-900 ring-red-200";
-  if (estatus === "resubido") return "bg-orange-50 text-orange-950 ring-orange-200";
-  if (estatus === "subido") return "bg-sky-50 text-sky-900 ring-sky-200";
-  return "bg-amber-50 text-amber-950 ring-amber-200";
-}
-
 function MesaDetalleShell({
   children,
   title = "ConCasa CRM · Expediente Mesa",
@@ -99,57 +81,8 @@ function MesaDetalleShell({
   );
 }
 
-function DocumentoAsesorRow({
-  item,
-  loading,
-  error,
-  onVer,
-  onDescargar,
-}: {
-  item: MesaIntegrationDocView;
-  loading: boolean;
-  error: string | null;
-  onVer: () => void;
-  onDescargar: () => void;
-}) {
-  const puedeAbrir = mesaPuedeAbrirArchivo(item.archivo);
-  return (
-    <li className="rounded-lg border border-gray-100 bg-white px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-900">{item.label}</p>
-          {item.opcional ? (
-            <p className="text-[11px] text-gray-500">Opcional</p>
-          ) : null}
-          {item.archivo?.nombre_original ? (
-            <p className="mt-0.5 truncate text-xs text-gray-500" title={item.archivo.nombre_original}>
-              {item.archivo.nombre_original}
-            </p>
-          ) : null}
-        </div>
-        <span
-          className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${estatusRevisionBadgeClass(item.estatus_revision)}`}
-        >
-          {estatusRevisionLabel(item.estatus_revision)}
-        </span>
-      </div>
-      {error ? (
-        <p role="alert" className="mt-2 text-xs text-red-700">
-          {error}
-        </p>
-      ) : null}
-      {puedeAbrir ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" disabled={loading} onClick={onVer}>
-            {loading ? "Abriendo…" : "Ver archivo"}
-          </Button>
-          <Button type="button" variant="outline" disabled={loading} onClick={onDescargar}>
-            Descargar
-          </Button>
-        </div>
-      ) : null}
-    </li>
-  );
+function puedeRevisarDocumentos(role: Rol | undefined): boolean {
+  return role === "mesa_control" || role === "super_admin";
 }
 
 export function MesaExpedienteDetalleReadOnly() {
@@ -171,6 +104,14 @@ export function MesaExpedienteDetalleReadOnly() {
   const [archivoLoadingTipo, setArchivoLoadingTipo] =
     useState<IntegrationDocAsesorUploadTipo | null>(null);
   const [archivoErrorByTipo, setArchivoErrorByTipo] = useState<Record<string, string>>({});
+  const [revisionSavingTipo, setRevisionSavingTipo] = useState<string | null>(null);
+  const [revisionErrorByTipo, setRevisionErrorByTipo] = useState<Record<string, string>>({});
+  const [clienteDatosSaving, setClienteDatosSaving] = useState(false);
+  const [clienteDatosRevisionError, setClienteDatosRevisionError] = useState<string | null>(
+    null,
+  );
+
+  const puedeRevisar = puedeRevisarDocumentos(currentUser?.role);
 
   const load = useCallback(() => {
     if (!routeExpedienteId || !currentUser) return;
@@ -230,6 +171,19 @@ export function MesaExpedienteDetalleReadOnly() {
     [archivosLista, archivosResumen],
   );
 
+  const closePreview = useCallback(() => {
+    setPreview((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview?.url]);
+
   const mapArchivoError = useCallback((err: unknown): string => {
     if (err instanceof ExpedienteArchivosSupabaseError) return err.message;
     return "No se pudo abrir el archivo. Intenta de nuevo.";
@@ -268,7 +222,10 @@ export function MesaExpedienteDetalleReadOnly() {
           };
         });
       } catch (err) {
-        setArchivoErrorByTipo((prev) => ({ ...prev, [tipo]: mapArchivoError(err) }));
+        setArchivoErrorByTipo((prev) => ({
+          ...prev,
+          [tipo]: mapArchivoError(err),
+        }));
       } finally {
         setArchivoLoadingTipo(null);
       }
@@ -296,12 +253,130 @@ export function MesaExpedienteDetalleReadOnly() {
         a.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 5000);
       } catch (err) {
-        setArchivoErrorByTipo((prev) => ({ ...prev, [tipo]: mapArchivoError(err) }));
+        setArchivoErrorByTipo((prev) => ({
+          ...prev,
+          [tipo]: mapArchivoError(err),
+        }));
       } finally {
         setArchivoLoadingTipo(null);
       }
     },
     [fetchArchivoBlob, mapArchivoError],
+  );
+
+  const refreshArchivos = useCallback(async () => {
+    const [archivos, lista] = await Promise.all([
+      archivosRepo.listResumenByExpediente(routeExpedienteId).catch(() => []),
+      archivosRepo.listByExpediente(routeExpedienteId).catch(() => []),
+    ]);
+    setArchivosResumen(archivos);
+    setArchivosLista(lista);
+  }, [archivosRepo, routeExpedienteId]);
+
+  const persistRevision = useCallback(
+    async (
+      tipo: string,
+      documentoId: string,
+      estatus: EstatusRevision,
+      comentario_mesa: string | null,
+    ): Promise<boolean> => {
+      setRevisionSavingTipo(tipo);
+      setRevisionErrorByTipo((prev) => {
+        const next = { ...prev };
+        delete next[tipo];
+        return next;
+      });
+      try {
+        await archivosRepo.updateRevision(documentoId, {
+          estatus_revision: estatus,
+          comentario_mesa,
+        });
+        await refreshArchivos();
+        return true;
+      } catch (err) {
+        setRevisionErrorByTipo((prev) => ({
+          ...prev,
+          [tipo]:
+            err instanceof ExpedienteArchivosSupabaseError
+              ? err.message
+              : "No se pudo guardar la revisión del documento.",
+        }));
+        return false;
+      } finally {
+        setRevisionSavingTipo(null);
+      }
+    },
+    [archivosRepo, refreshArchivos],
+  );
+
+  const handleValidarDocumento = useCallback(
+    async (tipo: IntegrationDocAsesorUploadTipo, documentoId: string) => {
+      await persistRevision(tipo, documentoId, "validado", null);
+    },
+    [persistRevision],
+  );
+
+  const handleGuardarRechazo = useCallback(
+    async (
+      tipo: IntegrationDocAsesorUploadTipo,
+      documentoId: string,
+      comentario: string,
+    ): Promise<boolean> => {
+      return persistRevision(tipo, documentoId, "rechazado", comentario);
+    },
+    [persistRevision],
+  );
+
+  const handleValidarClienteDatos = useCallback(async (): Promise<boolean> => {
+    if (!routeExpedienteId || !currentUser?.email || !clienteDatos) return false;
+    setClienteDatosSaving(true);
+    setClienteDatosRevisionError(null);
+    try {
+      const updated = await clienteDatosRepo.updateEstado({
+        expedienteId: routeExpedienteId,
+        estado: "validado",
+        updatedBy: currentUser.email,
+      });
+      if (updated) setClienteDatos(updated);
+      return true;
+    } catch (err) {
+      setClienteDatosRevisionError(
+        err instanceof ClienteDatosSupabaseError
+          ? err.message
+          : "No se pudo validar los datos generales.",
+      );
+      return false;
+    } finally {
+      setClienteDatosSaving(false);
+    }
+  }, [clienteDatos, clienteDatosRepo, currentUser?.email, routeExpedienteId]);
+
+  const handleRechazarClienteDatos = useCallback(
+    async (comentario: string): Promise<boolean> => {
+      if (!routeExpedienteId || !currentUser?.email || !clienteDatos) return false;
+      setClienteDatosSaving(true);
+      setClienteDatosRevisionError(null);
+      try {
+        const updated = await clienteDatosRepo.updateEstado({
+          expedienteId: routeExpedienteId,
+          estado: "rechazado",
+          updatedBy: currentUser.email,
+          comentarioRechazo: comentario,
+        });
+        if (updated) setClienteDatos(updated);
+        return true;
+      } catch (err) {
+        setClienteDatosRevisionError(
+          err instanceof ClienteDatosSupabaseError
+            ? err.message
+            : "No se pudo rechazar los datos generales.",
+        );
+        return false;
+      } finally {
+        setClienteDatosSaving(false);
+      }
+    },
+    [clienteDatos, clienteDatosRepo, currentUser?.email, routeExpedienteId],
   );
 
   if (currentUser === undefined) {
@@ -442,87 +517,50 @@ export function MesaExpedienteDetalleReadOnly() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
-        <h2 className="text-sm font-semibold text-gray-900">Datos generales del cliente</h2>
-        {clienteDatos ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <p>
-              <span className="font-medium text-gray-900">Nombre:</span>{" "}
-              {clienteDatos.datos.nombreCliente || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">RFC:</span>{" "}
-              {clienteDatos.datos.rfc || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Celular:</span>{" "}
-              {clienteDatos.datos.celular || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Correo:</span>{" "}
-              {clienteDatos.datos.correo || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Empresa:</span>{" "}
-              {clienteDatos.datos.empresa || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Estado captura:</span>{" "}
-              {clienteDatos.estado}
-            </p>
-            <p className="sm:col-span-2 text-xs text-gray-500">
-              Actualizado: {formatDateTime(clienteDatos.updatedAt)}
-            </p>
-          </div>
-        ) : (
+      {clienteDatos ? (
+        <MesaClienteDatosReadOnlySection
+          clienteDatos={clienteDatos}
+          direccionOpcional={expediente.base.direccion_opcional}
+          formatDateTime={formatDateTime}
+          puedeRevisar={puedeRevisar}
+          saving={clienteDatosSaving}
+          revisionError={clienteDatosRevisionError}
+          onValidar={handleValidarClienteDatos}
+          onRechazar={handleRechazarClienteDatos}
+        />
+      ) : (
+        <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          <h2 className="text-sm font-semibold text-gray-900">Datos generales del cliente</h2>
           <p className="mt-2 text-sm text-gray-500">Sin datos generales registrados todavía.</p>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
-        <h2 className="text-sm font-semibold text-gray-900">Documentos del asesor</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          Vista previa y descarga vía Storage + RLS (P3J.3).
-        </p>
-        {documentosAsesor.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {documentosAsesor.map((item) => (
-              <DocumentoAsesorRow
-                key={item.tipo_documento}
-                item={item}
-                loading={archivoLoadingTipo === item.tipo_documento}
-                error={archivoErrorByTipo[item.tipo_documento] ?? null}
-                onVer={() => {
-                  if (item.archivo) void handleVerArchivo(item.tipo_documento, item.archivo);
-                }}
-                onDescargar={() => {
-                  if (item.archivo) void handleDescargarArchivo(item.tipo_documento, item.archivo);
-                }}
-              />
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-gray-500">No hay documentos registrados.</p>
-        )}
-      </section>
+      <MesaDocumentosAsesorSection
+        documentos={documentosAsesor}
+        puedeRevisar={puedeRevisar}
+        archivoLoadingTipo={archivoLoadingTipo}
+        revisionSavingTipo={revisionSavingTipo as IntegrationDocAsesorUploadTipo | null}
+        archivoErrorByTipo={archivoErrorByTipo}
+        revisionErrorByTipo={revisionErrorByTipo}
+        onVer={(tipo, archivo) => void handleVerArchivo(tipo, archivo)}
+        onDescargar={(tipo, archivo) => void handleDescargarArchivo(tipo, archivo)}
+        onValidar={(tipo, documentoId) => void handleValidarDocumento(tipo, documentoId)}
+        onGuardarRechazo={handleGuardarRechazo}
+      />
+
 
       {preview ? (
         <MesaArchivoPreviewDialog
           preview={preview}
-          onClose={() => {
-            setPreview((prev) => {
-              if (prev?.url) URL.revokeObjectURL(prev.url);
-              return null;
-            });
-          }}
+          onClose={closePreview}
           onOpenInNewTab={openBlobUrlInNewTab}
         />
       ) : null}
 
       <AsesorSeguimientoOperativo
         etapaActual={op.etapaActual}
-        subestado={op.subestado}
         submittedToMesa={op.submittedToMesa}
+        subestado={op.subestado}
         fechaEnvioMesa={op.fechaEnvioMesa}
         updatedAt={op.updatedAt}
         cicloEstado={op.cicloEstado}

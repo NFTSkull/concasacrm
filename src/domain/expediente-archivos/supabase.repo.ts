@@ -19,6 +19,7 @@ import {
 } from "./map-supabase-expediente-documentos";
 import { ExpedienteArchivosSupabaseError } from "./supabase.error";
 import { mapRegisterExpedienteDocumentoRpcError } from "./register-expediente-documento-rpc-error";
+import { mapUpdateDocumentoRevisionRpcError } from "./update-documento-revision-rpc-error";
 import { buildExpedienteDocumentoStoragePath } from "./storage-path";
 import {
   EXPEDIENTE_DOCUMENTOS_BUCKET,
@@ -84,6 +85,7 @@ async function fetchExpedienteUploadContext(
   };
 }
 
+
 function buildResumenFromList(
   expedienteId: string,
   items: Awaited<ReturnType<SupabaseExpedienteArchivosRepo["listByExpediente"]>>,
@@ -126,7 +128,7 @@ function buildResumenFromList(
   });
 }
 
-/** P3H.2: lectura RLS + upload Storage + RPC `register_expediente_documento`. P3J.3: download/preview. */
+/** P3H.2: lectura RLS + upload Storage + RPC `register_expediente_documento`. P3J.3: download/preview. P3J.4: revisión Mesa. */
 export class SupabaseExpedienteArchivosRepo implements ExpedienteArchivosRepo {
 
   async listByExpediente(expedienteId: string) {
@@ -237,6 +239,7 @@ export class SupabaseExpedienteArchivosRepo implements ExpedienteArchivosRepo {
     await this.uploadOrReplace(params);
   }
 
+
   private async fetchStoragePathForDocumento(id: string): Promise<string> {
     const idNorm = String(id).trim();
     if (!idNorm) {
@@ -289,10 +292,35 @@ export class SupabaseExpedienteArchivosRepo implements ExpedienteArchivosRepo {
   }
 
   async updateRevision(id: string, patch: UpdateRevisionPatch): Promise<void> {
-    void id;
-    void patch;
-    throw new ExpedienteArchivosSupabaseError(
-      "La revisión de documentos la realiza Mesa de control.",
-    );
+    const idNorm = String(id).trim();
+    if (!idNorm) {
+      throw new ExpedienteArchivosSupabaseError("Documento inválido para revisión.");
+    }
+    if (!patch.estatus_revision) {
+      throw new ExpedienteArchivosSupabaseError("Estatus de revisión obligatorio.");
+    }
+    if (
+      patch.estatus_revision === "rechazado" &&
+      (!patch.comentario_mesa || patch.comentario_mesa.trim() === "")
+    ) {
+      throw new ExpedienteArchivosSupabaseError(
+        "Debes indicar un motivo de rechazo antes de guardar.",
+      );
+    }
+
+    const { client } = await requireSupabaseSession();
+
+    const { error } = await client.rpc("update_documento_revision", {
+      p_documento_id: idNorm,
+      p_estatus: patch.estatus_revision,
+      p_comentario_mesa:
+        patch.estatus_revision === "rechazado"
+          ? patch.comentario_mesa?.trim() ?? null
+          : null,
+    });
+
+    if (error) {
+      throw mapUpdateDocumentoRevisionRpcError(error);
+    }
   }
 }

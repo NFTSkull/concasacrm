@@ -1,5 +1,41 @@
 # Devlog
 
+## 2026-06-15 - P3J.4b: revisión datos generales Mesa + panel rediseñado
+
+### Decisión
+
+- **No existía RPC** para revisar `cliente_datos` (solo `save_cliente_datos` asesor). RLS: solo SELECT en `cliente_datos` para `authenticated`; sin UPDATE directo.
+- Migración `029_rpc_update_cliente_datos_revision.sql`: `update_cliente_datos_revision(p_expediente_id, p_estado, p_comentario_rechazo)` — roles mesa_*, gate `submitted_to_mesa`, `action_log` `cliente_datos.revision.update`.
+- Frontend Supabase llama RPC vía `updateEstado()`; si RPC no está desplegada, mensaje claro al usuario.
+- Panel `MesaClienteDatosReadOnlySection`: header + badge + cards + modal rechazo con motivos.
+- **Corrección asesor post-Mesa bloqueada:** `save_cliente_datos` lanza `expediente ya enviado a Mesa` (hueco resuelto en P3J.6).
+
+### Archivos
+
+- `supabase/migrations/029_rpc_update_cliente_datos_revision.sql`
+- `src/components/mesa-control/MesaClienteDatosReadOnlySection.tsx`
+- `src/domain/expediente-cliente-datos/supabase.repo.ts`
+- `src/domain/expediente-cliente-datos/mesa-cliente-datos-rechazo-motivos.ts`
+- `src/domain/expediente-cliente-datos/update-cliente-datos-revision-rpc-error.ts`
+
+## 2026-06-15 - P3J.4: datos generales completos y revisión documental Mesa (Supabase)
+
+### Decisión
+
+- Parte A: `MesaClienteDatosReadOnlySection` con 7 secciones; lectura de columna `imagenes` (metadata, sin preview Storage).
+- Parte B: `SupabaseExpedienteArchivosRepo.updateRevision()` → RPC `update_documento_revision`.
+- Parte C: rechazo persiste `estatus_revision=rechazado` + `comentario_mesa`; asesor ve motivo en checklist.
+- Sin subestado `correccion_documental`; no se toca `submitted_to_mesa` ni avance de etapa.
+
+### Archivos
+
+- `src/components/mesa-control/MesaClienteDatosReadOnlySection.tsx`
+- `src/components/mesa-control/MesaDocumentosAsesorSection.tsx`
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+- `src/domain/expediente-archivos/supabase.repo.ts`
+- `src/domain/expediente-archivos/mesa-rechazo-motivos.ts`
+- `src/domain/expediente-archivos/update-documento-revision-rpc-error.ts`
+
 ## 2026-06-15 - P3J.3: preview/descarga documentos Mesa Control (Supabase)
 
 ### Decisión

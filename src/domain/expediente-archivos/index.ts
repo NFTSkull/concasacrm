@@ -17,6 +17,13 @@ export {
 } from "./map-supabase-expediente-documentos";
 export { mesaPuedeAbrirArchivo } from "./mesa-archivo-acceso";
 export {
+  MESA_RECHAZO_MOTIVOS_SUGERIDOS,
+  buildComentarioRechazoDocumento,
+  isMotivoOtro,
+  type MesaRechazoMotivoSugerido,
+} from "./mesa-rechazo-motivos";
+export { mapUpdateDocumentoRevisionRpcError } from "./update-documento-revision-rpc-error";
+export {
   buildMesaIntegrationDocViews,
   resolveMesaArchivoPorTipo,
   type MesaIntegrationDocView,

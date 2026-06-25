@@ -14,6 +14,7 @@ import {
   type SupabaseClienteDatosRow,
 } from "./map-supabase-cliente-datos";
 import { mapSaveClienteDatosRpcError } from "./save-cliente-datos-rpc-error";
+import { mapUpdateClienteDatosRevisionRpcError } from "./update-cliente-datos-revision-rpc-error";
 import { ClienteDatosSupabaseError } from "./supabase.error";
 
 const CLIENTE_DATOS_SELECT = `
@@ -27,7 +28,11 @@ const CLIENTE_DATOS_SELECT = `
   rejected_by,
   updated_at,
   referencias,
-  updated_by_profile:profiles!cliente_datos_updated_by_fkey ( email )
+  imagenes,
+  telefono_normalizado,
+  updated_by_profile:profiles!cliente_datos_updated_by_fkey ( email ),
+  validated_by_profile:profiles!cliente_datos_validated_by_fkey ( email ),
+  rejected_by_profile:profiles!cliente_datos_rejected_by_fkey ( email )
 `;
 
 async function requireSupabaseSession(): Promise<{
@@ -54,7 +59,7 @@ async function requireSupabaseSession(): Promise<{
   return { client };
 }
 
-/** P3G: lectura RLS + guardado vía RPC `save_cliente_datos`. */
+/** P3G: lectura RLS + guardado vía RPC `save_cliente_datos`. P3J.4: revisión Mesa vía `update_cliente_datos_revision`. */
 export class SupabaseExpedienteClienteDatosRepo implements ExpedienteClienteDatosRepo {
   async getByExpedienteId(expedienteId: string): Promise<ExpedienteClienteDatos | null> {
     const idNorm = String(expedienteId).trim();
@@ -107,12 +112,41 @@ export class SupabaseExpedienteClienteDatosRepo implements ExpedienteClienteDato
     };
   }
 
+
   async updateEstado(
-    _input: UpdateEstadoExpedienteClienteDatosInput,
+    input: UpdateEstadoExpedienteClienteDatosInput,
   ): Promise<ExpedienteClienteDatos | null> {
-    void _input;
-    throw new ClienteDatosSupabaseError(
-      "La validación de datos del cliente solo la realiza Mesa de control en Supabase.",
-    );
+    const idNorm = String(input.expedienteId).trim();
+    if (!idNorm) {
+      throw new ClienteDatosSupabaseError("El identificador del expediente es obligatorio.");
+    }
+
+    if (input.estado !== "validado" && input.estado !== "rechazado") {
+      throw new ClienteDatosSupabaseError("Solo se puede validar o rechazar datos generales.");
+    }
+
+    if (
+      input.estado === "rechazado" &&
+      (!input.comentarioRechazo || input.comentarioRechazo.trim() === "")
+    ) {
+      throw new ClienteDatosSupabaseError(
+        "Debes indicar un motivo de rechazo antes de guardar.",
+      );
+    }
+
+    const { client } = await requireSupabaseSession();
+
+    const { error } = await client.rpc("update_cliente_datos_revision", {
+      p_expediente_id: idNorm,
+      p_estado: input.estado,
+      p_comentario_rechazo:
+        input.estado === "rechazado" ? input.comentarioRechazo?.trim() ?? null : null,
+    });
+
+    if (error) {
+      throw mapUpdateClienteDatosRevisionRpcError(error);
+    }
+
+    return this.getByExpedienteId(idNorm);
   }
 }

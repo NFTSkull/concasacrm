@@ -1,4 +1,5 @@
 import type {
+  ClienteDatosImagen,
   ExpedienteClienteDatos,
   ExpedienteClienteDatosEstado,
 } from "./types";
@@ -12,9 +13,13 @@ export type SupabaseClienteDatosRow = {
   validated_by?: string | null;
   rejected_at?: string | null;
   rejected_by?: string | null;
+  telefono_normalizado?: string | null;
   updated_at: string;
   referencias?: unknown;
+  imagenes?: unknown;
   updated_by_profile?: { email?: string | null } | null;
+  validated_by_profile?: { email?: string | null } | null;
+  rejected_by_profile?: { email?: string | null } | null;
 };
 
 type ReferenciaJson = {
@@ -77,6 +82,22 @@ function mapBeneficiario(
   };
 }
 
+function mapImagenes(value: unknown): ClienteDatosImagen[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => ({
+      tipo: asString(item.tipo) || undefined,
+      filename: asString(item.filename) || undefined,
+      mime_type: asString(item.mime_type) || undefined,
+      size_bytes:
+        typeof item.size_bytes === "number" && Number.isFinite(item.size_bytes)
+          ? item.size_bytes
+          : undefined,
+    }))
+    .filter((img) => img.tipo || img.filename || img.mime_type);
+}
+
 function mapDireccionEmpresa(
   value: unknown,
 ): ExpedienteClienteDatos["datos"]["direccionEmpresa"] {
@@ -114,11 +135,19 @@ export function mapSupabaseRowToExpedienteClienteDatos(
       direccionEmpresa: mapDireccionEmpresa(datos.direccionEmpresa),
     },
     estado: normalizeEstado(row.estado),
+    imagenes: mapImagenes(row.imagenes),
+    telefonoNormalizado: row.telefono_normalizado?.trim() || undefined,
     comentarioRechazo: row.comentario_rechazo?.trim() || undefined,
     validatedAt: row.validated_at ?? undefined,
-    validatedBy: row.validated_by ?? undefined,
+    validatedBy:
+      row.validated_by_profile?.email?.trim() ||
+      row.validated_by?.trim() ||
+      undefined,
     rejectedAt: row.rejected_at ?? undefined,
-    rejectedBy: row.rejected_by ?? undefined,
+    rejectedBy:
+      row.rejected_by_profile?.email?.trim() ||
+      row.rejected_by?.trim() ||
+      undefined,
     updatedAt: row.updated_at,
     updatedBy:
       row.updated_by_profile?.email?.trim() ||

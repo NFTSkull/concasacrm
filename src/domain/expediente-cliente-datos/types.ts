@@ -4,6 +4,14 @@ export type ExpedienteClienteDatosEstado =
   | "validado"
   | "rechazado";
 
+/** Metadata de evidencia en columna `cliente_datos.imagenes` (sin rutas Storage en UI). */
+export type ClienteDatosImagen = {
+  tipo?: string;
+  filename?: string;
+  mime_type?: string;
+  size_bytes?: number;
+};
+
 export type ExpedienteClienteDatos = {
   expedienteId: string;
 
@@ -34,6 +42,12 @@ export type ExpedienteClienteDatos = {
   };
 
   estado: ExpedienteClienteDatosEstado;
+
+  /** Evidencias guardadas vía `save_cliente_datos` (columna `imagenes`). */
+  imagenes?: ClienteDatosImagen[];
+
+  /** Columna `telefono_normalizado` (solo lectura Mesa). */
+  telefonoNormalizado?: string;
 
   /** Solo aplica cuando `estado === "rechazado"` */
   comentarioRechazo?: string;
