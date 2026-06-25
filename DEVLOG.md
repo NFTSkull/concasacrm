@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-25 - P3J Cloud: migraciones 029/030/031 en Supabase Production
+
+### Decisión
+
+- Despliegue **manual** en SQL Editor (no `supabase db push`): `029_rpc_update_cliente_datos_revision.sql` → `030_rpc_register_mesa_documento.sql` → `031_rpc_correcciones_asesor_post_mesa.sql`.
+- Contenido aplicado = archivos en repo (SHA-256: `029` `7a1760c3…`, `030` `62877c8d…`, `031` `51932483…`).
+- Verificación post-aplicación: 6 funciones/helpers + `integration_doc_tipos_mesa_upload()` + policies `expediente_documentos_storage_insert`/`_delete` con ramas asesor + mesa + corrección asesor.
+- Historial remoto de migraciones Supabase CLI puede quedar desalineado hasta reconciliar; el estado real de Production es la fuente de verdad.
+- Siguiente paso operativo: push rama `p3-supabase-connection` + deploy frontend con commits P3J.3–P3J.6.
+
+### Archivos (repo, sin cambio de SQL)
+
+- `supabase/migrations/029_rpc_update_cliente_datos_revision.sql` (172 líneas)
+- `supabase/migrations/030_rpc_register_mesa_documento.sql` (386 líneas)
+- `supabase/migrations/031_rpc_correcciones_asesor_post_mesa.sql` (900 líneas)
+
 ## 2026-06-25 - P3J.6: corrección asesor post-rechazo Mesa
 
 ### Auditoría (funciones existentes)
@@ -16,7 +32,7 @@
 - Corrección datos: wrapper `save_cliente_datos_correccion` delega a `save_cliente_datos` con flag; limpia `comentario_rechazo`/`rejected_*`/`validated_*`; `action_log` `cliente_datos.correccion_post_mesa`.
 - UI asesor: upload bloqueado post-envío salvo ítems rechazados; formulario datos editable solo si `estado='rechazado'`.
 - UI Mesa: etiqueta `resubido` → “Corregido por asesor”; datos `completo` post-envío → “Corregido, pendiente de revisión”.
-- Sin commit/push/Cloud/`db push`.
+- Migración `031` desplegada en Production (manual); ver entrada P3J Cloud arriba.
 
 ### Archivos
 
@@ -38,7 +54,7 @@
 
 ### Decisión
 
-- Nueva migración local `030_rpc_register_mesa_documento.sql`: `integration_doc_tipos_mesa_upload()`, `register_mesa_documento`, policy Storage Mesa.
+- Migración `030_rpc_register_mesa_documento.sql`: `integration_doc_tipos_mesa_upload()`, `register_mesa_documento`, policy Storage Mesa (desplegada en Production manual).
 - Tipos Mesa: `cliente_semanas_cotizadas`, `cliente_acta_nacimiento`, `cliente_constancia_sat`.
 - UI: `MesaDocumentosAsesorSection` (5 docs) + `MesaControlDocumentosComplementariosSection` (3 docs con upload).
 
@@ -55,7 +71,7 @@
 ### Decisión
 
 - **No existía RPC** para revisar `cliente_datos` (solo `save_cliente_datos` asesor). RLS: solo SELECT en `cliente_datos` para `authenticated`; sin UPDATE directo.
-- Migración `029_rpc_update_cliente_datos_revision.sql`: `update_cliente_datos_revision(p_expediente_id, p_estado, p_comentario_rechazo)` — roles mesa_*, gate `submitted_to_mesa`, `action_log` `cliente_datos.revision.update`.
+- Migración `029_rpc_update_cliente_datos_revision.sql`: `update_cliente_datos_revision(p_expediente_id, p_estado, p_comentario_rechazo)` — roles mesa_*, gate `submitted_to_mesa`, `action_log` `cliente_datos.revision.update` (desplegada en Production manual).
 - Frontend Supabase llama RPC vía `updateEstado()`; si RPC no está desplegada, mensaje claro al usuario.
 - Panel `MesaClienteDatosReadOnlySection`: header + badge + cards + modal rechazo con motivos.
 - **Corrección asesor post-Mesa bloqueada:** `save_cliente_datos` lanza `expediente ya enviado a Mesa` (hueco resuelto en P3J.6).
