@@ -126,13 +126,8 @@ function buildResumenFromList(
   });
 }
 
-/** P3H.2: lectura RLS + upload Storage + RPC `register_expediente_documento`. */
+/** P3H.2: lectura RLS + upload Storage + RPC `register_expediente_documento`. P3J.3: download/preview. */
 export class SupabaseExpedienteArchivosRepo implements ExpedienteArchivosRepo {
-  private unsupportedReadBlob(): never {
-    throw new ExpedienteArchivosSupabaseError(
-      "La descarga/preview de documentos se conectará en una fase posterior.",
-    );
-  }
 
   async listByExpediente(expedienteId: string) {
     const idNorm = String(expedienteId).trim();
@@ -242,9 +237,55 @@ export class SupabaseExpedienteArchivosRepo implements ExpedienteArchivosRepo {
     await this.uploadOrReplace(params);
   }
 
+  private async fetchStoragePathForDocumento(id: string): Promise<string> {
+    const idNorm = String(id).trim();
+    if (!idNorm) {
+      throw new ExpedienteArchivosSupabaseError(
+        "No tienes acceso a este documento o no existe.",
+      );
+    }
+
+    const { client } = await requireSupabaseSession();
+
+    const { data, error } = await client
+      .from("expediente_documentos")
+      .select("storage_path")
+      .eq("id", idNorm)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error) {
+      throw new ExpedienteArchivosSupabaseError(
+        "No se pudo cargar el documento. Intenta de nuevo más tarde.",
+      );
+    }
+
+    const storagePath =
+      typeof data?.storage_path === "string" ? data.storage_path.trim() : "";
+    if (!storagePath) {
+      throw new ExpedienteArchivosSupabaseError(
+        "No tienes acceso a este documento o no existe.",
+      );
+    }
+
+    return storagePath;
+  }
+
   async getArchivoBlob(id: string): Promise<Blob> {
-    void id;
-    this.unsupportedReadBlob();
+    const storagePath = await this.fetchStoragePathForDocumento(id);
+    const { client } = await requireSupabaseSession();
+
+    const { data, error } = await client.storage
+      .from(EXPEDIENTE_DOCUMENTOS_BUCKET)
+      .download(storagePath);
+
+    if (error || !data) {
+      throw new ExpedienteArchivosSupabaseError(
+        "No se pudo abrir el archivo. Verifica tu acceso o intenta de nuevo.",
+      );
+    }
+
+    return data;
   }
 
   async updateRevision(id: string, patch: UpdateRevisionPatch): Promise<void> {

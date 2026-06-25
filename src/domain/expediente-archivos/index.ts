@@ -12,8 +12,15 @@ export { SupabaseExpedienteArchivosRepo } from "./supabase.repo";
 export { ExpedienteArchivosSupabaseError } from "./supabase.error";
 export {
   mapSupabaseRowToExpedienteArchivoListItem,
+  type ExpedienteArchivoListItem,
   type SupabaseExpedienteDocumentoRow,
 } from "./map-supabase-expediente-documentos";
+export { mesaPuedeAbrirArchivo } from "./mesa-archivo-acceso";
+export {
+  buildMesaIntegrationDocViews,
+  resolveMesaArchivoPorTipo,
+  type MesaIntegrationDocView,
+} from "./mesa-integration-docs";
 export {
   INTEGRATION_DOC_TIPOS_ASESOR_ENVIO,
   INTEGRATION_DOC_TIPOS_ASESOR_OPCIONALES,

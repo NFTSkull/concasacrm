@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-15 - P3J.3: preview/descarga documentos Mesa Control (Supabase)
+
+### Decisión
+
+- Reutilizar `getArchivoBlob(id)` del contrato: SELECT `storage_path` en `expediente_documentos` (RLS) + `storage.download` con JWT.
+- UI: botones **Ver archivo** / **Descargar** solo si hay fila y estatus ≠ faltante; modal reutiliza helpers `archivoPreviewMime`.
+- Sin signed URL en pantalla; blob URL efímera en cliente. Sin API route ni service role.
+
+### Archivos
+
+- `src/domain/expediente-archivos/supabase.repo.ts`
+- `src/domain/expediente-archivos/mesa-archivo-acceso.ts`
+- `src/domain/expediente-archivos/mesa-integration-docs.ts`
+- `src/components/mesa-control/MesaArchivoPreviewDialog.tsx`
+- `src/components/mesa-control/MesaExpedienteDetalleReadOnly.tsx`
+
 ## 2026-06-15 - P3J.2: detalle Mesa Control read-only (Supabase)
 
 ### Decisión

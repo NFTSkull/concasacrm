@@ -6,15 +6,23 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
 import { Button } from "@/components/ui/Button";
 import {
+  MesaArchivoPreviewDialog,
+  openBlobUrlInNewTab,
+  type MesaArchivoPreviewState,
+} from "@/components/mesa-control/MesaArchivoPreviewDialog";
+import {
   useExpedienteClienteDatosRepo,
   type ExpedienteClienteDatos,
 } from "@/domain/expediente-cliente-datos";
 import {
-  deriveIntegrationDocsChecklist,
-  deriveIntegrationDocsChecklistOpcionales,
-  integrationDocsResumenFromArchivoResumen,
+  buildMesaIntegrationDocViews,
+  ExpedienteArchivosSupabaseError,
+  mesaPuedeAbrirArchivo,
+  type ExpedienteArchivoListItem,
   type ExpedienteArchivoResumen,
+  type IntegrationDocAsesorUploadTipo,
   type IntegrationDocChecklistItem,
+  type MesaIntegrationDocView,
   useExpedienteArchivosRepo,
 } from "@/domain/expediente-archivos";
 import {
@@ -91,20 +99,55 @@ function MesaDetalleShell({
   );
 }
 
-function DocumentoAsesorRow({ item }: { item: IntegrationDocChecklistItem }) {
+function DocumentoAsesorRow({
+  item,
+  loading,
+  error,
+  onVer,
+  onDescargar,
+}: {
+  item: MesaIntegrationDocView;
+  loading: boolean;
+  error: string | null;
+  onVer: () => void;
+  onDescargar: () => void;
+}) {
+  const puedeAbrir = mesaPuedeAbrirArchivo(item.archivo);
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-900">{item.label}</p>
-        {item.opcional ? (
-          <p className="text-[11px] text-gray-500">Opcional</p>
-        ) : null}
+    <li className="rounded-lg border border-gray-100 bg-white px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-900">{item.label}</p>
+          {item.opcional ? (
+            <p className="text-[11px] text-gray-500">Opcional</p>
+          ) : null}
+          {item.archivo?.nombre_original ? (
+            <p className="mt-0.5 truncate text-xs text-gray-500" title={item.archivo.nombre_original}>
+              {item.archivo.nombre_original}
+            </p>
+          ) : null}
+        </div>
+        <span
+          className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${estatusRevisionBadgeClass(item.estatus_revision)}`}
+        >
+          {estatusRevisionLabel(item.estatus_revision)}
+        </span>
       </div>
-      <span
-        className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${estatusRevisionBadgeClass(item.estatus_revision)}`}
-      >
-        {estatusRevisionLabel(item.estatus_revision)}
-      </span>
+      {error ? (
+        <p role="alert" className="mt-2 text-xs text-red-700">
+          {error}
+        </p>
+      ) : null}
+      {puedeAbrir ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" disabled={loading} onClick={onVer}>
+            {loading ? "Abriendo…" : "Ver archivo"}
+          </Button>
+          <Button type="button" variant="outline" disabled={loading} onClick={onDescargar}>
+            Descargar
+          </Button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -123,6 +166,11 @@ export function MesaExpedienteDetalleReadOnly() {
   const [expediente, setExpediente] = useState<ExpedienteMock | null>(null);
   const [clienteDatos, setClienteDatos] = useState<ExpedienteClienteDatos | null>(null);
   const [archivosResumen, setArchivosResumen] = useState<ExpedienteArchivoResumen[]>([]);
+  const [archivosLista, setArchivosLista] = useState<ExpedienteArchivoListItem[]>([]);
+  const [preview, setPreview] = useState<MesaArchivoPreviewState | null>(null);
+  const [archivoLoadingTipo, setArchivoLoadingTipo] =
+    useState<IntegrationDocAsesorUploadTipo | null>(null);
+  const [archivoErrorByTipo, setArchivoErrorByTipo] = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
     if (!routeExpedienteId || !currentUser) return;
@@ -135,23 +183,27 @@ export function MesaExpedienteDetalleReadOnly() {
           setExpediente(null);
           setClienteDatos(null);
           setArchivosResumen([]);
+          setArchivosLista([]);
           setLoadState("not_found");
           return;
         }
 
-        const [datos, archivos] = await Promise.all([
+        const [datos, archivos, lista] = await Promise.all([
           clienteDatosRepo.getByExpedienteId(routeExpedienteId).catch(() => null),
           archivosRepo.listResumenByExpediente(routeExpedienteId).catch(() => []),
+          archivosRepo.listByExpediente(routeExpedienteId).catch(() => []),
         ]);
 
         setExpediente(exp);
         setClienteDatos(datos);
         setArchivosResumen(archivos);
+        setArchivosLista(lista);
         setLoadState("ready");
       } catch (err) {
         setExpediente(null);
         setClienteDatos(null);
         setArchivosResumen([]);
+        setArchivosLista([]);
         setLoadState("error");
         if (err instanceof ExpedientesSupabaseError) {
           setErrorMsg(err.message);
@@ -173,13 +225,84 @@ export function MesaExpedienteDetalleReadOnly() {
     load();
   }, [currentUser, load]);
 
-  const documentosAsesor = useMemo(() => {
-    const input = integrationDocsResumenFromArchivoResumen(archivosResumen);
-    return [
-      ...deriveIntegrationDocsChecklist(input),
-      ...deriveIntegrationDocsChecklistOpcionales(input),
-    ];
-  }, [archivosResumen]);
+  const documentosAsesor = useMemo(
+    () => buildMesaIntegrationDocViews(archivosResumen, archivosLista),
+    [archivosLista, archivosResumen],
+  );
+
+  const mapArchivoError = useCallback((err: unknown): string => {
+    if (err instanceof ExpedienteArchivosSupabaseError) return err.message;
+    return "No se pudo abrir el archivo. Intenta de nuevo.";
+  }, []);
+
+  const fetchArchivoBlob = useCallback(
+    async (archivo: ExpedienteArchivoResumen) => {
+      if (!archivo.id) {
+        throw new ExpedienteArchivosSupabaseError(
+          "No tienes acceso a este documento o no existe.",
+        );
+      }
+      return archivosRepo.getArchivoBlob(archivo.id);
+    },
+    [archivosRepo],
+  );
+
+  const handleVerArchivo = useCallback(
+    async (tipo: IntegrationDocAsesorUploadTipo, archivo: ExpedienteArchivoResumen) => {
+      if (!archivo.id || !archivo.mime_type) return;
+      setArchivoLoadingTipo(tipo);
+      setArchivoErrorByTipo((prev) => {
+        const next = { ...prev };
+        delete next[tipo];
+        return next;
+      });
+      try {
+        const blob = await fetchArchivoBlob(archivo);
+        const url = URL.createObjectURL(blob);
+        setPreview((prev) => {
+          if (prev?.url) URL.revokeObjectURL(prev.url);
+          return {
+            url,
+            mime_type: archivo.mime_type as string,
+            nombre_original: archivo.nombre_original ?? "archivo",
+          };
+        });
+      } catch (err) {
+        setArchivoErrorByTipo((prev) => ({ ...prev, [tipo]: mapArchivoError(err) }));
+      } finally {
+        setArchivoLoadingTipo(null);
+      }
+    },
+    [fetchArchivoBlob, mapArchivoError],
+  );
+
+  const handleDescargarArchivo = useCallback(
+    async (tipo: IntegrationDocAsesorUploadTipo, archivo: ExpedienteArchivoResumen) => {
+      if (!archivo.id || !archivo.nombre_original) return;
+      setArchivoLoadingTipo(tipo);
+      setArchivoErrorByTipo((prev) => {
+        const next = { ...prev };
+        delete next[tipo];
+        return next;
+      });
+      try {
+        const blob = await fetchArchivoBlob(archivo);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = archivo.nombre_original;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } catch (err) {
+        setArchivoErrorByTipo((prev) => ({ ...prev, [tipo]: mapArchivoError(err) }));
+      } finally {
+        setArchivoLoadingTipo(null);
+      }
+    },
+    [fetchArchivoBlob, mapArchivoError],
+  );
 
   if (currentUser === undefined) {
     return (
@@ -359,18 +482,42 @@ export function MesaExpedienteDetalleReadOnly() {
       <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
         <h2 className="text-sm font-semibold text-gray-900">Documentos del asesor</h2>
         <p className="mt-1 text-xs text-gray-500">
-          Solo lectura · sin validar ni descargar en este bloque (P3J.3 / P3J.2b).
+          Vista previa y descarga vía Storage + RLS (P3J.3).
         </p>
         {documentosAsesor.length > 0 ? (
           <ul className="mt-3 space-y-2">
             {documentosAsesor.map((item) => (
-              <DocumentoAsesorRow key={item.tipo_documento} item={item} />
+              <DocumentoAsesorRow
+                key={item.tipo_documento}
+                item={item}
+                loading={archivoLoadingTipo === item.tipo_documento}
+                error={archivoErrorByTipo[item.tipo_documento] ?? null}
+                onVer={() => {
+                  if (item.archivo) void handleVerArchivo(item.tipo_documento, item.archivo);
+                }}
+                onDescargar={() => {
+                  if (item.archivo) void handleDescargarArchivo(item.tipo_documento, item.archivo);
+                }}
+              />
             ))}
           </ul>
         ) : (
           <p className="mt-2 text-sm text-gray-500">No hay documentos registrados.</p>
         )}
       </section>
+
+      {preview ? (
+        <MesaArchivoPreviewDialog
+          preview={preview}
+          onClose={() => {
+            setPreview((prev) => {
+              if (prev?.url) URL.revokeObjectURL(prev.url);
+              return null;
+            });
+          }}
+          onOpenInNewTab={openBlobUrlInNewTab}
+        />
+      ) : null}
 
       <AsesorSeguimientoOperativo
         etapaActual={op.etapaActual}

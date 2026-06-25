@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-06-25
+
+- **P3J.3 — Preview/descarga documentos Mesa Control:** `SupabaseExpedienteArchivosRepo.getArchivoBlob()` vía Storage + RLS; botones Ver/Descargar en detalle Mesa read-only.
+
 ## 2026-06-15
 
 - **P3J.2 — Detalle Mesa Control read-only Supabase:** `/mesa-control/[id]` en modo Supabase usa `MesaExpedienteDetalleReadOnly` (expediente, editor, datos cliente, docs asesor, timeline); mock intacto en rama paralela.
