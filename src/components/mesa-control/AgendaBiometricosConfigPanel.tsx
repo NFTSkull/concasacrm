@@ -10,6 +10,7 @@ import {
 } from "@/domain/agenda-biometricos";
 import { isDataModeSupabase } from "@/lib/dataMode";
 import { AgendaBiometricosWeeklySupabaseSection } from "@/components/mesa-control/AgendaBiometricosWeeklySupabaseSection";
+import { AgendaFirmasWeeklySupabaseSection } from "@/components/mesa-control/AgendaFirmasWeeklySupabaseSection";
 import {
   readAgendaFirmasConfig,
   writeAgendaFirmasConfig,
@@ -536,6 +537,9 @@ export function AgendaBiometricosConfigPanel({ canEdit, actorEmail }: Props) {
             )}
           </div>
         )}
+        {dataSupabase ? (
+          <AgendaFirmasWeeklySupabaseSection canEdit={false} actorEmail={actorEmail} />
+        ) : (
         <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm sm:p-4">
           <h2 className="text-sm font-semibold text-slate-900">Configuración de agendas</h2>
           {resumenFirmas ? (
@@ -552,6 +556,7 @@ export function AgendaBiometricosConfigPanel({ canEdit, actorEmail }: Props) {
             </p>
           )}
         </div>
+        )}
       </section>
     );
   }
@@ -559,13 +564,16 @@ export function AgendaBiometricosConfigPanel({ canEdit, actorEmail }: Props) {
   return (
     <>
       {dataSupabase ? (
-        <AgendaBiometricosWeeklySupabaseSection canEdit={canEdit} actorEmail={actorEmail} />
-      ) : null}
-      <section
-        className={`rounded-xl border border-sky-200 bg-sky-50/40 p-3 shadow-sm sm:p-4 ${dataSupabase ? "" : ""}`}
-      >
-      {!dataSupabase ? (
         <>
+          <AgendaBiometricosWeeklySupabaseSection canEdit={canEdit} actorEmail={actorEmail} />
+          <div className="mt-4">
+            <AgendaFirmasWeeklySupabaseSection canEdit={canEdit} actorEmail={actorEmail} />
+          </div>
+        </>
+      ) : (
+      <section
+        className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 shadow-sm sm:p-4"
+      >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Configuración de agendas</h2>
@@ -853,10 +861,8 @@ export function AgendaBiometricosConfigPanel({ canEdit, actorEmail }: Props) {
           Guardar biométricos
         </Button>
       </div>
-        </>
-      ) : null}
 
-      <div className={`${dataSupabase ? "" : "mt-5 border-t border-sky-200 pt-4"}`}>
+      <div className="mt-5 border-t border-sky-200 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold text-slate-700">Bloque B: Firmas</p>
@@ -1160,7 +1166,8 @@ export function AgendaBiometricosConfigPanel({ canEdit, actorEmail }: Props) {
           </Button>
         </div>
       </div>
-    </section>
+      </section>
+      )}
     </>
   );
 }

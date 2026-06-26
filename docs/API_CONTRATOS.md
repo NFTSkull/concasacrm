@@ -406,7 +406,8 @@ Convenciones:
 
 - Migración: `036_rpc_upsert_agenda_config_firmas.sql`.
 - Tests: `supabase/tests/rpc_upsert_agenda_config_firmas.sql` (20 pruebas).
-- UI / `DATA_MODE` fuera de alcance P3P.1A.
+- UI Mesa: `AgendaFirmasWeeklySupabaseSection` + `SupabaseAgendaFirmasConfigRepo` (P3P.1B).
+- Booking asesor fuera de alcance P3P.1B (P3P.2).
 
 ---
 

@@ -1,5 +1,19 @@
 # Devlog
 
+## 2026-06-25 - P3P.1B: UI Cynthia agenda firmas Supabase
+
+### Decisión
+
+- Repo `SupabaseAgendaFirmasConfigRepo`: lectura `agenda_config kind='firmas'` + RPC `upsert_agenda_config_firmas`; reutiliza `map-agenda-config` de biométricos (mismo modelo semanal).
+- `AgendaFirmasWeeklySupabaseSection` espejo de biométricos; warnings en UI.
+- `AgendaBiometricosConfigPanel`: en `DATA_MODE=supabase` muestra bloques A/B Supabase y oculta mock firmas (`agenda_firmas_config_v1`).
+- Sin booking asesor firmas (P3P.2); sin migraciones ni Cloud schema.
+
+### Archivos
+
+- `src/domain/agenda-firmas/*`
+- `AgendaFirmasWeeklySupabaseSection.tsx`, `AgendaBiometricosConfigPanel.tsx`
+
 ## 2026-06-25 - P3P.1A: RPC upsert agenda firmas (local)
 
 ### Decisión
