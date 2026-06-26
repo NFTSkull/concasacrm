@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { Button } from "@/components/ui/Button";
 import {
@@ -25,6 +25,30 @@ import {
 } from "@/lib/adminDashboardStats";
 import { ETAPAS_LABELS } from "@/app/mesa-control/mockData";
 import { isDataModeSupabase } from "@/lib/dataMode";
+import { formatMontoMX } from "@/lib/monto";
+
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  const raw = String(value).replace(/"/g, '""');
+  return `"${raw}"`;
+}
+
+function exportRowsToCsv(filename: string, headers: string[], rows: Array<Array<unknown>>) {
+  const csvLines = [
+    headers.map((h) => csvCell(h)).join(","),
+    ...rows.map((row) => row.map((v) => csvCell(v)).join(",")),
+  ];
+  const csv = `\uFEFF${csvLines.join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 interface AdminPrecalMock {
   id: string;
@@ -182,6 +206,7 @@ export default function AdminDashboardPage() {
   const [daySelected, setDaySelected] = useState<string>(getTodayYMD());
   const [page, setPage] = useState(1);
   const [dayPage, setDayPage] = useState(1);
+  const [dayRowsExporting, setDayRowsExporting] = useState(false);
 
   const mockList = useMemo(
     () => expedientesMock.map(mapExpedienteToAdminPrecal),
@@ -308,6 +333,67 @@ export default function AdminDashboardPage() {
     () => computeDayKpis(daySelected, filteredList),
     [daySelected, filteredList],
   );
+
+  const exportDayRows = useCallback(() => {
+    setDayRowsExporting(true);
+    try {
+      const headers = [
+        "Fecha",
+        "Programa",
+        "NSS",
+        "Cliente",
+        "Telefono",
+        "Asesor",
+        "Decision",
+        "Monto aprobado",
+        "Notas",
+      ];
+      const rows = dayList.map((p) => [
+        formatDateTimeMx(p.createdAt),
+        p.programa,
+        p.nss,
+        p.cliente_nombre ?? "",
+        p.telefono_cliente ?? "",
+        p.asesorId ?? "",
+        getDecisionLabel(p.decision),
+        p.decision === "no_cumple" || p.monto_aprobado == null
+          ? ""
+          : p.monto_aprobado,
+        p.notas_revision?.trim() || "",
+      ]);
+      exportRowsToCsv(`admin-vista-dia-${daySelected}.csv`, headers, rows);
+    } finally {
+      setDayRowsExporting(false);
+    }
+  }, [dayList, daySelected]);
+
+  const exportMainTable = useCallback(() => {
+    const headers = [
+      "Fecha",
+      "Cliente",
+      "Telefono",
+      "Programa",
+      "Asesor",
+      "Decision",
+      "Etapa",
+      "Subestado",
+      "Cita",
+      "Ultima actualizacion",
+    ];
+    const rows = filteredList.map((p) => [
+      formatDateTimeMx(p.createdAt),
+      p.cliente_nombre ?? "",
+      p.telefono_cliente ?? "",
+      p.programa,
+      p.asesorId ?? "",
+      getDecisionLabel(p.decision),
+      p.etapaActual ?? "",
+      subestadoOperativoLabel(p.subestadoOperativo),
+      p.fechaCita ?? "",
+      p.updatedAtOperativo ? formatDateTimeMx(p.updatedAtOperativo) : "",
+    ]);
+    exportRowsToCsv("admin-expedientes-filtrados.csv", headers, rows);
+  }, [filteredList]);
 
   if (currentUser === undefined) {
     return (
@@ -788,10 +874,19 @@ export default function AdminDashboardPage() {
                 className="rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
-            <p className="text-xs text-gray-500">
-              Mostrando {dayPagedList.length} de {dayList.length} registros del
-              día.
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs text-gray-500">
+                Mostrando {dayPagedList.length} de {dayList.length} registros del
+                día.
+              </p>
+              <Button
+                variant="outline"
+                onClick={exportDayRows}
+                disabled={dayList.length === 0 || dayRowsExporting}
+              >
+                {dayRowsExporting ? "Exportando..." : "Descargar CSV (día)"}
+              </Button>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -869,7 +964,7 @@ export default function AdminDashboardPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-600">
                         {p.monto_aprobado != null
-                          ? `$${p.monto_aprobado.toLocaleString()}`
+                          ? formatMontoMX(p.monto_aprobado)
                           : "—"}
                       </td>
                       <td className="max-w-[200px] px-3 py-2 text-sm text-gray-600">
@@ -910,15 +1005,26 @@ export default function AdminDashboardPage() {
         {/* Filtros operativos + tabla principal */}
         <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
-            <h2 className="text-sm font-semibold text-gray-900">
-              Todas las precalificaciones{dataSupabase ? "" : " (mock)"}
-            </h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Total: {filteredList.length} · Página {page} de {totalPages}
-            </p>
-            {listError ? (
-              <p className="mt-2 text-xs text-red-600">{listError}</p>
-            ) : null}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Todas las precalificaciones{dataSupabase ? "" : " (mock)"}
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Total: {filteredList.length} · Página {page} de {totalPages}
+                </p>
+                {listError ? (
+                  <p className="mt-2 text-xs text-red-600">{listError}</p>
+                ) : null}
+              </div>
+              <Button
+                variant="outline"
+                onClick={exportMainTable}
+                disabled={filteredList.length === 0}
+              >
+                Descargar CSV (tabla)
+              </Button>
+            </div>
           </div>
           <div className="border-b border-gray-100 px-4 py-3">
             <div className="flex flex-wrap items-end gap-4">

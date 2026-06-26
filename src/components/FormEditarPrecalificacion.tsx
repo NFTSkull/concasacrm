@@ -10,12 +10,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { NotesFieldWithSuggestions } from "@/components/NotesFieldWithSuggestions";
 import { SeguimientoOperativoMock } from "@/components/seguimiento/SeguimientoOperativoMock";
+import { parseMontoAprobado } from "@/lib/monto";
 
 function computeDecision(montoStr: string, notasStr: string): Decision {
-  const montoTrim = montoStr.trim();
   const notasTrim = (notasStr ?? "").trim();
-  const num = montoTrim === "" ? null : Number(montoTrim);
-  const hasMonto = num !== null && !Number.isNaN(num) && num >= 0;
+  const num = parseMontoAprobado(montoStr);
+  const hasMonto = num !== null && num >= 0;
   if (hasMonto) return "aprobado";
   if (notasTrim.length > 0) return "no_cumple";
   return "pendiente";
@@ -64,9 +64,14 @@ export function FormEditarPrecalificacion({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const num = monto_aprobado.trim() === "" ? null : Number(monto_aprobado);
-    if (num !== null && (Number.isNaN(num) || num < 0)) return;
+    const raw = monto_aprobado;
+    const num = parseMontoAprobado(raw);
+    if (raw.trim() !== "" && (num === null || num < 0)) return;
     try {
+      console.log("[form] monto_aprobado before update", {
+        rawInput: raw,
+        parsed: parseMontoAprobado(raw),
+      });
       await repo.update(id, {
         decision,
         monto_aprobado: num,
@@ -138,7 +143,8 @@ export function FormEditarPrecalificacion({
           <div className="flex flex-col gap-4">
             <Input
               name="monto_aprobado"
-              type="number"
+              type="text"
+              inputMode="decimal"
               label="Monto aprobado"
               placeholder="Ej. 500000"
               min={0}

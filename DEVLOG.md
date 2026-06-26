@@ -1,5 +1,21 @@
 # Devlog
 
+## 2026-06-25 - Merge origin/main en p3-supabase-connection
+
+### Decisión
+
+- Integrar 13 commits de `main` (monto_aprobado, decimales, locale es-MX, CSV admin) sin tocar flujo Supabase 1→10.
+- Admin P3 conserva dashboard por expedientes; CSV exporta `dayList` / `filteredList` (no query directa a `precalificaciones` como en main legacy).
+- `precalificaciones/supabase.repo.ts` eliminado (rama P3 usa mock store); `lib/monto.ts` unifica parseo/formato.
+- `/revisor` mantiene redirect a `/editor` (P2B.1).
+
+### Archivos tocados en merge
+
+- `src/lib/monto.ts` (desde main)
+- `src/app/admin/page.tsx` (+ CSV, formatMontoMX)
+- `src/app/asesor/page.tsx` (formatMontoMX)
+- `src/components/FormEditarPrecalificacion.tsx` (parseMontoAprobado)
+
 ## 2026-06-25 - P3P.3: Mesa avance 9→10 cita firma Supabase
 
 ### Decisión
@@ -1984,3 +2000,16 @@
   - bloqueo de avance en etapa 1 si documentos no estan todos `validado`;
   - bloqueo de envio desde asesor cuando haya faltantes o rechazados;
   - visibilidad de estatus documental para asesor tambien despues de enviado a mesa.
+
+## 2026-05-21 - Exportacion admin a Excel (CSV)
+
+- Objetivo: permitir descarga de la informacion visible en la vista admin sin alterar flujos existentes.
+- Decision: se implemento descarga en formato CSV con BOM UTF-8 para compatibilidad con Excel.
+- Alcance:
+  - Boton "Descargar CSV (dia)" en la seccion "Vista del dia".
+  - Boton "Descargar CSV (tabla)" en la seccion "Todas las precalificaciones".
+  - Exporta datos visibles, no modifica DB ni permisos, y mantiene consultas de solo lectura.
+- Ajuste posterior:
+  - Cuando hay filtros "Desde/Hasta", el boton exporta todo el rango filtrado y no solo las filas de la pagina actual.
+  - El texto del boton cambia a "Descargar CSV (rango)" para reflejar el comportamiento.
+- Riesgo mitigado: no se tocaron rutas de asesor/revisor ni logica de creacion/edicion.

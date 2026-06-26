@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Merge `origin/main` (2026-06-25):** exportación CSV admin (vista día + tabla filtrada) sobre listado de expedientes; `formatMontoMX` / `parseMontoAprobado` con locale `es-MX` y decimales; sin cambios Cloud ni migraciones.
+
 - **P3P.3 — Mesa ve cita firma y avanza 9→10 (Supabase, local):** `MesaCitaFirmasResumenSection` + panel `MESA_AVANCE_OPERATIVO_9A10_COPY`; gates `deriveAvanceOperativo9a10View`; RPC `avanzar_etapa_operativa`; sin migraciones ni mock.
 
 - **P3P.2 — Asesor agenda firma etapa 9 Supabase (local):** `AgendaFirmasSupabaseCard` + `SupabaseAgendaFirmasBookingRepo`; disponibilidad semanal real, RPC `book_firmas`/`cancel_firmas`/`reagendar_firmas`; sin avance 9→10 ni migraciones.
@@ -298,3 +300,9 @@
 - En seguimiento operativo, la etapa 1 (Integracion) no puede avanzar si los 4 documentos no estan en estatus `validado`.
 - En asesor, al estar enviado a mesa se mantiene una vista compacta de estatus documental (faltante/subido/validado/rechazado, comentario y acciones de ver/descargar).
 - Se mantiene la persistencia local en IndexedDB y sincronizacion via evento `expediente_archivos_updated`.
+
+## 2026-05-21
+
+- Admin: se agrego exportacion CSV compatible con Excel en la vista de admin.
+- Se puede descargar la tabla de "Vista del dia" y la tabla de "Todas las precalificaciones" respetando filtros visibles.
+- Admin: en "Vista del dia" la exportacion ahora descarga todo el rango filtrado por Desde/Hasta (no solo la pagina actual).

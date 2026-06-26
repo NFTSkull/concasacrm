@@ -28,6 +28,7 @@ import {
   subestadoOperativoBadgeClass,
   subestadoOperativoLabel,
 } from "@/lib/subestadoOperativoUi";
+import { formatMontoMX } from "@/lib/monto";
 
 function documentacionColumnaBadgeClass(c?: EstadoDocumentacionColumnaAsesor): string {
   if (c === "completos") {
@@ -811,7 +812,7 @@ export default function AsesorDashboardPage() {
                         decision === "no_cumple"
                           ? "—"
                           : decision === "aprobado" && p.monto_aprobado != null
-                            ? `$${p.monto_aprobado.toLocaleString()}`
+                            ? formatMontoMX(p.monto_aprobado)
                             : "—";
                       const etapaDisplay = etapaActualToTexto(p.etapaActual);
                       const subestadoDisplay =
