@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { AgendaBiometricosCard } from "@/components/asesor/AgendaBiometricosCard";
 import { AgendaBiometricosSupabaseCard } from "@/components/asesor/AgendaBiometricosSupabaseCard";
+import { AgendaFirmasSupabaseCard } from "@/components/asesor/AgendaFirmasSupabaseCard";
 import { RetencionAcuseAvisoSupabaseCard } from "@/components/asesor/RetencionAcuseAvisoSupabaseCard";
 import { AsesorIntegracionDocsUpload } from "@/components/asesor/AsesorIntegracionDocsUpload";
 import { AsesorSeguimientoOperativo } from "@/components/asesor/AsesorSeguimientoOperativo";
@@ -906,6 +907,17 @@ export default function AsesorExpedientePage() {
             operativo?.etapaActual === 4 &&
             precal?.id ? (
               <AgendaBiometricosSupabaseCard
+                expedienteId={String(precal.id)}
+                etapaActual={operativo?.etapaActual}
+                fechaCita={operativo?.fechaCita}
+                onUpdated={() => void loadExpediente()}
+              />
+            ) : null}
+            {canMountAgendaBiometricosUI() &&
+            operativo?.submittedToMesa &&
+            operativo?.etapaActual === 9 &&
+            precal?.id ? (
+              <AgendaFirmasSupabaseCard
                 expedienteId={String(precal.id)}
                 etapaActual={operativo?.etapaActual}
                 fechaCita={operativo?.fechaCita}

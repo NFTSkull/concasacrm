@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-06-25 - P3P.2: Asesor agenda firma etapa 9 Supabase
+
+### Decisión
+
+- Espejo de biométricos P3M.2/P3M.4: `SupabaseAgendaFirmasBookingRepo` + `AgendaFirmasSupabaseCard`.
+- Disponibilidad vía `computeWeeklySlotAvailability` sobre `agenda_config kind='firmas'` y bookings RLS.
+- RPC `book_firmas` actualiza `fecha_cita` sin cambiar etapa (`no_etapa_change`).
+- Incluye cancel/reagendar firmas (RPC 022) solo en etapa 9 con booking activo.
+- Mock `AgendaFirmasAsesorCard` intacto en modo mock.
+
+### Archivos
+
+- `src/domain/agenda-firmas/supabase-booking.repo.ts`, RPC error mappers, `AgendaFirmasSupabaseCard.tsx`
+- `src/app/asesor/expediente/[id]/page.tsx`
+
 ## 2026-06-25 - P3P.1B: UI Cynthia agenda firmas Supabase
 
 ### Decisión

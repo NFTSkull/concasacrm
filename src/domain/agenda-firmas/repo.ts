@@ -27,3 +27,75 @@ export interface AgendaFirmasConfigRepo {
   getFirmasConfig(): Promise<AgendaFirmasConfigRecord | null>;
   upsertFirmasConfig(config: AgendaFirmasWeeklyConfig): Promise<UpsertAgendaFirmasConfigResult>;
 }
+
+export type AgendaFirmasBookedSlot = Readonly<{
+  bookingDate: string;
+  bookingTime: string;
+  locationId: string;
+}>;
+
+export type AgendaFirmasActiveBooking = Readonly<{
+  id: string;
+  expedienteId: string;
+  bookingDate: string;
+  bookingTime: string;
+  locationId: string;
+  status: "booked";
+  note: string | null;
+}>;
+
+export type BookFirmasResult = Readonly<{
+  ok: true;
+  bookingId: string;
+  expedienteId: string;
+  scheduledAt: string;
+  bookingDate: string;
+  bookingTime: string;
+  locationId: string;
+  etapaActual: number;
+}>;
+
+export type CancelFirmasResult = Readonly<{
+  ok: true;
+  expedienteId: string;
+  bookingId: string;
+  status: "cancelled";
+  etapaActual: number;
+}>;
+
+export type ReagendarFirmasResult = Readonly<{
+  ok: true;
+  expedienteId: string;
+  bookingAnteriorId: string;
+  bookingNuevoId: string;
+  scheduledAt: string;
+  status: "booked";
+  kind: "firmas";
+  etapaActual: number;
+}>;
+
+export interface AgendaFirmasBookingRepo {
+  getFirmasConfig(): Promise<AgendaFirmasConfigRecord | null>;
+  listBookedSlots(params: {
+    fromDate: string;
+    toDate: string;
+    locationId?: string;
+  }): Promise<readonly AgendaFirmasBookedSlot[]>;
+  getActiveBooking(expedienteId: string): Promise<AgendaFirmasActiveBooking | null>;
+  bookFirmas(params: {
+    expedienteId: string;
+    scheduledAt: string;
+    locationId: string;
+    note?: string | null;
+  }): Promise<BookFirmasResult>;
+  cancelFirmas(params: {
+    expedienteId: string;
+    motivo?: string | null;
+  }): Promise<CancelFirmasResult>;
+  reagendarFirmas(params: {
+    expedienteId: string;
+    scheduledAt: string;
+    locationId: string;
+    note?: string | null;
+  }): Promise<ReagendarFirmasResult>;
+}

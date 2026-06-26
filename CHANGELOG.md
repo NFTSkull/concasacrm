@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **P3P.2 — Asesor agenda firma etapa 9 Supabase (local):** `AgendaFirmasSupabaseCard` + `SupabaseAgendaFirmasBookingRepo`; disponibilidad semanal real, RPC `book_firmas`/`cancel_firmas`/`reagendar_firmas`; sin avance 9→10 ni migraciones.
+
 - **P3P.1B — UI Cynthia agenda firmas Supabase (local):** `SupabaseAgendaFirmasConfigRepo`, `AgendaFirmasWeeklySupabaseSection`, wire en panel Mesa; oculta mock firmas en `DATA_MODE=supabase`; sin booking asesor ni migraciones.
 
 - **P3P.1A — RPC upsert agenda firmas (local):** migración `036_rpc_upsert_agenda_config_firmas.sql`; `upsert_agenda_config_firmas` con validación semanal, normalización legacy, warnings no bloqueantes y `action_log` `agenda.firmas.config_upsert`; roles `mesa_admin`/`super_admin`; 20 tests SQL; sin UI ni Cloud.

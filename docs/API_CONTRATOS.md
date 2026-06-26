@@ -488,9 +488,7 @@ Adicional:
 - Persiste `agenda_bookings` (`kind = firmas`) + `expedientes.fecha_cita`.
 - **NO** cambia `etapa_actual`.
 
-### Pendiente (bloques posteriores)
-
-- UI / `DATA_MODE` fuera de alcance.
+- UI asesor: `AgendaFirmasSupabaseCard` en etapa 9 (P3P.2). Avance 9→10: P3P.3.
 
 ---
 
