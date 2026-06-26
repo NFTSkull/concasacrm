@@ -350,6 +350,66 @@ Convenciones:
 
 ---
 
+## 8.2 Configurar disponibilidad firmas (Mesa) — P3P.1A
+
+**Operación:** `PUT /agenda/firmas/config` · RPC `upsert_agenda_config_firmas`
+
+### Request
+
+```json
+{
+  "config": {
+    "enabled": true,
+    "timezone": "America/Monterrey",
+    "min_lead_hours": 24,
+    "allowed_weekdays": [1, 2, 3, 4, 5],
+    "slots": ["09:00", "10:00", "11:00"],
+    "locations": {
+      "mty-centro": {
+        "enabled": true,
+        "capacity_per_slot": 3,
+        "label": "Centro MTY"
+      }
+    }
+  },
+  "organization_id": "uuid?"
+}
+```
+
+`organization_id` opcional: default = org del actor. Solo `super_admin` puede apuntar a otra org.
+
+### Reglas
+
+- **Escritura:** `mesa_admin`, `super_admin` (Cynthia opera como `mesa_admin`).
+- **Bloqueados:** `mesa_interno`, `mesa_externo`, `asesor`, `editor`.
+- `kind = firmas` fijo; tabla `agenda_config`.
+- Modelo **semanal** canónico (misma estructura que biométricos §8.1).
+- Preprocesa con `agenda_firmas_normalize_config` (legacy `minLeadDays` → `min_lead_hours`).
+- Validación estricta de claves permitidas; `locations` no vacío si `enabled=true`; al menos una sede `enabled=true`.
+- Si el upsert **reduce** disponibilidad y hay bookings futuros `firmas` con `status='booked'`: **no bloquea**; retorna `warnings[]`; registra `action_log` → `agenda.firmas.config_upsert`; **no** cancela bookings.
+
+### Response
+
+```json
+{
+  "ok": true,
+  "agenda_config_id": "uuid",
+  "organization_id": "uuid",
+  "kind": "firmas",
+  "config": { },
+  "created": true,
+  "updated_at": "ISO-8601",
+  "updated_by": "uuid",
+  "warnings": []
+}
+```
+
+- Migración: `036_rpc_upsert_agenda_config_firmas.sql`.
+- Tests: `supabase/tests/rpc_upsert_agenda_config_firmas.sql` (20 pruebas).
+- UI / `DATA_MODE` fuera de alcance P3P.1A.
+
+---
+
 ## 9. Enviar retención a Mesa (asesor)
 
 **Operación:** `POST /expedientes/{id}/retencion/enviar` · RPC `enviar_retencion_mesa`

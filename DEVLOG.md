@@ -1,5 +1,23 @@
 # Devlog
 
+## 2026-06-25 - P3P.1A: RPC upsert agenda firmas (local)
+
+### Decisión
+
+- Espejo de `upsert_agenda_config_biometricos` (034) con `kind='firmas'` fijo.
+- Preproceso `agenda_firmas_normalize_config` antes de validar para aceptar legacy `minLeadDays`.
+- Warnings vía `agenda_firmas_config_upsert_warnings` + `agenda_firmas_count_slot_booked`; no cancela bookings.
+- Roles escritura: solo `mesa_admin`, `super_admin`; bloqueados `mesa_interno`, `mesa_externo`, `asesor`, `editor`.
+- Auditoría: `action_log` → `agenda.firmas.config_upsert`.
+- Migración `036_*` (035 reservada en Cloud para retención).
+- Sin UI Cynthia ni repo TS en P3P.1A.
+
+### Archivos
+
+- `supabase/migrations/036_rpc_upsert_agenda_config_firmas.sql`
+- `supabase/tests/rpc_upsert_agenda_config_firmas.sql`
+- `scripts/test-sql.sh`, `docs/API_CONTRATOS.md` §8.2
+
 ## 2026-06-25 - P3N.4: Mesa avance 8→9 Supabase
 
 ### Decisión

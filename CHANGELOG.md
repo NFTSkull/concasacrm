@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **P3P.1A — RPC upsert agenda firmas (local):** migración `036_rpc_upsert_agenda_config_firmas.sql`; `upsert_agenda_config_firmas` con validación semanal, normalización legacy, warnings no bloqueantes y `action_log` `agenda.firmas.config_upsert`; roles `mesa_admin`/`super_admin`; 20 tests SQL; sin UI ni Cloud.
+
 - **P3N.4 — Mesa avance 8→9 retención→agenda firma (Supabase):** panel «Avanzar a etapa 9» con gates espejo backend (`cliente_datos` validado, retención enviada/validada); RPC `avanzar_etapa_operativa`; sin firmas ni migraciones.
 
 - **P3O.3 — Retención etapa 8 Mesa (Supabase):** sección «Acuse / Aviso de retención» en detalle Mesa; preview/validar/rechazar docs `retencion_*` vía `update_documento_revision`; hook `correccion_requerida` en `retencion_envios`; sin botón 8→9.
