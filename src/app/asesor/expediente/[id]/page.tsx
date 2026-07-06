@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useSessionRepo } from "@/domain/session";
 import { AgendaBiometricosCard } from "@/components/asesor/AgendaBiometricosCard";
 import { AgendaBiometricosSupabaseCard } from "@/components/asesor/AgendaBiometricosSupabaseCard";
@@ -47,6 +47,12 @@ import {
   type ExpedienteClienteDatos,
 } from "@/domain/expediente-cliente-datos";
 import { getClienteDatosCamposFaltantes } from "@/lib/clienteDatosFormCompleteness";
+import {
+  isDraftNewerThanOfficial,
+  readClienteDatosDraft,
+  removeClienteDatosDraft,
+  writeClienteDatosDraft,
+} from "@/lib/clienteDatosDraftLocalStorage";
 
 type ClienteDatosFormState = ExpedienteClienteDatos["datos"];
 
@@ -166,6 +172,14 @@ export default function AsesorExpedientePage() {
   const [clienteDatosLoading, setClienteDatosLoading] = useState(false);
   const [clienteDatosSaved, setClienteDatosSaved] = useState(false);
   const [clienteDatosError, setClienteDatosError] = useState<string | null>(null);
+  const [clienteDatosLocalDraftSaved, setClienteDatosLocalDraftSaved] =
+    useState(false);
+  const [clienteDatosLocalDraftRestored, setClienteDatosLocalDraftRestored] =
+    useState(false);
+  const [clienteDatosHasUnsavedChanges, setClienteDatosHasUnsavedChanges] =
+    useState(false);
+  const hasUserEditedClienteDatos = useRef(false);
+  const suppressDraftAutosave = useRef(false);
   const [editorDecision, setEditorDecision] = useState<
     ExpedienteMock["editorDecision"] | null
   >(null);
@@ -213,6 +227,86 @@ export default function AsesorExpedientePage() {
       asesorPuedeIntegrarTrasMontoRevisor(editorDecision),
     [editorDecision],
   );
+
+  const handleClienteDatosChange = useCallback(
+    (value: SetStateAction<ClienteDatosFormState>) => {
+      hasUserEditedClienteDatos.current = true;
+      setClienteDatosHasUnsavedChanges(true);
+      setClienteDatos(value);
+    },
+    [],
+  );
+
+  const clearClienteDatosLocalDraft = useCallback(
+    (expedienteId: string) => {
+      if (currentUser?.email) {
+        removeClienteDatosDraft(currentUser.email, expedienteId);
+      }
+      setClienteDatosLocalDraftSaved(false);
+      setClienteDatosLocalDraftRestored(false);
+      setClienteDatosHasUnsavedChanges(false);
+      hasUserEditedClienteDatos.current = false;
+    },
+    [currentUser?.email],
+  );
+
+  const tryRestoreClienteDatosDraft = useCallback(
+    (expedienteId: string, found: ExpedienteClienteDatos | null) => {
+      const userEmail = currentUser?.email;
+      if (!userEmail) return;
+
+      const draft = readClienteDatosDraft(userEmail, expedienteId);
+      if (!draft) return;
+
+      if (
+        !isDraftNewerThanOfficial(draft.updatedAt, found?.updatedAt ?? null)
+      ) {
+        removeClienteDatosDraft(userEmail, expedienteId);
+        return;
+      }
+
+      suppressDraftAutosave.current = true;
+
+      let shouldRestore = false;
+      if (!found) {
+        shouldRestore = true;
+      } else {
+        shouldRestore = window.confirm(
+          "Tienes un borrador sin guardar. ¿Quieres recuperarlo?",
+        );
+      }
+
+      if (shouldRestore) {
+        setClienteDatos(draft.clienteDatos);
+        setClienteDatosLocalDraftSaved(true);
+        setClienteDatosLocalDraftRestored(true);
+        setClienteDatosHasUnsavedChanges(false);
+        hasUserEditedClienteDatos.current = false;
+      }
+
+      queueMicrotask(() => {
+        suppressDraftAutosave.current = false;
+      });
+    },
+    [currentUser?.email],
+  );
+
+  useEffect(() => {
+    if (suppressDraftAutosave.current) return;
+    if (!hasUserEditedClienteDatos.current) return;
+    if (!precal?.id || !currentUser?.email) return;
+
+    const timer = window.setTimeout(() => {
+      writeClienteDatosDraft(
+        currentUser.email,
+        String(precal.id),
+        clienteDatos,
+      );
+      setClienteDatosLocalDraftSaved(true);
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [clienteDatos, currentUser?.email, precal?.id]);
 
   const camposFaltantesClienteDatos = useMemo(
     () => getClienteDatosCamposFaltantes(clienteDatos),
@@ -440,6 +534,11 @@ export default function AsesorExpedientePage() {
 
     const applyFound = (found: ExpedienteClienteDatos | null) => {
       if (cancelled) return;
+      hasUserEditedClienteDatos.current = false;
+      suppressDraftAutosave.current = true;
+      setClienteDatosLocalDraftSaved(false);
+      setClienteDatosLocalDraftRestored(false);
+      setClienteDatosHasUnsavedChanges(false);
       if (!found) {
         setClienteDatos((prev) => ({
           ...prev,
@@ -448,6 +547,10 @@ export default function AsesorExpedientePage() {
           celular: prev.celular || precal.telefono_cliente || "",
         }));
         setClienteDatosMeta(null);
+        tryRestoreClienteDatosDraft(String(precal.id), null);
+        queueMicrotask(() => {
+          suppressDraftAutosave.current = false;
+        });
         return;
       }
       setClienteDatos({
@@ -463,6 +566,10 @@ export default function AsesorExpedientePage() {
         rejectedBy: found.rejectedBy,
         updatedAt: found.updatedAt,
         updatedBy: found.updatedBy,
+      });
+      tryRestoreClienteDatosDraft(String(precal.id), found);
+      queueMicrotask(() => {
+        suppressDraftAutosave.current = false;
       });
     };
 
@@ -519,11 +626,13 @@ export default function AsesorExpedientePage() {
     };
   }, [
     clienteDatosRepo,
+    currentUser?.email,
     dataSupabase,
     precal?.cliente_nombre,
     precal?.id,
     precal?.nss,
     precal?.telefono_cliente,
+    tryRestoreClienteDatosDraft,
   ]);
 
   useEffect(() => {
@@ -603,6 +712,7 @@ export default function AsesorExpedientePage() {
         updatedBy: saved.updatedBy,
       });
       setClienteDatosSaved(true);
+      clearClienteDatosLocalDraft(String(precal.id));
       return { ok: true };
     } catch (err) {
       const message =
@@ -617,6 +727,7 @@ export default function AsesorExpedientePage() {
       setClienteDatosSaving(false);
     }
   }, [
+    clearClienteDatosLocalDraft,
     clienteDatos,
     clienteDatosMeta?.estado,
     clienteDatosRepo,
@@ -773,12 +884,15 @@ export default function AsesorExpedientePage() {
             ) : null}
             <ExpedienteClienteDatosFormSection
               clienteDatos={clienteDatos}
-              setClienteDatos={setClienteDatos}
+              setClienteDatos={handleClienteDatosChange}
               clienteDatosMeta={clienteDatosMeta}
               clienteDatosSaving={clienteDatosSaving}
               clienteDatosLoading={clienteDatosLoading}
               clienteDatosSaved={clienteDatosSaved}
               clienteDatosError={clienteDatosError}
+              localDraftSaved={clienteDatosLocalDraftSaved}
+              localDraftRestored={clienteDatosLocalDraftRestored}
+              hasUnsavedLocalChanges={clienteDatosHasUnsavedChanges}
               camposFaltantes={camposFaltantesClienteDatos}
               puedeIntegrar={puedeIntegrar}
               submittedToMesa={operativo?.submittedToMesa ?? false}
@@ -953,10 +1067,13 @@ export default function AsesorExpedientePage() {
 
             <ExpedienteClienteDatosFormSection
               clienteDatos={clienteDatos}
-              setClienteDatos={setClienteDatos}
+              setClienteDatos={handleClienteDatosChange}
               clienteDatosMeta={clienteDatosMeta}
               clienteDatosSaving={clienteDatosSaving}
               clienteDatosError={clienteDatosError}
+              localDraftSaved={clienteDatosLocalDraftSaved}
+              localDraftRestored={clienteDatosLocalDraftRestored}
+              hasUnsavedLocalChanges={clienteDatosHasUnsavedChanges}
               camposFaltantes={camposFaltantesClienteDatos}
               puedeIntegrar={puedeIntegrar}
               dataSupabase={false}
@@ -1007,6 +1124,7 @@ export default function AsesorExpedientePage() {
                   updatedAt: saved.updatedAt,
                   updatedBy: saved.updatedBy,
                 });
+                clearClienteDatosLocalDraft(String(precal.id));
               } catch (err) {
                 const message =
                   err instanceof Error
