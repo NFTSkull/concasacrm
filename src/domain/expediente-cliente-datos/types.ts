@@ -39,6 +39,8 @@ export type ExpedienteClienteDatos = {
       municipio: string;
       cp: string;
     };
+    /** Nota opcional del asesor visible para Mesa Control (JSON `datos.notaMesa`). */
+    notaMesa?: string;
   };
 
   estado: ExpedienteClienteDatosEstado;

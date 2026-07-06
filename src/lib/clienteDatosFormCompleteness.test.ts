@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getClienteDatosCamposFaltantes,
+  getNotaMesaLongitudError,
   type ClienteDatosFormShape,
 } from "./clienteDatosFormCompleteness";
 
@@ -67,4 +68,21 @@ test("getClienteDatosCamposFaltantes: trim — solo espacios cuenta como vacío"
 test("getClienteDatosCamposFaltantes: RFC vacío es faltante", () => {
   const sinRfc: ClienteDatosFormShape = { ...completo, rfc: "" };
   assert.ok(getClienteDatosCamposFaltantes(sinRfc).includes("RFC"));
+});
+
+test("getClienteDatosCamposFaltantes: notaMesa vacía no es faltante", () => {
+  assert.deepEqual(getClienteDatosCamposFaltantes({ ...completo, notaMesa: "" }), []);
+  assert.deepEqual(
+    getClienteDatosCamposFaltantes({ ...completo, notaMesa: undefined }),
+    [],
+  );
+});
+
+test("getNotaMesaLongitudError: vacía no genera error", () => {
+  assert.equal(getNotaMesaLongitudError(""), null);
+  assert.equal(getNotaMesaLongitudError(undefined), null);
+});
+
+test("getNotaMesaLongitudError: supera límite", () => {
+  assert.ok(getNotaMesaLongitudError("x".repeat(1001)));
 });

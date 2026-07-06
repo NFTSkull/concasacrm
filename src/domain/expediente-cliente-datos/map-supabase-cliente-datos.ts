@@ -133,6 +133,7 @@ export function mapSupabaseRowToExpedienteClienteDatos(
       referencias: mapReferencias(datos, row.referencias),
       beneficiario: mapBeneficiario(datos.beneficiario),
       direccionEmpresa: mapDireccionEmpresa(datos.direccionEmpresa),
+      notaMesa: asString(datos.notaMesa) || undefined,
     },
     estado: normalizeEstado(row.estado),
     imagenes: mapImagenes(row.imagenes),
@@ -192,6 +193,9 @@ export function buildSaveClienteDatosRpcPayload(
         municipio: datos.direccionEmpresa.municipio.trim(),
         cp: datos.direccionEmpresa.cp.trim(),
       },
+      ...(datos.notaMesa?.trim()
+        ? { notaMesa: datos.notaMesa.trim() }
+        : {}),
     },
     p_estado: "completo",
   };

@@ -2,6 +2,19 @@ import type { ExpedienteClienteDatos } from "@/domain/expediente-cliente-datos";
 
 export type ClienteDatosFormShape = ExpedienteClienteDatos["datos"];
 
+export const CLIENTE_DATOS_NOTA_MESA_MAX_LENGTH = 1000;
+
+/** Error si la nota opcional supera el límite; vacía no genera error. */
+export function getNotaMesaLongitudError(
+  nota: string | undefined,
+): string | null {
+  const len = (nota ?? "").length;
+  if (len > CLIENTE_DATOS_NOTA_MESA_MAX_LENGTH) {
+    return `La nota para Mesa no puede superar ${CLIENTE_DATOS_NOTA_MESA_MAX_LENGTH} caracteres.`;
+  }
+  return null;
+}
+
 /** Etiquetas legibles de campos obligatorios vacíos (trim). */
 export function getClienteDatosCamposFaltantes(d: ClienteDatosFormShape): string[] {
   const missing: string[] = [];

@@ -46,7 +46,10 @@ import {
   useExpedienteClienteDatosRepo,
   type ExpedienteClienteDatos,
 } from "@/domain/expediente-cliente-datos";
-import { getClienteDatosCamposFaltantes } from "@/lib/clienteDatosFormCompleteness";
+import {
+  getClienteDatosCamposFaltantes,
+  getNotaMesaLongitudError,
+} from "@/lib/clienteDatosFormCompleteness";
 import {
   isDraftNewerThanOfficial,
   readClienteDatosDraft,
@@ -72,6 +75,7 @@ const EMPTY_CLIENTE_DATOS: ClienteDatosFormState = {
   ],
   beneficiario: { nombre: "", parentesco: "" },
   direccionEmpresa: { calle: "", colonia: "", municipio: "", cp: "" },
+  notaMesa: "",
 };
 
 interface PrecalificacionMock {
@@ -673,6 +677,11 @@ export default function AsesorExpedientePage() {
     if (!puedeIntegrar) {
       window.alert(MSJ_ESPERA_MONTO_REVISOR);
       return { ok: false, message: MSJ_ESPERA_MONTO_REVISOR };
+    }
+    const notaError = getNotaMesaLongitudError(clienteDatos.notaMesa);
+    if (notaError) {
+      setClienteDatosError(notaError);
+      return { ok: false, message: notaError };
     }
     if (dataSupabase) {
       const camposFaltantes = getClienteDatosCamposFaltantes(clienteDatos);

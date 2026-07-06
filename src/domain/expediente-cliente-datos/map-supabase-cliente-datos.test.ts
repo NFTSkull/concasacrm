@@ -28,6 +28,7 @@ describe("mapSupabaseRowToExpedienteClienteDatos", () => {
           municipio: "CDMX",
           cp: "01000",
         },
+        notaMesa: "Cliente prefiere cita matutina.",
       },
       referencias: [
         { nombre: "Ref 1", telefono: "5511111111" },
@@ -41,6 +42,7 @@ describe("mapSupabaseRowToExpedienteClienteDatos", () => {
     assert.equal(domain.datos.nombreCliente, "Marcela");
     assert.equal(domain.datos.referencias[0]?.celular, "5511111111");
     assert.equal(domain.datos.referencias[1]?.celular, "5522222222");
+    assert.equal(domain.datos.notaMesa, "Cliente prefiere cita matutina.");
     assert.equal(domain.updatedBy, "asesor@concasa.mx");
   });
 });
@@ -68,6 +70,7 @@ describe("buildSaveClienteDatosRpcPayload", () => {
         municipio: "CDMX",
         cp: "01000",
       },
+      notaMesa: "  Observación Mesa  ",
     });
 
     assert.equal(payload.p_expediente_id, "exp-1");
@@ -79,5 +82,34 @@ describe("buildSaveClienteDatosRpcPayload", () => {
       telefono: "5511111111",
     });
     assert.equal(payload.p_datos.nombreCliente, "Marcela");
+    assert.equal(payload.p_datos.notaMesa, "Observación Mesa");
+  });
+
+  it("omite notaMesa vacía del payload RPC", () => {
+    const payload = buildSaveClienteDatosRpcPayload("exp-1", {
+      nombreCliente: "Marcela",
+      nss: "12345678901",
+      curp: "CURP123",
+      rfc: "xaxx010101000",
+      celular: "5512345678",
+      correo: "marcela@concasa.mx",
+      empresa: "Empresa SA",
+      registroPatronal: "RP-1",
+      telefonoEmpresa: "5599999999",
+      referencias: [
+        { nombre: "Ref 1", celular: "5511111111" },
+        { nombre: "Ref 2", celular: "5522222222" },
+      ],
+      beneficiario: { nombre: "Ben", parentesco: "Hija" },
+      direccionEmpresa: {
+        calle: "Calle 1",
+        colonia: "Centro",
+        municipio: "CDMX",
+        cp: "01000",
+      },
+      notaMesa: "   ",
+    });
+
+    assert.equal("notaMesa" in payload.p_datos, false);
   });
 });
