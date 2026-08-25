@@ -616,3 +616,31 @@ Adicional:
 - [ ] Zod schemas por RPC
 - [ ] OpenAPI o tRPC router
 - [ ] Idempotency keys en envío mesa / retención
+
+---
+
+## 19. P207 — Motivo de corrección en inbox asesor (read-model)
+
+**Operación:** extensión READ-ONLY de `asesor_list_expedientes_page` (Cloud post-migración 161).
+
+### Campos adicionales por ítem
+
+```json
+{
+  "estado_efectivo": "correccion_requerida",
+  "correccion_request_type": "SOLICITUD_DATOS_GENERALES | SOLICITUD_DOCUMENTAL | null",
+  "correccion_request_at": "ISO | null",
+  "correccion_document_kind": "tipo_documento | null"
+}
+```
+
+### Reglas
+
+- Autoridad: episodio P198 vigente (`mesa_cambio_revision_estado_efectivo` / `WAITING_ADVISOR`).
+- `RECHAZO_OPERATIVO_CON_CORRECCION` + WAITING → `rechazado_mesa` (P204-A), no `correccion_requerida`.
+- First paint: copy de corrección desde metadata RPC; enrich de docs/DG solo matiza, nunca deja vacío.
+- Sin N+1 frontend; sin cargar todos los documentos antes del first paint (mantener optimización P203).
+- Helper de presentación: `src/domain/asesor-inbox/correccion-motivo.ts`.
+- Fallback: «Mesa tiene una corrección pendiente. Abre el expediente para revisar el detalle.»
+- Invariante: `COUNT(estado_efectivo = correccion_requerida AND explicación_visible = vacío) = 0`.
+- **No** valida DG/docs, no cierra WAITING, no muta P198.

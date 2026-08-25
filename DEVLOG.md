@@ -1,5 +1,26 @@
 # Devlog
 
+## 2026-08-25 - P207: explicación siempre en correccion_requerida (bloqueador repo)
+
+### Hallazgo (producción vs GitHub)
+
+- Vercel `crmconcasa.vercel.app` (deploy `dpl_6tNpAKtBuSTWqH85UYpUcw7ZKMyG`) tiene inbox paginado, `asesor_inbox_estado_efectivo`, P198 `WAITING_ADVISOR` y copy «Mesa solicita corregir N elemento(s).».
+- GitHub `NFTSkull/concasacrm` `main` (@ `8dae3e1`) se detiene ~P3R / migración 036; **no** contiene fuente P198–P206 ni migración 161.
+- Bug UI confirmado en bundle: si `count` enrich = 0 y `estadoEfectivo = correccion_requerida`, el children del copy es `""` mientras el badge muestra «Necesita corrección» / «Pendiente de corregir» (caso Mauricio).
+
+### Decisión
+
+- Entregar capa de dominio + tests C1–C15 + contrato API/migración stub **sin** mutar negocio.
+- No reconstruir todo el inbox prod desde JS minificado (riesgo de divergencia).
+- Auditoría Cloud C1/C3 **no ejecutada**: sin service role / sesión asesor en este entorno; RPC existe (permission denied anónimo).
+
+### Próximo paso para cerrar P207
+
+1. Publicar en GitHub el árbol fuente alineado a producción (post-161).
+2. Extender `asesor_list_expedientes_page` con `correccion_request_*`.
+3. Cablear `formatAsesorCorreccionInboxCopy` en fila inbox + detalle.
+4. Re-auditar Mauricio/Xavier/global SELECT-only.
+
 ## 2026-06-25 - P3R.0: Mesa Decision UX copy/visibilidad
 
 ### Decisión

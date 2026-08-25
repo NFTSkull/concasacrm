@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **P207 — Motivo de corrección inbox asesor (parcial / bloqueado wire prod):** dominio `asesor-inbox/correccion-motivo` con copy first-paint desde metadata P198 (`correccion_request_type` / `document_kind`), enrich opcional, fallback no vacío; tests C1–C15; contrato API §19; migración `037` como contrato no-op (requiere SQL Cloud post-161). **Bloqueador:** el código P198–P206 y RPC `asesor_list_expedientes_page` están en Vercel/Cloud pero no en este GitHub; sin credenciales Cloud no se auditó Mauricio/global ni se cableó UI/RPC real.
+
 - **P3R.0 — Mesa Decision UX (copy/visibilidad):** botones «Aceptar y avanzar» en transiciones 1→10; «Solicitar corrección» en rechazos reales (integración + retención); aviso en etapas sin rechazo directo; resumen cita firma en etapa 10 (read-only, nota P3Q); ocultar docs integración y datos generales fuera de etapa 1 salvo correcciones/bloqueos; sin migraciones ni backend.
 
 - **Merge `origin/main` (2026-06-25):** exportación CSV admin (vista día + tabla filtrada) sobre listado de expedientes; `formatMontoMX` / `parseMontoAprobado` con locale `es-MX` y decimales; sin cambios Cloud ni migraciones.
