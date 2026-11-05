@@ -17,6 +17,24 @@ App `Vendedor`: `930689976511462` — **no tocar**.
 - SQL propuesto (NO aplicado): `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql` y `docs/sql/WHATSAPP_CONVERSATIONS_PROPOSAL.sql`. Contiene tres tablas para conexiones/conversaciones/mensajes, tabla de inbox durable, RLS y lectura solo del asesor autenticado.
 - No existe todavía conexión Meta OAuth efectiva, intercambio seguro de tokens por asesor, envío Cloud API, historial procesado o números vinculados.
 
+## Actualización: parche recibido de Claude Chrome (05/11/2026)
+
+Se incorporó a la rama aislada el contenido funcional del parche para la **prueba con número Meta**, con algunos ajustes de seguridad adicionales. Esta documentación no implica que esté activado o probado con mensajes reales.
+
+- Migración SQL preparada **sin aplicar**: `supabase/migrations/037_whatsapp_tables.sql`. Sustituye las propuestas anteriores, que quedan como referencia.
+- Diferencia `connection_type=meta_test` y `connection_type=coexistence` con constraint de base de datos: nunca marcar una línea de prueba como Coexistence confirmada.
+- Nuevas tablas de conversaciones, mensajes y lista blanca `whatsapp_verified_test_recipients`.
+- Test local `supabase/tests/rls_whatsapp.sql`, incluido ahora en `npm run test:sql`. No se ha ejecutado todavía contra una base aislada.
+- `POST /api/asesor/whatsapp/send` funciona únicamente si `META_WHATSAPP_SEND_ENABLED=true`, el usuario tiene rol `asesor` y está activo, la conversación le pertenece y el destinatario autorizado coincide con el guardado en la base. Solo permite `meta_test` y destinatarios verificados con consentimiento de uso de prueba. Se niega a enviar desde `coexistence`.
+- La bandeja `/asesor/whatsapp` muestra el cuadro para responder únicamente si `NEXT_PUBLIC_WHATSAPP_SEND_ENABLED=true` y la cuenta seleccionada es `meta_test`.
+- El worker de proyección ahora reconoce líneas `meta_test` sin afirmar falsamente que Coexistence está activa. El resto de eventos sin procesar continúa diferido.
+
+Identificadores de desarrollo comunicados por Claude Chrome: test WABA `1624750772211418`, test phone number ID `1374640222406439`. No son credenciales secretas.
+
+**Variables privadas que faltan:** `META_APP_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `META_WHATSAPP_TEST_ACCESS_TOKEN`. Se configuran directamente en Vercel de forma segura, sin pegarlas en chat, commit, documento ni UI pública.
+
+**Todavía pendiente:** pruebas SQL de dos asesores y de la ruta de envío, verificación del webhook GET/POST, callback alcanzable por Meta con protección acotada, decisión documentada de retención, mapeo del número de test a un asesor de prueba y autorización del destinatario. No activar los cinco interruptores hasta verificar todo, no aplicar la migración a producción sin la aprobación específica del responsable y respaldo.
+
 ## Vercel: configuración realizada, rama de prueba únicamente
 
 Proyecto `concasacrm` (ID `prj_wUFsBaVDibWe7JkY9XLE1Ex2nQ1h`), equipo `team_4fVwJqaPEzdLLUPDJg8Mclf3`.
