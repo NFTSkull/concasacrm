@@ -1,42 +1,46 @@
-# ConCasa CRM — Meta WhatsApp: fase 1 (aislada y NO operativa)
+# ConCasa CRM — Meta WhatsApp / Coexistence: implementación aislada
 
-**App Meta:** ConCasa CRM · App ID `1571877308295610` · Portafolio ConCasa `1643688416959471` · Embedded Signup Configuration ID `1767278267714828`.
+**Meta App:** ConCasa CRM, ID `1571877308295610`. Portafolio ConCasa `1643688416959471`.
+**Embedded Signup Config ID:** `1767278267714828`.
+**Vendedor:** Meta App `930689976511462`, sin modificaciones.
+**Estado de esta rama:** draft — NO fusionada ni desplegada.
 
-## Alcance de esta rama
+## Lo que ya implementa el código
 
-Se agrega `/api/meta/whatsapp/webhook` como Route Handler de Next.js 16 en el CRM **NFTSkull/concasacrm**. No se cambia la UI ni se toca la aplicación Meta **Vendedor**.
+- `GET /api/meta/whatsapp/webhook` verifica el token de handshake y devuelve `hub.challenge` cuando es correcto.
+- `POST` verifica HMAC-SHA256 sobre **bytes originales** usando `X-Hub-Signature-256` y `META_APP_SECRET`.
+- El payload autenticado se guarda en `public.whatsapp_webhook_events` (bandeja server-only) con SHA256 único del cuerpo. Retransmisiones idénticas son idempotentes.
+- El POST solo confirma `200 OK` tras insert exitoso o duplicado. Si falta la tabla/configuración, responde 503.
+- La recepción de eventos está detrás del interruptor de servidor `META_WHATSAPP_INGEST_ENABLED=true` (por defecto desactivado).
+- Se incluye SQL propuesto en `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql`, **todavía no aplicado**.
+- No hay vistas de conversaciones, números conectados ni envío de mensajes. No conectar asesores todavía.
 
-- `GET`: verifica `hub.mode=subscribe`, compara `hub.verify_token` y devuelve exactamente `hub.challenge` (200). Si falta o no coincide, 403.
-- `POST`: exige `X-Hub-Signature-256` (HMAC-SHA256 usando los bytes originales del cuerpo y el App Secret). Rechaza firmas inválidas (401).
-- **La recepción de eventos NO está implementada.** Los POST válidos reciben 503 de forma deliberada: todavía no hay persistencia durable ni procesamiento idempotente. **No conectar números ni activar suscripciones de mensajes reales.**
-- No se ejecutan operaciones de envío, migraciones ni cambios de base de datos.
+## Variables privadas en Vercel
 
-## Variables de entorno (solo servidor, nunca NEXT_PUBLIC_)
+`META_APP_SECRET` — secreto **de la aplicación ConCasa CRM**, nunca Vendedor.
 
-`META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`: token aleatorio inventado por ConCasa para el handshake. Debe coincidir exactamente con el campo Verify Token de Meta.
+`META_WEBHOOK_VERIFY_TOKEN` — token propio generado para el handshake con Meta.
 
-`META_WHATSAPP_APP_SECRET`: App Secret de la aplicación **ConCasa CRM** en Meta for Developers. No reutilizar el de Vendedor.
+`META_WHATSAPP_INGEST_ENABLED` — habilitar solo tras migración y pruebas; dejar ausente o `false` antes.
 
-Ambas variables deben guardarse exclusivamente como secretos del entorno en Vercel. No almacenarlas en GitHub, archivos de ejemplo con valores reales, frontend, ni reportes.
+`SUPABASE_URL` (o la pública `NEXT_PUBLIC_SUPABASE_URL` solo para la URL), `SUPABASE_SERVICE_ROLE_KEY` (servidor exclusivamente).
 
-## Despliegue de prueba y Meta
+Para Embedded Signup en una fase distinta se usarán `META_APP_ID`, `META_EMBEDDED_SIGNUP_CONFIG_ID`, etc. **No enviar app secret ni system user token al navegador**.
 
-1. Ejecutar `npm run typecheck`, `npm run lint`, `npx tsx --test src/domain/whatsapp/metaWebhookSecurity.test.ts`, `npm run build`.
-2. Crear un deployment de prueba con variables correctas, verificar ruta HTTPS y que la protección de preview no impida la llamada de Meta.
-3. Probar GET válido (200 + challenge), GET inválido (403), POST sin firma (401). Un POST firmado devuelve **503 por diseño**.
-4. **No registrar este receptor para entregas reales**, porque un 503 repetido podría agotar la ventana de reintentos de Meta y perder eventos. El GET solo sirve para probar la verificación.
-5. Construir antes de producción: bandeja durable de eventos, deduplicación, control multiasesor, aislamiento/RLS, observabilidad, reintentos, estados, consentimiento y registro seguro de tokens. Diseñar la migración con Supabase CLI y verificar en una base aislada primero.
-6. Cuando el POST pueda almacenar de forma atómica antes de confirmar con 200, probar eventos de Meta en sandbox. Recién entonces evaluar un piloto voluntario de coexistencia.
+## Gates antes de registrar webhook o habilitar número real
 
-## Meta / pendientes externos
+1. Generar migración con Supabase CLI; probar SQL en entorno aislado y revisar permisos/RLS.
+2. Ejecutar `npm run typecheck`, `npm run lint`, `npx tsx --test src/domain/whatsapp/metaWebhookSecurity.test.ts src/domain/whatsapp/metaWebhookIngestion.test.ts` y `npm run build`.
+3. Probar GET handshake correcto e incorrecto y POST HMAC correcto, inválido, repetido y caída de Supabase.
+4. Definir retención/aviso de privacidad para datos personales y política de monitoreo + reproceso de eventos. La bandeja solo almacena: no procesa ni atribuye chats.
+5. Diseñar mapeo `phone_number_id`→ perfil de asesor (y jerarquía de acceso), deduplicación por **message_id** y conversación, control de envíos y vista de bandeja aislada por RLS.
+6. Confirmar el alta con **Embedded Signup v4** vigente: v2/v3 se retiraron 2026-10-15. El parámetro `featureType: "whatsapp_business_app_onboarding"` se documenta para Coexistence, pero su combinación con `sessionInfoVersion: "3"` y v4 debe comprobarse en la interfaz/ejemplo oficial de Meta. No usar flujo normal que pueda reemplazar el número.
+7. Business Verification, Advanced Access, App Review, permiso y consentimiento del asesor piloto, sincronización de historial en 24h. No activar sin autorización.
 
-- App en modo sin publicar; permisos Standard Access según auditoría de Claude Chrome.
-- Business Verification, Advanced Access y App Review pendientes.
-- Elegibilidad del número, sincronización de historial, `history`, `smb_message_echoes`, `smb_app_state_sync`, `account_update` se validan por separado; Embedded Signup creado no garantiza Coexistence aprobado.
-- No conectar números reales sin autorización explícita. No alterar la app **Vendedor** (`930689976511462`).
+**Meta está en modo no publicado y el panel Webhooks no cargó durante la auditoría de Claude Chrome. Los campos esperados `messages`, `history`, `smb_message_echoes`, `smb_app_state_sync` y `account_update` aún NO fueron verificados en pantalla para esta aplicación.**
 
 ## Referencias
 
-- https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview
-- https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview
-- https://whatsappbusiness.com/blog/how-to-use-webhooks-from-whatsapp-business-api/
+https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview
+https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
+https://help.twilio.com/articles/54890520784027
