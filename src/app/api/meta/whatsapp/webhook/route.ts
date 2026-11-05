@@ -2,27 +2,28 @@ import {
   isValidMetaSignature,
   metaVerificationChallenge,
 } from "@/domain/whatsapp/metaWebhookSecurity";
+import {
+  hashMetaDelivery,
+  parseMetaWhatsappEnvelope,
+  storeMetaWebhookEnvelope,
+} from "@/domain/whatsapp/metaWebhookIngestion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+const RETRY = { ...NO_STORE, "Retry-After": "60" };
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
-/**
- * Meta's verification is safe to enable independently of message processing.
- * Set META_WHATSAPP_WEBHOOK_VERIFY_TOKEN only in server-side environment.
- */
 export function GET(request: Request): Response {
   const challenge = metaVerificationChallenge(
     request.url,
-    process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    process.env.META_WEBHOOK_VERIFY_TOKEN,
   );
 
   if (challenge === null) {
     return new Response("Forbidden", { status: 403, headers: NO_STORE });
   }
-
   return new Response(challenge, {
     status: 200,
     headers: { ...NO_STORE, "Content-Type": "text/plain; charset=utf-8" },
@@ -30,33 +31,31 @@ export function GET(request: Request): Response {
 }
 
 /**
- * SAFETY GATE: this endpoint intentionally does not acknowledge deliveries
- * until durable, idempotent storage and downstream processing exist.
- *
- * Returning 200 without saving the delivery would lose customer messages.
- * Returning 503 instead causes Meta to retry, subject to its retry window.
- * Do NOT connect a real phone number or subscribe live message deliveries
- * while this gate is present.
+ * This handler does not deliver messages to advisors. It only persists
+ * authenticated event envelopes, with duplicate deliveries idempotent.
+ * Explicit gate is OFF until the migration is applied and verified.
  */
 export async function POST(request: Request): Promise<Response> {
-  const appSecret = process.env.META_WHATSAPP_APP_SECRET;
-  if (!appSecret) {
-    return new Response("Unavailable", { status: 503, headers: NO_STORE });
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret || process.env.META_WHATSAPP_INGEST_ENABLED !== "true") {
+    return new Response("Unavailable", { status: 503, headers: RETRY });
   }
 
   const declaredLength = request.headers.get("content-length");
-  if (declaredLength !== null && Number(declaredLength) > MAX_BODY_BYTES) {
+  if (declaredLength !== null && (
+    !/^\d+$/.test(declaredLength) || Number(declaredLength) > MAX_BODY_BYTES
+  )) {
     return new Response("Payload too large", { status: 413, headers: NO_STORE });
   }
 
-  let rawBody: string;
+  let rawBody: Uint8Array;
   try {
-    rawBody = await request.text();
+    rawBody = new Uint8Array(await request.arrayBuffer());
   } catch {
-    return new Response("Unavailable", { status: 503, headers: NO_STORE });
+    return new Response("Unavailable", { status: 503, headers: RETRY });
   }
 
-  if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
+  if (rawBody.byteLength > MAX_BODY_BYTES) {
     return new Response("Payload too large", { status: 413, headers: NO_STORE });
   }
 
@@ -68,8 +67,16 @@ export async function POST(request: Request): Promise<Response> {
     return new Response("Unauthorized", { status: 401, headers: NO_STORE });
   }
 
-  return new Response("Durable ingestion not configured", {
-    status: 503,
-    headers: { ...NO_STORE, "Retry-After": "60" },
-  });
+  const envelope = parseMetaWhatsappEnvelope(rawBody);
+  if (!envelope) {
+    return new Response("Invalid webhook envelope", { status: 400, headers: NO_STORE });
+  }
+
+  const outcome = await storeMetaWebhookEnvelope(envelope, hashMetaDelivery(rawBody));
+  if (outcome === "unavailable") {
+    // Never acknowledge a signed delivery before durable persistence.
+    return new Response("Unavailable", { status: 503, headers: RETRY });
+  }
+
+  return new Response("OK", { status: 200, headers: NO_STORE });
 }
