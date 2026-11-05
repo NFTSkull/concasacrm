@@ -1,26 +1,33 @@
 -- PROPOSAL ONLY: NOT APPLIED TO SUPABASE.
--- When approved, create a migration via Supabase CLI: supabase migration new whatsapp_webhook_events
--- Then copy this SQL into the generated migration and test on a non-production DB.
--- Raw WhatsApp messages contain PII. Apply a retention policy before live use.
-create table if not exists public.whatsapp_webhook_events (
-  id uuid primary key default gen_random_uuid(),
-  delivery_sha256 text not null unique
-    check (delivery_sha256 ~ '^[a-f0-9]{64}$'),
-  payload jsonb not null
-    check (jsonb_typeof(payload) = 'object'),
-  received_at timestamptz not null default now(),
-  processing_state text not null default 'received'
-    check (processing_state in ('received', 'processing', 'processed', 'failed')),
+-- Generate an actual migration using the Supabase CLI and test outside production.
+-- Raw WhatsApp webhooks may contain personal data and conversation history.
+-- An approved privacy notice, access audit and retention policy are mandatory
+-- before enabling this inbox with real numbers.
+
+CREATE TABLE public.whatsapp_webhook_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  delivery_sha256 text NOT NULL UNIQUE
+    CHECK (delivery_sha256 ~ '^[a-f0-9]{64}$'),
+  payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+  received_at timestamptz NOT NULL DEFAULT now(),
+  processing_state text NOT NULL DEFAULT 'received'
+    CHECK (processing_state IN ('received','processing','processed','deferred','failed')),
+  processing_started_at timestamptz,
+  processing_error_code text,
   processed_at timestamptz,
-  attempts integer not null default 0 check (attempts >= 0)
+  attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0)
 );
-comment on table public.whatsapp_webhook_events is
-'Raw authenticated Meta WhatsApp webhook envelopes; server-only inbox; not exposed to advisors. Requires approved privacy and retention controls.';
-create index if not exists whatsapp_webhook_events_pending_idx
-  on public.whatsapp_webhook_events(received_at)
-  where processing_state in ('received','failed');
-alter table public.whatsapp_webhook_events enable row level security;
-revoke all on public.whatsapp_webhook_events from anon, authenticated;
-grant select, insert, update on public.whatsapp_webhook_events to service_role;
--- No policies for anon/authenticated: deny by default.
--- Do not attach UI or send functionality until individual phones are mapped to authorized advisors.
+
+COMMENT ON TABLE public.whatsapp_webhook_events IS
+  'Authenticated Meta WhatsApp events; server-only inbox with explicit retention. Never expose to browser.';
+
+CREATE INDEX whatsapp_webhook_events_pending_idx
+  ON public.whatsapp_webhook_events(received_at)
+  WHERE processing_state IN ('received', 'failed');
+
+ALTER TABLE public.whatsapp_webhook_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.whatsapp_webhook_events FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.whatsapp_webhook_events TO service_role;
+-- No anon/authenticated RLS policies. Service role only for ingestion/worker.
+-- Add scheduled retry recovery, dead-letter alerts and retention cleanup before
+-- production onboarding. Stuck 'processing' rows require operator recovery.
