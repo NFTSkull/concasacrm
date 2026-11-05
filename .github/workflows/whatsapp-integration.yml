@@ -1,0 +1,44 @@
+name: WhatsApp draft integration checks
+
+on:
+  pull_request:
+    paths:
+      - "src/domain/whatsapp/**"
+      - "src/app/api/meta/whatsapp/**"
+      - "src/app/api/internal/whatsapp/**"
+      - "src/app/asesor/whatsapp/**"
+      - "docs/sql/WHATSAPP_*"
+      - ".github/workflows/whatsapp-integration.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      META_WHATSAPP_INGEST_ENABLED: "false"
+      META_WHATSAPP_PROJECTOR_ENABLED: "false"
+      NEXT_PUBLIC_WHATSAPP_INBOX_ENABLED: "false"
+    steps:
+      - name: Checkout source (without persisted credentials)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Setup Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci
+      - name: Pure unit tests: Meta handshake, HMAC, projection
+        run: npx tsx --test src/domain/whatsapp/metaWebhookSecurity.test.ts src/domain/whatsapp/metaWebhookIngestion.test.ts src/domain/whatsapp/metaWebhookProjection.test.ts
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Next.js build
+        run: npm run build
