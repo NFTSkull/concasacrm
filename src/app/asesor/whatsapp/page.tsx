@@ -8,6 +8,7 @@ type Connection = {
   id: string;
   display_phone_number: string | null;
   connection_state: string;
+  connection_type: "meta_test" | "coexistence";
   consent_received_at: string | null;
   coexistence_confirmed: boolean;
 };
@@ -32,6 +33,7 @@ type Message = {
 };
 
 const ENABLED = process.env.NEXT_PUBLIC_WHATSAPP_INBOX_ENABLED === "true";
+const SEND_ENABLED = process.env.NEXT_PUBLIC_WHATSAPP_SEND_ENABLED === "true";
 
 function formatTime(value: string | null): string {
   if (!value) return "";
@@ -68,6 +70,9 @@ export default function AsesorWhatsAppPage() {
   const [busy, setBusy] = useState(false);
   const [busyThread, setBusyThread] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ENABLED || !isSupabaseAuthEnabled() || !supabaseBrowser) return;
@@ -84,7 +89,7 @@ export default function AsesorWhatsAppPage() {
 
         const accounts = await client
           .from("whatsapp_connections")
-          .select("id,display_phone_number,connection_state,consent_received_at,coexistence_confirmed")
+          .select("id,display_phone_number,connection_state,connection_type,consent_received_at,coexistence_confirmed")
           .order("created_at", { ascending: false });
 
         if (accounts.error) {
@@ -171,6 +176,48 @@ export default function AsesorWhatsAppPage() {
   }, [conversations, search]);
 
   const selected = conversations.find((thread) => thread.id === selectedId);
+  const selectedConnection = connections.find((c) => c.id === selected?.connection_id);
+  const canSendHere = SEND_ENABLED && selectedConnection?.connection_type === "meta_test"
+    && selectedConnection.connection_state === "active";
+
+  async function handleSend() {
+    if (!selected || !supabaseBrowser || !canSendHere) return;
+    const text = replyText.trim();
+    if (!text) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const { data: sessionData } = await supabaseBrowser.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+
+      const response = await fetch("/api/asesor/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({
+          conversationId: selected.id,
+          contactWaId: selected.contact_wa_id,
+          text,
+          confirm: true,
+        }),
+      });
+      if (!response.ok) {
+        const labels: Record<number, string> = {
+          401: "Debes iniciar sesión como asesor autorizado.",
+          403: "Este número no está confirmado como destinatario de prueba en Meta.",
+          501: "Responder desde Coexistence todavía no está implementado.",
+          503: "El envío está desactivado en este entorno.",
+        };
+        throw new Error(labels[response.status] || "No se pudo enviar el mensaje.");
+      }
+      setReplyText("");
+      setRevision((v) => v + 1);
+    } catch (cause) {
+      setSendError(cause instanceof Error ? cause.message : "No se pudo enviar el mensaje.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:px-8">
@@ -277,9 +324,36 @@ export default function AsesorWhatsAppPage() {
                     </article>
                   ))}
                 </div>
-                <div className="border-t border-slate-200 bg-white p-4 text-xs text-slate-500">
-                  Envío desde CRM desactivado hasta completar Meta App Review y las pruebas de coexistencia.
-                </div>
+                {canSendHere ? (
+                  <div className="border-t border-slate-200 bg-white p-4">
+                    {sendError ? (
+                      <p role="alert" className="mb-2 text-xs text-red-700">{sendError}</p>
+                    ) : null}
+                    <div className="flex gap-2">
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        disabled={!selected || sending}
+                        placeholder={selected ? "Escribe una respuesta de prueba..." : "Selecciona una conversación"}
+                        rows={2}
+                        maxLength={4096}
+                        className="flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                      <button type="button" onClick={() => void handleSend()}
+                        disabled={!selected || sending || !replyText.trim()}
+                        className="shrink-0 self-end rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                        {sending ? "Enviando..." : "Enviar"}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Solo número de prueba de Meta y destinatarios confirmados. Nada se envía automáticamente.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border-t border-slate-200 bg-white p-4 text-xs text-slate-500">
+                    Envío desde CRM desactivado hasta completar Meta App Review y las pruebas de coexistencia.
+                  </div>
+                )}
               </section>
             </div>
           </>
