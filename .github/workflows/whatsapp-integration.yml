@@ -1,6 +1,9 @@
 name: WhatsApp draft integration checks
 
 on:
+  push:
+    branches:
+      - feat/meta-whatsapp-webhook-skeleton
   pull_request:
     paths:
       - "src/domain/whatsapp/**"
