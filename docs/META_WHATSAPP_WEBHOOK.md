@@ -1,46 +1,61 @@
-# ConCasa CRM — Meta WhatsApp / Coexistence: implementación aislada
+# ConCasa CRM — WhatsApp Business Coexistence (desarrollo, NO producción)
 
-**Meta App:** ConCasa CRM, ID `1571877308295610`. Portafolio ConCasa `1643688416959471`.
-**Embedded Signup Config ID:** `1767278267714828`.
-**Vendedor:** Meta App `930689976511462`, sin modificaciones.
-**Estado de esta rama:** draft — NO fusionada ni desplegada.
+Fecha: 2026-11-05. **Meta App ConCasa CRM:** `1571877308295610`.
+Portafolio empresarial ConCasa: `1643688416959471`.
+Configuration ID reportado por Claude Chrome: `1767278267714828`.
+App `Vendedor`: `930689976511462` — **no tocar**.
 
-## Lo que ya implementa el código
+## Estado real comprobado
 
-- `GET /api/meta/whatsapp/webhook` verifica el token de handshake y devuelve `hub.challenge` cuando es correcto.
-- `POST` verifica HMAC-SHA256 sobre **bytes originales** usando `X-Hub-Signature-256` y `META_APP_SECRET`.
-- El payload autenticado se guarda en `public.whatsapp_webhook_events` (bandeja server-only) con SHA256 único del cuerpo. Retransmisiones idénticas son idempotentes.
-- El POST solo confirma `200 OK` tras insert exitoso o duplicado. Si falta la tabla/configuración, responde 503.
-- La recepción de eventos está detrás del interruptor de servidor `META_WHATSAPP_INGEST_ENABLED=true` (por defecto desactivado).
-- Se incluye SQL propuesto en `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql`, **todavía no aplicado**.
-- No hay vistas de conversaciones, números conectados ni envío de mensajes. No conectar asesores todavía.
+- PR GitHub de desarrollo, sin merge ni producción: https://github.com/NFTSkull/concasacrm/pull/4
+- Frontend: `/asesor/whatsapp`, bandeja de **solo lectura**; `NEXT_PUBLIC_WHATSAPP_INBOX_ENABLED=false` por defecto.
+- Handler de webhook: `GET /api/meta/whatsapp/webhook` verifica `hub.challenge`; POST verifica la firma `X-Hub-Signature-256` sobre los bytes originales.
+- POST exige bandera `META_WHATSAPP_INGEST_ENABLED=true`. Inserta un evento en una tabla de solo servidor; devuelve 200 únicamente si persistió o detectó un duplicado exacto; si falla devuelve 503.
+- Worker: `POST /api/internal/whatsapp/project`, únicamente con token privado Bearer y `META_WHATSAPP_PROJECTOR_ENABLED=true`.
+- Worker transforma eventos `messages` (entrada) y `smb_message_echoes` (salida escrita en el celular) en conversaciones y mensajes con deduplicación por `conversation_id + meta_message_id`.
+- Los demás eventos (`history`, `smb_app_state_sync`, `account_update`, `statuses`, `edit`, `revoke`) se conservan en la inbox cruda como **deferred**, sin mentir sobre procesamiento completado. Esta parte requiere desarrollo y pruebas aparte.
+- SQL propuesto (NO aplicado): `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql` y `docs/sql/WHATSAPP_CONVERSATIONS_PROPOSAL.sql`. Contiene tres tablas para conexiones/conversaciones/mensajes, tabla de inbox durable, RLS y lectura solo del asesor autenticado.
+- No existe todavía conexión Meta OAuth efectiva, intercambio seguro de tokens por asesor, envío Cloud API, historial procesado o números vinculados.
 
-## Variables privadas en Vercel
+## Vercel: configuración realizada, rama de prueba únicamente
 
-`META_APP_SECRET` — secreto **de la aplicación ConCasa CRM**, nunca Vendedor.
+Proyecto `concasacrm` (ID `prj_wUFsBaVDibWe7JkY9XLE1Ex2nQ1h`), equipo `team_4fVwJqaPEzdLLUPDJg8Mclf3`.
 
-`META_WEBHOOK_VERIFY_TOKEN` — token propio generado para el handshake con Meta.
+Variables creadas solo en preview para rama `feat/meta-whatsapp-webhook-skeleton`:
 
-`META_WHATSAPP_INGEST_ENABLED` — habilitar solo tras migración y pruebas; dejar ausente o `false` antes.
+- `META_APP_ID=1571877308295610`
+- `META_EMBEDDED_SIGNUP_CONFIG_ID=1767278267714828`
+- `META_BUSINESS_PORTFOLIO_ID=1643688416959471`
+- `META_WHATSAPP_INGEST_ENABLED=false`
+- `META_WHATSAPP_PROJECTOR_ENABLED=false`
+- `NEXT_PUBLIC_WHATSAPP_INBOX_ENABLED=false`
 
-`SUPABASE_URL` (o la pública `NEXT_PUBLIC_SUPABASE_URL` solo para la URL), `SUPABASE_SERVICE_ROLE_KEY` (servidor exclusivamente).
+**NO configurados:** `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_WORKER_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`. No inventar los secretos ni colocarlos en GitHub, cliente, documento o chat; configurar en el panel seguro de Vercel cuando corresponda.
 
-Para Embedded Signup en una fase distinta se usarán `META_APP_ID`, `META_EMBEDDED_SIGNUP_CONFIG_ID`, etc. **No enviar app secret ni system user token al navegador**.
+Vercel protege las vistas previas con SSO; Meta no podrá verificar un callback protegido por SSO sin una estrategia de URL accesible y segura.
 
-## Gates antes de registrar webhook o habilitar número real
+## Checklist de validación obligatoria
 
-1. Generar migración con Supabase CLI; probar SQL en entorno aislado y revisar permisos/RLS.
-2. Ejecutar `npm run typecheck`, `npm run lint`, `npx tsx --test src/domain/whatsapp/metaWebhookSecurity.test.ts src/domain/whatsapp/metaWebhookIngestion.test.ts` y `npm run build`.
-3. Probar GET handshake correcto e incorrecto y POST HMAC correcto, inválido, repetido y caída de Supabase.
-4. Definir retención/aviso de privacidad para datos personales y política de monitoreo + reproceso de eventos. La bandeja solo almacena: no procesa ni atribuye chats.
-5. Diseñar mapeo `phone_number_id`→ perfil de asesor (y jerarquía de acceso), deduplicación por **message_id** y conversación, control de envíos y vista de bandeja aislada por RLS.
-6. Confirmar el alta con **Embedded Signup v4** vigente: v2/v3 se retiraron 2026-10-15. El parámetro `featureType: "whatsapp_business_app_onboarding"` se documenta para Coexistence, pero su combinación con `sessionInfoVersion: "3"` y v4 debe comprobarse en la interfaz/ejemplo oficial de Meta. No usar flujo normal que pueda reemplazar el número.
-7. Business Verification, Advanced Access, App Review, permiso y consentimiento del asesor piloto, sincronización de historial en 24h. No activar sin autorización.
+1. Verificar la versión efectiva de Embedded Signup en Meta. v2/v3 dejaron de soportar nuevas altas el 15 de octubre 2026. Coexistencia necesita selección explícita `featureType: "whatsapp_business_app_onboarding"` en el flujo v4 según guías actuales. La necesidad de `sessionInfoVersion: "3"` difiere entre guías; resolver con el ejemplo oficial y una prueba no migratoria. No lanzar onboarding convencional.
+2. Crear migraciones con Supabase CLI en base aislada, pruebas de SQL RLS con dos asesores, duplicación, pérdida/redeliver, bloqueo de acceso por otros asesores y recuperación de worker.
+3. Revisar contrato multi-asesor, onboarding con consentimiento, seguridad del intercambio de tokens y caducidad/renovación. No guardar tokens de asesores en tablas públicas. Ideal: Supabase Vault o secretos cifrados a nivel servidor con control de acceso.
+4. Implementar reprocesamiento, alertas, observabilidad, retención de eventos crudos, estados/status, cambios de historial y edición/revocación.
+5. Ejecutar lint, typecheck, tests unitarios y build. Vercel READY de preview confirma build pero no pruebas E2E/DB.
+6. Revisar exposición de datos personales cuando una cuenta WhatsApp Business mezcla contactos personales: usar números de trabajo y consentimiento informado; definir política de retención, protección de datos y acceso admin antes de probar.
+7. Business Verification de ConCasa, permisos Advanced Access y App Review sin tocar Vendedor.
+8. Solo entonces: poner endpoint accesible por HTTPS, vincular una cuenta piloto elegible con autorización expresa, validar handshakes, echoes, envío y costo real.
 
-**Meta está en modo no publicado y el panel Webhooks no cargó durante la auditoría de Claude Chrome. Los campos esperados `messages`, `history`, `smb_message_echoes`, `smb_app_state_sync` y `account_update` aún NO fueron verificados en pantalla para esta aplicación.**
+## Contratos de seguridad
+
+- No tocar campañas, agendas, expedientes, precalificaciones, drive/sheets, Mesa, roles existentes ni ninguna otra app Meta.
+- No conectar números reales, migrarlos, modificar Companion Devices ni realizar offboarding por prueba.
+- Si los webhooks no se almacenan de forma durable, el endpoint devuelve 503, no 200. Meta puede agotar su ventana de reintento, por eso **no activarlo hasta pruebas completas**.
+- Procesamiento asincrónico por worker de prueba, sin cron, y sin envíos automáticos.
+- Las rutas de WhatsApp solo permanecen en una rama de desarrollo, no en `main`.
 
 ## Referencias
 
-https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview
-https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
-https://help.twilio.com/articles/54890520784027
+- https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview
+- https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
+- https://docs.360dialog.com/partner/onboarding/whatsapp-coexistence/coexistence-webhooks
+- https://help.twilio.com/articles/54890520784027
