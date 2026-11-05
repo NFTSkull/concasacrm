@@ -1,9 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-/**
- * Compare untrusted strings without leaking which bytes matched.
- * Digesting both sides first avoids length-dependent early returns.
- */
+/** Compare untrusted strings without exposing a matching prefix. */
 function safeEqual(left: string, right: string): boolean {
   const leftDigest = createHash("sha256").update(left).digest();
   const rightDigest = createHash("sha256").update(right).digest();
@@ -33,12 +30,9 @@ export function metaVerificationChallenge(
   return challenge;
 }
 
-/**
- * Meta signs the EXACT raw POST bytes with the App Secret (not the verify
- * token). Do not JSON.parse and re-serialize before checking the signature.
- */
+/** Meta signs the EXACT raw POST bytes with the ConCasa App Secret. */
 export function isValidMetaSignature(
-  rawBody: string,
+  rawBody: Uint8Array | string,
   header: string | null,
   appSecret: string | undefined,
 ): boolean {
