@@ -100,8 +100,10 @@ export default function AsesorWhatsAppPage() {
         const accountIds = safeAccounts
           .filter((account) =>
             account.connection_state === "active" &&
-            account.coexistence_confirmed &&
-            Boolean(account.consent_received_at),
+            (account.connection_type === "meta_test" ||
+              (account.connection_type === "coexistence" &&
+                account.coexistence_confirmed &&
+                Boolean(account.consent_received_at))),
           )
           .map((account) => account.id);
 
