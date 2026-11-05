@@ -27,15 +27,22 @@ async function persistProjectedMessage(
   // to one explicitly approved, connected, consented owner in our own DB.
   const connectionResult = await client
     .from("whatsapp_connections")
-    .select("id")
+    .select("id,connection_type,coexistence_confirmed,consent_received_at")
     .eq("phone_number_id", item.phoneNumberId)
     .eq("connection_state", "active")
-    .eq("coexistence_confirmed", true)
-    .not("consent_received_at", "is", null)
     .maybeSingle();
   if (connectionResult.error) return "database_error";
-  if (!connectionResult.data) return "unmapped";
-  const connectionId: string = connectionResult.data.id;
+  const connection = connectionResult.data;
+  if (!connection) return "unmapped";
+
+  // Meta's development test number is Cloud API, NOT Coexistence. A real
+  // Coexistence line requires proof of onboarding and informed consent.
+  if (connection.connection_type !== "meta_test" &&
+      !(connection.connection_type === "coexistence" &&
+        connection.coexistence_confirmed && connection.consent_received_at)) {
+    return "unmapped";
+  }
+  const connectionId: string = connection.id;
 
   const createThread = await client
     .from("whatsapp_conversations")
