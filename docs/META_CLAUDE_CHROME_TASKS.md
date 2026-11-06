@@ -26,3 +26,16 @@ La app está sin publicar; no hay números reales conectados y el webhook de des
 Devuelve una tabla indicando: verificado vs inferido; v4 sí/no; nuevo config ID (si corresponde); campos de webhook disponibles vs suscritos; estado empresarial/revisión; datos legales faltantes; secretos que se deben configurar (nombres solamente); próximo paso mínimo que desbloquea un piloto seguro.
 
 No tocar **Vendedor**, sus webhooks, sus tokens, sus números, ni conectar ninguna cuenta de asesor. No enviar mensajes, ni alterar production/main ni registros Supabase existentes.
+
+## Nueva tarea: inventario de números existentes de los asesores (solo lectura)
+
+El usuario indicó que posiblemente ya tiene vinculados números en Meta. **No interpretar esto como autorización de API**: un número enlazado a Página, WhatsApp Ads, portafolio o Administrador comercial no necesariamente tiene `phone_number_id` habilitado para Cloud API ni permite Coexistence.
+
+1. En ConCasa → Meta Business Settings → Cuentas → Cuentas de WhatsApp, inventariar solo las cuentas realmente presentes, estados de teléfono, propiedad de portafolio y activos. Marcar en el reporte números **enmascarados**, WABA/Messaging account ID, Phone Number ID, cuenta dueña y si existe otra integración de API; no exportar conversaciones ni contactos.
+2. Comprobar, si la UI permite, `is_on_biz_app` y `platform_type` mediante herramienta de Meta autorizada; distinguir: WhatsApp Business móvil no conectado, Coexistence activa, Cloud API solamente, y número de test (WABA de prueba `1624750772211418`; phone ID `1374640222406439`).
+3. Si el número ya es Cloud API y pertenece al mismo titular, explicar la vía segura de asociación por cuenta y permisos, **sin re-registrarlo ni desconectarlo**. Si es WhatsApp Business móvil, requerirá el flujo individual de Coexistence con consentimiento.
+4. Verificar cuáles asesores realmente tienen **rol en la aplicación Meta ConCasa CRM**. El acceso estándar de Meta no habilita onboarding de todos los asesores externos; no prometerlo sin App Review.
+5. Revisar versión v4 de Embedded Signup y los permisos; no ejecutar el popup con números reales, pues la sincronización de historial y la devolución de credenciales aún no están activas.
+6. Reportar si se puede usar un número WhatsApp Business *exclusivamente dedicado a pruebas*, que no tenga conversaciones laborales ni personales, para el futuro piloto controlado.
+
+**Sin cambios:** no tocar Vendedor, no enlazar/desvincular números, no mover cuentas de portafolio, no publicar, no enviar, no pedir contraseñas ni pegar tokens. Actualizar la sección de hallazgos con tabla: en Meta / WABA / tipo / estado / método seguro de vinculación / bloqueos de autorización. Nunca incluir números completos de terceros en el reporte.
