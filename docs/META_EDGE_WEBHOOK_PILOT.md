@@ -61,3 +61,22 @@ ORDER BY received_at DESC LIMIT 10;
 - 🔸 Falta configurar las dos credenciales en Supabase Edge Function Secrets.
 - 🔸 Falta el handshake oficial Meta y un POST firmado con almacenamiento.
 - 🔸 Falta proyector/worker, mapeo de test a asesor, bandeja y envío de respuesta.
+
+
+## Resultado del primer mensaje real — 6 de noviembre de 2026
+
+✅ Se resolvió el paso faltante de Meta: **callback verificado y campo `messages` suscrito NO son suficientes** hasta que la aplicación también aparezca en el listado `GET /{WABA-ID}/subscribed_apps`.
+
+- Antes: la aplicación `1571877308295610` no aparecía entre las aplicaciones suscritas del WABA de prueba `1624750772211418`.
+- Se aplicó por la interfaz de Graph API el `POST /1624750772211418/subscribed_apps` con resultado `{"success": true}`, y el GET posterior confirmó su aparición.
+- Mensaje nuevo de prueba `Prueba ConCasa 002` llegó mediante POST autenticado a la Edge Function y se guardó en `public.whatsapp_webhook_events`.
+- Verificación independiente en SQL de solo lectura: id `e18d379c-d8b8-462b-b1c2-023fab89afc0`, `received_at=2026-11-06 17:38:33.132095+00`, `processing_state=received`, `attempts=0`, `object=whatsapp_business_account`, `field=messages`, WABA `1624750772211418`, Phone Number ID `1374640222406439`, `message_type=text`, `text=Prueba ConCasa 002`.
+- **Alcance:** verificado el flujo real Meta → firma HMAC → Edge Function → tabla raw. Todavía NO se ha procesado como conversación, no hay conexión asesor/test aprobada, ni vista de bandeja habilitada.
+
+### Próxima prueba aislada
+
+1. Elegir explícitamente un usuario **asesor de prueba** activo (con consentimiento) para recibir únicamente la conexión `meta_test`; no deducir ni asignar un usuario real.
+2. Registrar el `phone_number_id` TEST en `whatsapp_connections`, validando que `organization_id` corresponda exactamente al perfil autorizado; no tocar números reales.
+3. Activar el proyector en un entorno controlado y demostrar una sola vez que el evento recibido se proyecta idempotentemente a `whatsapp_conversations` + `whatsapp_messages`, preservando RLS.
+4. Verificar la bandeja de ese asesor en Preview (sin abrir Vercel globalmente), luego evaluar el flujo de envío exclusivamente al número Meta TEST.
+5. Desactivar el proyector al acabar cada prueba; documentar la retención de payloads antes de extender a números reales.
