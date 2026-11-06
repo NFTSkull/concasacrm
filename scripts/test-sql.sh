@@ -20,6 +20,7 @@ run_sql_test() {
 }
 
 run_sql_test "supabase/tests/rls_policies.sql"
+run_sql_test "supabase/tests/rls_whatsapp.sql"
 run_sql_test "supabase/tests/audit_document_history.sql"
 run_sql_test "supabase/tests/rpc_documento_revision.sql"
 run_sql_test "supabase/tests/rpc_update_cliente_datos_revision.sql"
