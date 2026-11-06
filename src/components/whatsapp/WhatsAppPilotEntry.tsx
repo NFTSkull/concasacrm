@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { isSupabaseAuthEnabled, supabaseBrowser } from "@/lib/supabaseBrowser";
+import {
+  isWhatsAppPilotConfigured,
+  whatsappPilotSupabase,
+  PILOT_ADVISOR_ID,
+} from "@/lib/whatsappPilotSupabase";
 
 // Link appears ONLY when DB owner RLS confirms an active test connection
 // for the currently authenticated advisor. No global UI flag, no real numbers.
@@ -12,13 +16,13 @@ const META_TEST_WABA = "1624750772211418";
 export function WhatsAppPilotEntry() {
   const [allowed, setAllowed] = useState(false);
   useEffect(() => {
-    const client = supabaseBrowser;
-    if (!client || !isSupabaseAuthEnabled()) return;
+    const client = whatsappPilotSupabase;
+    if (!client || !isWhatsAppPilotConfigured()) return;
     let stale = false;
     void (async () => {
       try {
         const { data: user, error: authError } = await client.auth.getUser();
-        if (authError || !user.user) return;
+        if (authError || user.user?.id !== PILOT_ADVISOR_ID) return;
         const { data, error } = await client.from("whatsapp_connections")
           .select("id")
           .eq("connection_type", "meta_test")
