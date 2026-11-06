@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { isSupabaseAuthEnabled, supabaseBrowser } from "@/lib/supabaseBrowser";
+import {
+  isWhatsAppPilotConfigured,
+  whatsappPilotSupabase,
+  PILOT_ADVISOR_ID,
+  PILOT_EMAIL,
+} from "@/lib/whatsappPilotSupabase";
 
 // Pilot is strictly bound to Meta's ConCasa development test sender.
 // Production advisors' WhatsApp Business numbers are NOT eligible here.
@@ -56,6 +61,69 @@ export default function WhatsAppPilotProductionPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<IncomingMessage[]>([]);
   const [threadBusy, setThreadBusy] = useState(false);
+  const [pilotSignedIn, setPilotSignedIn] = useState<boolean | null>(null);
+  const [password, setPassword] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const client = whatsappPilotSupabase;
+    if (!client || !isWhatsAppPilotConfigured()) {
+      setPilotSignedIn(false);
+      setLoginError("El piloto aún no tiene configurado el acceso al proyecto correcto de Supabase.");
+      return;
+    }
+    let cancelled = false;
+    void client.auth.getUser().then(({ data, error }) => {
+      if (!cancelled) setPilotSignedIn(!error && data.user?.id === PILOT_ADVISOR_ID);
+    }).catch(() => {
+      if (!cancelled) setPilotSignedIn(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function loginToPilot() {
+    const client = whatsappPilotSupabase;
+    if (!client || !isWhatsAppPilotConfigured()) return;
+    if (!password) { setLoginError("Escribe tu contraseña del usuario de prueba."); return; }
+    setLoggingIn(true);
+    setLoginError(null);
+    try {
+      const signed = await client.auth.signInWithPassword({ email: PILOT_EMAIL, password });
+      if (signed.error || signed.data.user?.id !== PILOT_ADVISOR_ID) {
+        await client.auth.signOut();
+        throw new Error("No pudimos validar esta cuenta en el proyecto Supabase del piloto.");
+      }
+      const profile = await client.from("profiles")
+        .select("id,active,app_role,organization_id,email")
+        .eq("id", PILOT_ADVISOR_ID)
+        .maybeSingle();
+      if (profile.error || !profile.data ||
+          profile.data.active !== true ||
+          profile.data.app_role !== "asesor" ||
+          profile.data.email !== PILOT_EMAIL ||
+          profile.data.organization_id !== "50beae49-3961-4163-8e78-2251693f2c19") {
+        await client.auth.signOut();
+        throw new Error("El perfil de prueba no está autorizado.");
+      }
+      setPassword("");
+      setPilotSignedIn(true);
+      setRefresh((n) => n + 1);
+    } catch (cause) {
+      setLoginError(cause instanceof Error ? cause.message : "No se pudo iniciar sesión.");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function logoutPilot() {
+    await whatsappPilotSupabase?.auth.signOut();
+    setPilotSignedIn(false);
+    setConnection(null);
+    setThreads([]);
+    setMessages([]);
+    setSelectedId(null);
+  }
   const [syncing, setSyncing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
@@ -69,19 +137,16 @@ export default function WhatsAppPilotProductionPage() {
     setMessages([]);
     setSelectedId(null);
 
-    const client = supabaseBrowser;
-    if (!isSupabaseAuthEnabled() || !client) {
-      if (!cancelled()) {
-        setBusy(false);
-        setError("El acceso seguro mediante Supabase Auth no está habilitado en este entorno.");
-      }
+    const client = whatsappPilotSupabase;
+    if (!client || !isWhatsAppPilotConfigured() || pilotSignedIn !== true) {
+      if (!cancelled()) setBusy(false);
       return;
     }
 
     try {
       const { data: session, error: authError } = await client.auth.getUser();
-      if (authError || !session.user) {
-        throw new Error("Debes iniciar sesión como asesor de prueba autorizado.");
+      if (authError || session.user?.id !== PILOT_ADVISOR_ID) {
+        throw new Error("Debes iniciar sesión con la cuenta autorizada del piloto.");
       }
 
       // Server-enforced owner RLS. Never accept an advisor id from the URL.
@@ -117,7 +182,7 @@ export default function WhatsAppPilotProductionPage() {
     } finally {
       if (!cancelled()) setBusy(false);
     }
-  }, []);
+  }, [pilotSignedIn]);
 
   useEffect(() => {
     let stale = false;
@@ -127,7 +192,7 @@ export default function WhatsAppPilotProductionPage() {
 
   useEffect(() => {
     let stale = false;
-    const client = supabaseBrowser;
+    const client = whatsappPilotSupabase;
     if (!selectedId || !connection || !client || !threads.some((x) => x.id === selectedId)) {
       setMessages([]);
       return;
@@ -152,8 +217,8 @@ export default function WhatsAppPilotProductionPage() {
   }, [selectedId, connection, threads]);
 
   async function syncTestMessages() {
-    const client = supabaseBrowser;
-    if (!connection || !client || !isSupabaseAuthEnabled()) return;
+    const client = whatsappPilotSupabase;
+    if (!connection || !client || pilotSignedIn !== true) return;
     setSyncing(true);
     setSyncNotice(null);
     try {
@@ -195,11 +260,19 @@ export default function WhatsAppPilotProductionPage() {
               Solo conversaciones del número de prueba de Meta. Bandeja de lectura únicamente.
             </p>
           </div>
-          <button type="button" onClick={() => setRefresh((x) => x + 1)}
-            disabled={busy}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {busy ? "Actualizando..." : "Actualizar mensajes"}
-          </button>
+          {pilotSignedIn === true ? (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setRefresh((x) => x + 1)}
+                disabled={busy}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium disabled:opacity-50">
+                {busy ? "Actualizando..." : "Actualizar mensajes"}
+              </button>
+              <button type="button" onClick={() => void logoutPilot()}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm">
+                Salir del piloto
+              </button>
+            </div>
+          ) : null}
         </header>
 
         {error && (
@@ -208,7 +281,35 @@ export default function WhatsAppPilotProductionPage() {
           </div>
         )}
 
-        {connection && !error ? (
+        {pilotSignedIn === null ? (
+          <p className="rounded-lg border bg-white p-6 text-sm text-slate-500">
+            Comprobando tu sesión del piloto...
+          </p>
+        ) : pilotSignedIn === false ? (
+          <section className="max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Acceso independiente al piloto</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Para proteger el CRM existente, WhatsApp usa una sesión separada del
+              proyecto ConCasa CRM de Supabase. El acceso general no se modifica.
+            </p>
+            <form onSubmit={(e) => { e.preventDefault(); void loginToPilot(); }}
+              className="mt-4 space-y-3">
+              <label className="block text-sm font-medium" htmlFor="pilot-email">Correo</label>
+              <input id="pilot-email" type="email" value={PILOT_EMAIL} readOnly
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" />
+              <label className="block text-sm font-medium" htmlFor="pilot-password">Contraseña de prueba</label>
+              <input id="pilot-password" type="password" value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password" required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              {loginError && <p role="alert" className="text-sm text-red-700">{loginError}</p>}
+              <button type="submit" disabled={loggingIn || !isWhatsAppPilotConfigured()}
+                className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {loggingIn ? "Validando..." : "Entrar a WhatsApp Piloto"}
+              </button>
+            </form>
+          </section>
+        ) : connection && !error ? (
           <>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
               Número de prueba conectado: {connection.display_phone_number || "Meta TEST"}.
