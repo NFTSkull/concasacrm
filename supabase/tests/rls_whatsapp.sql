@@ -57,6 +57,21 @@ BEGIN
   PERFORM public.__rls_wa_assert(public.__rls_wa_count_as(a,'whatsapp_messages')=1,'advisor A message');
   PERFORM public.__rls_wa_assert(public.__rls_wa_count_as(b,'whatsapp_messages')=1,'advisor B message');
   PERFORM public.__rls_wa_assert(public.__rls_wa_count_as(editor,'whatsapp_messages')=0,'editor cannot see private messages');
+  -- A user's old phone must become invisible when their advisor role is revoked.
+  UPDATE public.profiles SET app_role='editor'
+    WHERE id='00000000-0000-4000-8001-000000000001';
+  PERFORM public.__rls_wa_assert(
+    public.__rls_wa_count_as(a,'whatsapp_connections')=0,
+    'revoked advisor cannot view linked phone');
+  PERFORM public.__rls_wa_assert(
+    public.__rls_wa_count_as(a,'whatsapp_conversations')=0,
+    'revoked advisor cannot view conversations');
+  PERFORM public.__rls_wa_assert(
+    public.__rls_wa_count_as(a,'whatsapp_messages')=0,
+    'revoked advisor cannot view messages');
+  UPDATE public.profiles SET app_role='asesor'
+    WHERE id='00000000-0000-4000-8001-000000000001';
+
   BEGIN
     UPDATE public.whatsapp_connections SET coexistence_confirmed=true
       WHERE id='00000000-0000-4000-8701-000000000001';
