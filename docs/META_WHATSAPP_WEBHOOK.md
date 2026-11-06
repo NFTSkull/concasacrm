@@ -21,7 +21,7 @@ App `Vendedor`: `930689976511462` — **no tocar**.
 
 Se incorporó a la rama aislada el contenido funcional del parche para la **prueba con número Meta**, con algunos ajustes de seguridad adicionales. Esta documentación no implica que esté activado o probado con mensajes reales.
 
-- Migración SQL preparada **sin aplicar**: `supabase/migrations/037_whatsapp_tables.sql`. Sustituye las propuestas anteriores, que quedan como referencia.
+- Migración SQL preparada **sin aplicar**: `supabase/migrations/20261106040515_whatsapp_tables.sql`. Sustituye las propuestas anteriores, que quedan como referencia.
 - Diferencia `connection_type=meta_test` y `connection_type=coexistence` con constraint de base de datos: nunca marcar una línea de prueba como Coexistence confirmada.
 - Nuevas tablas de conversaciones, mensajes y lista blanca `whatsapp_verified_test_recipients`.
 - Test local `supabase/tests/rls_whatsapp.sql`, incluido ahora en `npm run test:sql`. No se ha ejecutado todavía contra una base aislada.
