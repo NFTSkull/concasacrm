@@ -1,0 +1,56 @@
+name: WhatsApp public Edge endpoint smoke (no secrets)
+on:
+  push:
+    branches: [feat/meta-whatsapp-webhook-skeleton]
+    paths:
+      - .github/workflows/whatsapp-edge-smoke.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert publicly routable webhook handles unsupported HTTP method
+        env:
+          URL: https://fvtqbxukqlajezyyvwzy.supabase.co/functions/v1/concasa-meta-wa-test-webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -X PUT -o /tmp/method-body -w '%{http_code}' "$URL")"
+          echo "PUT status: $status"
+          test "$status" = "405"
+          test "$(cat /tmp/method-body)" = "Method not allowed"
+      - name: Assert invalid GET token cannot verify subscription
+        env:
+          URL: https://fvtqbxukqlajezyyvwzy.supabase.co/functions/v1/concasa-meta-wa-test-webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -G -o /tmp/get-body -w '%{http_code}' --data-urlencode 'hub.mode=subscribe' --data-urlencode 'hub.verify_token=INVALID_TEST_PROBE_NOT_A_SECRET' --data-urlencode 'hub.challenge=123456' "$URL")"
+          echo "Invalid GET status: $status"
+          if [[ "$status" == "403" ]]; then
+            test "$(cat /tmp/get-body)" = "Forbidden"
+          elif [[ "$status" == "503" ]]; then
+            test "$(cat /tmp/get-body)" = "Unavailable"
+          else
+            echo "Unexpected verification status" >&2
+            exit 1
+          fi
+      - name: Assert unsigned webhook POST cannot create events
+        env:
+          URL: https://fvtqbxukqlajezyyvwzy.supabase.co/functions/v1/concasa-meta-wa-test-webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -X POST -H 'Content-Type: application/json' --data '{}' -o /tmp/post-body -w '%{http_code}' "$URL")"
+          echo "Unsigned POST status: $status"
+          if [[ "$status" == "401" ]]; then
+            test "$(cat /tmp/post-body)" = "Unauthorized"
+          elif [[ "$status" == "503" ]]; then
+            test "$(cat /tmp/post-body)" = "Unavailable"
+          else
+            echo "Unexpected unsigned POST status" >&2
+            exit 1
+          fi
