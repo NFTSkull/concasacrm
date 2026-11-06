@@ -113,6 +113,7 @@ CREATE POLICY whatsapp_connections_owner_read ON public.whatsapp_connections
       SELECT 1 FROM public.profiles p
       WHERE p.id = (SELECT auth.uid())
         AND p.active = true
+        AND p.app_role = 'asesor'
         AND p.organization_id = whatsapp_connections.organization_id
     )
   );
