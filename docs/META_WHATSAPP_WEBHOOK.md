@@ -77,3 +77,20 @@ Vercel protege las vistas previas con SSO; Meta no podrá verificar un callback 
 - https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
 - https://docs.360dialog.com/partner/onboarding/whatsapp-coexistence/coexistence-webhooks
 - https://help.twilio.com/articles/54890520784027
+
+## Corrección de migración y orden seguro de activación — 06/11/2026 UTC
+
+**Conflicto comprobado** mediante `list_migrations` del proyecto ConCasa: la versión `037` ya está aplicada a `rpc_cancel_citas_mesa` en la base de producción. Por eso el borrador de WhatsApp se renombró a `supabase/migrations/20261106040515_whatsapp_tables.sql`. El contenido SQL se conservó; la migración NO se aplicó.
+
+**Verificaciones necesarias, en orden:**
+
+1. Probar migración y RLS (dos asesores + revocación de rol + acceso anónimo) sobre base de prueba. La CLI/local de Supabase debe validar la versión. No ejecutar pruebas destructivas en producción.
+2. Definir una base segregada para webhooks de prueba o aprobar expresamente la migración aditiva de la base activa, después de respaldo y revisión de políticas. Sin tabla persistente el POST devuelve 503.
+3. Completar variables de servidor en el PREVIEW de la rama correcta: `META_APP_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` del entorno elegido, `META_WHATSAPP_TEST_ACCESS_TOKEN` (temporal), además del verify token. Nunca se comparten en texto abierto. Mantener todas las banderas en `false` durante la verificación inicial.
+4. Meta no puede verificar el callback detrás de SSO sin permitir acceso HTTPS. **Vercel Protection Bypass for Automation funciona para TODOS los despliegues del proyecto si se conoce el secreto, no solo para `/api/meta/whatsapp/webhook`**. Tratarlo como credencial de alto impacto, usarlo exclusivamente con autorización, y revocarlo al terminar la prueba. Fuente: https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation
+5. Una vez preparada la persistencia y el endpoint accesible, registrar **URL completa de callback + token de verificación idéntico al del servidor** en Meta; verificar GET `hub.challenge` sin exponer el token; suscribir el campo `messages` (si disponible).
+6. Activar SOLO la bandera `META_WHATSAPP_INGEST_ENABLED` en la rama de prueba, mandar un **mensaje nuevo** desde el teléfono autorizado y comprobar firma/HMAC + almacenamiento en inbox cruda. El mensaje anterior al registro no se reenvía automáticamente.
+7. Ejecutar procesador manual con `META_WHATSAPP_PROJECTOR_ENABLED=true` únicamente después de mapear el test `phone_number_id` a un asesor de desarrollo autorizado y revisar RLS. Verificar que la conversación solo aparezca en su bandeja.
+8. Activar envío `META_WHATSAPP_SEND_ENABLED` y `NEXT_PUBLIC_WHATSAPP_SEND_ENABLED` únicamente tras autorizar destinatarios y probar que la UI no puede enviar hacia otros números.
+
+**No reutilizar el número de Nataly ni modificar ningún WABA ajeno.** El envío exitoso del mensaje de Meta al móvil solo prueba el sentido Meta→destinatario, no la recepción de webhook o Coexistence.
