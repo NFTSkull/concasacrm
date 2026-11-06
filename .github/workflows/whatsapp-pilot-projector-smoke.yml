@@ -1,0 +1,30 @@
+name: WhatsApp TEST pilot projector authentication smoke
+on:
+  push:
+    branches: [feat/meta-whatsapp-webhook-skeleton]
+    paths:
+      - .github/workflows/whatsapp-pilot-projector-smoke.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-no-anonymous-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert projector rejects anonymous POST
+        env:
+          URL: https://fvtqbxukqlajezyyvwzy.supabase.co/functions/v1/concasa-meta-wa-pilot-project
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 20 -X POST -H 'content-type: application/json' --data '{}' -o /tmp/projector-result -w '%{http_code}' "$URL")"
+          echo "Anonymous projector POST status: $code"
+          test "$code" = "401"
+      - name: Assert projector rejects anonymous GET
+        env:
+          URL: https://fvtqbxukqlajezyyvwzy.supabase.co/functions/v1/concasa-meta-wa-pilot-project
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 20 -X GET -o /tmp/projector-get -w '%{http_code}' "$URL")"
+          echo "Anonymous projector GET status: $code"
+          test "$code" = "401"
