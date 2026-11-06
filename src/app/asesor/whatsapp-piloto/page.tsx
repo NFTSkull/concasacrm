@@ -56,6 +56,8 @@ export default function WhatsAppPilotProductionPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<IncomingMessage[]>([]);
   const [threadBusy, setThreadBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   // RLS authorizes advisor_id + active advisor + matching organization.
   // A guessed URL is not enough to access another advisor's messages.
@@ -149,6 +151,35 @@ export default function WhatsAppPilotProductionPage() {
     return () => { stale = true; };
   }, [selectedId, connection, threads]);
 
+  async function syncTestMessages() {
+    const client = supabaseBrowser;
+    if (!connection || !client || !isSupabaseAuthEnabled()) return;
+    setSyncing(true);
+    setSyncNotice(null);
+    try {
+      // Invokes an independently deployed Supabase Edge Function requiring
+      // a verified advisor JWT and an active owner-only Meta test connection.
+      // It cannot transmit WhatsApp messages or process a real advisor number.
+      const result = await client.functions.invoke("concasa-meta-wa-pilot-project", {
+        method: "POST",
+        body: {},
+      });
+      if (result.error) throw new Error("No se pudo sincronizar la prueba. Revisa tu sesión.");
+      const summary = result.data as { claimed?: number; projected?: number; failed?: number } | null;
+      if (summary?.failed) {
+        throw new Error("Ocurrió un error durante el procesamiento. Revisa los registros del piloto.");
+      }
+      setSyncNotice(summary?.projected
+        ? `Se procesaron ${summary.projected} mensaje(s) de prueba.`
+        : "No hay mensajes nuevos pendientes por procesar.");
+      setRefresh((n) => n + 1);
+    } catch (cause) {
+      setSyncNotice(cause instanceof Error ? cause.message : "No se pudo sincronizar.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const selected = threads.find((x) => x.id === selectedId);
 
   return (
@@ -182,6 +213,14 @@ export default function WhatsAppPilotProductionPage() {
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
               Número de prueba conectado: {connection.display_phone_number || "Meta TEST"}.
               No se han conectado teléfonos de asesores reales.
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => void syncTestMessages()}
+                disabled={syncing || busy}
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {syncing ? "Sincronizando…" : "Sincronizar mensajes de prueba"}
+              </button>
+              {syncNotice && <p role="status" className="text-sm text-slate-700">{syncNotice}</p>}
             </div>
 
             <div className="grid min-h-[530px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:grid-cols-[320px_1fr]">
