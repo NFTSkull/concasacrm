@@ -105,7 +105,7 @@ export async function sendTextViaGraphApi(options: {
 }): Promise<{ status: number; metaMessageId: string | null }> {
   try {
     const response = await fetch(
-      "https://graph.facebook.com/v22.0/" + encodeURIComponent(options.phoneNumberId) + "/messages",
+      "https://graph.facebook.com/v26.0/" + encodeURIComponent(options.phoneNumberId) + "/messages",
       {
         method: "POST",
         headers: {
