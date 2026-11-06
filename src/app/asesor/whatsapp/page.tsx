@@ -236,6 +236,10 @@ export default function AsesorWhatsAppPage() {
               Cada asesor ve solo sus números y conversaciones autorizadas.
               Las respuestas desde el CRM estarán disponibles después del piloto de Meta.
             </p>
+            <Link href="/asesor/whatsapp/conectar"
+              className="mt-3 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">
+              Preparar vinculación de mi WhatsApp Business
+            </Link>
           </div>
           {ENABLED && isSupabaseAuthEnabled() ? (
             <button type="button" onClick={() => setRevision((v) => v + 1)}
