@@ -416,3 +416,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # Authentication remains enforced in the handler by GET verify token / POST signature.
 [functions.concasa-meta-wa-test-webhook]
 verify_jwt = false
+
+# Pilot projector can be triggered only by an authenticated Supabase advisor.
+[functions.concasa-meta-wa-pilot-project]
+verify_jwt = true
