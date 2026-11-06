@@ -14,14 +14,14 @@ App `Vendedor`: `930689976511462` — **no tocar**.
 - Worker: `POST /api/internal/whatsapp/project`, únicamente con token privado Bearer y `META_WHATSAPP_PROJECTOR_ENABLED=true`.
 - Worker transforma eventos `messages` (entrada) y `smb_message_echoes` (salida escrita en el celular) en conversaciones y mensajes con deduplicación por `conversation_id + meta_message_id`.
 - Los demás eventos (`history`, `smb_app_state_sync`, `account_update`, `statuses`, `edit`, `revoke`) se conservan en la inbox cruda como **deferred**, sin mentir sobre procesamiento completado. Esta parte requiere desarrollo y pruebas aparte.
-- SQL propuesto (NO aplicado): `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql` y `docs/sql/WHATSAPP_CONVERSATIONS_PROPOSAL.sql`. Contiene tres tablas para conexiones/conversaciones/mensajes, tabla de inbox durable, RLS y lectura solo del asesor autenticado.
+- Las propuestas originales `docs/sql/WHATSAPP_WEBHOOK_EVENTS_PROPOSAL.sql` y `docs/sql/WHATSAPP_CONVERSATIONS_PROPOSAL.sql` son documentación obsoleta, NO deben aplicarse. La migración de producción es la versión registrada en Supabase: `20261106043633`.
 - No existe todavía conexión Meta OAuth efectiva, intercambio seguro de tokens por asesor, envío Cloud API, historial procesado o números vinculados.
 
 ## Actualización: parche recibido de Claude Chrome (05/11/2026)
 
 Se incorporó a la rama aislada el contenido funcional del parche para la **prueba con número Meta**, con algunos ajustes de seguridad adicionales. Esta documentación no implica que esté activado o probado con mensajes reales.
 
-- Migración SQL preparada **sin aplicar**: `supabase/migrations/20261106040515_whatsapp_tables.sql`. Sustituye las propuestas anteriores, que quedan como referencia.
+- Migración SQL **aplicada y verificada** en ConCasa Supabase: `supabase/migrations/20261106043633_whatsapp_tables_20261106040515.sql` (historial de Supabase versión `20261106043633`). Sustituye las propuestas anteriores, que quedan como referencia.
 - Diferencia `connection_type=meta_test` y `connection_type=coexistence` con constraint de base de datos: nunca marcar una línea de prueba como Coexistence confirmada.
 - Nuevas tablas de conversaciones, mensajes y lista blanca `whatsapp_verified_test_recipients`.
 - Test local `supabase/tests/rls_whatsapp.sql`, incluido ahora en `npm run test:sql`. No se ha ejecutado todavía contra una base aislada.
@@ -33,7 +33,7 @@ Identificadores de desarrollo comunicados por Claude Chrome: test WABA `16247507
 
 **Variables privadas que faltan:** `META_APP_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `META_WHATSAPP_TEST_ACCESS_TOKEN`. Se configuran directamente en Vercel de forma segura, sin pegarlas en chat, commit, documento ni UI pública.
 
-**Todavía pendiente:** pruebas SQL de dos asesores y de la ruta de envío, verificación del webhook GET/POST, callback alcanzable por Meta con protección acotada, decisión documentada de retención, mapeo del número de test a un asesor de prueba y autorización del destinatario. No activar los cinco interruptores hasta verificar todo, no aplicar la migración a producción sin la aprobación específica del responsable y respaldo.
+**Todavía pendiente:** prueba E2E GET/POST, callback alcanzable por Meta con protección acotada, decisión de retención, mapeo de test phone a asesor autorizado y destinatario Meta, secretos de servidor y ejecución del worker. Pruebas locales SQL/RLS aprobadas en GitHub Actions; no activar flags ni conectar números reales hasta el piloto verificado.
 
 ## Vercel: configuración realizada, rama de prueba únicamente
 
@@ -80,12 +80,12 @@ Vercel protege las vistas previas con SSO; Meta no podrá verificar un callback 
 
 ## Corrección de migración y orden seguro de activación — 06/11/2026 UTC
 
-**Conflicto comprobado** mediante `list_migrations` del proyecto ConCasa: la versión `037` ya está aplicada a `rpc_cancel_citas_mesa` en la base de producción. Por eso el borrador de WhatsApp se renombró a `supabase/migrations/20261106040515_whatsapp_tables.sql`. El contenido SQL se conservó; la migración NO se aplicó.
+**Conflicto comprobado** mediante `list_migrations` del proyecto ConCasa: la versión `037` ya está aplicada a `rpc_cancel_citas_mesa` en la base de producción. Por ello se utilizó el nombre temporal `20261106040515_whatsapp_tables.sql` antes del despliegue. El conector registró la migración efectiva con versión `20261106043633`, nombre `whatsapp_tables_20261106040515`, y el archivo GitHub se alineó a `supabase/migrations/20261106043633_whatsapp_tables_20261106040515.sql`. La migración SÍ fue aplicada y validada en ConCasa CRM.
 
 **Verificaciones necesarias, en orden:**
 
-1. Probar migración y RLS (dos asesores + revocación de rol + acceso anónimo) sobre base de prueba. La CLI/local de Supabase debe validar la versión. No ejecutar pruebas destructivas en producción.
-2. Definir una base segregada para webhooks de prueba o aprobar expresamente la migración aditiva de la base activa, después de respaldo y revisión de políticas. Sin tabla persistente el POST devuelve 503.
+1. ✅ Migración y RLS probados en entorno Docker aislado (GitHub Actions run #42162879301), incluyendo dos asesores, revocación de rol y permisos de lectura. Sin pruebas destructivas en producción.
+2. ✅ Con autorización del usuario se aplicaron exclusivamente cinco tablas nuevas de WhatsApp a ConCasa CRM. Supabase Pro incluye respaldos diarios automáticos (7 días), pero no se confirmó por API la fecha del último punto recuperable. Se verificaron las tablas creadas, RLS, las políticas, el acceso anónimo denegado y el acceso de sólo lectura del asesor. El POST sigue inactivo sin el secreto de servidor/flag.
 3. Completar variables de servidor en el PREVIEW de la rama correcta: `META_APP_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` del entorno elegido, `META_WHATSAPP_TEST_ACCESS_TOKEN` (temporal), además del verify token. Nunca se comparten en texto abierto. Mantener todas las banderas en `false` durante la verificación inicial.
 4. Meta no puede verificar el callback detrás de SSO sin permitir acceso HTTPS. **Vercel Protection Bypass for Automation funciona para TODOS los despliegues del proyecto si se conoce el secreto, no solo para `/api/meta/whatsapp/webhook`**. Tratarlo como credencial de alto impacto, usarlo exclusivamente con autorización, y revocarlo al terminar la prueba. Fuente: https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation
 5. Una vez preparada la persistencia y el endpoint accesible, registrar **URL completa de callback + token de verificación idéntico al del servidor** en Meta; verificar GET `hub.challenge` sin exponer el token; suscribir el campo `messages` (si disponible).
@@ -94,3 +94,13 @@ Vercel protege las vistas previas con SSO; Meta no podrá verificar un callback 
 8. Activar envío `META_WHATSAPP_SEND_ENABLED` y `NEXT_PUBLIC_WHATSAPP_SEND_ENABLED` únicamente tras autorizar destinatarios y probar que la UI no puede enviar hacia otros números.
 
 **No reutilizar el número de Nataly ni modificar ningún WABA ajeno.** El envío exitoso del mensaje de Meta al móvil solo prueba el sentido Meta→destinatario, no la recepción de webhook o Coexistence.
+
+## Resultado de aplicación real — 06/11/2026 UTC
+
+- Proyecto verificado: **ConCasa CRM** Supabase `fvtqbxukqlajezyyvwzy` (ACTIVO).
+- Migración aplicada por conector `apply_migration` con respuesta `success:true`, historial Supabase `20261106043633 — whatsapp_tables_20261106040515`. Nombre de archivo idéntico en la rama GitHub.
+- Cinco tablas creadas: `whatsapp_webhook_events`, `whatsapp_connections`, `whatsapp_conversations`, `whatsapp_messages`, `whatsapp_verified_test_recipients`.
+- RLS activo en las cinco. Rol `anon` sin lectura; `authenticated` sin INSERT en todas; `authenticated` solo SELECT en conexiones/conversaciones/mensajes mediante policies de propiedad; eventos y destinatarios sin acceso `authenticated`; `service_role` con permisos de escritura.
+- No se alteraron las tablas preexistentes, no se crearon conexiones ni se insertaron mensajes reales, no se activaron flags.
+- Organización Supabase Plan Pro: respaldos automáticos diarios documentados con retención 7 días. No fue posible consultar la lista real de respaldos desde el conector.
+- Validación RLS aislada aprobada: https://github.com/NFTSkull/concasacrm/actions/runs/42162879301
