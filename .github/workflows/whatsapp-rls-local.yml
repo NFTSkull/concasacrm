@@ -1,0 +1,44 @@
+# Branch-only SQL test. Local Docker database only; never links to Supabase cloud.
+name: WhatsApp RLS local-only
+
+on:
+  push:
+    branches:
+      - feat/meta-whatsapp-webhook-skeleton
+    paths:
+      - supabase/**
+      - scripts/test-sql.sh
+      - .github/workflows/whatsapp-rls-local.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sql-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73f6465f249a4c5c # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Supabase CLI v2 stable (isolated local stack)
+        uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+      - name: Record CLI version
+        run: supabase --version
+      - name: Boot disposable local Supabase database and run migrations
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor
+      - name: Install psql if missing
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Execute SQL suite including WhatsApp cross-advisor and revocation tests
+        run: bash scripts/test-sql.sh
+      - name: Stop local containers
+        if: always()
+        run: supabase stop --no-backup || true
