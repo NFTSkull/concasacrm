@@ -39,3 +39,25 @@ El usuario indicó que posiblemente ya tiene vinculados números en Meta. **No i
 6. Reportar si se puede usar un número WhatsApp Business *exclusivamente dedicado a pruebas*, que no tenga conversaciones laborales ni personales, para el futuro piloto controlado.
 
 **Sin cambios:** no tocar Vendedor, no enlazar/desvincular números, no mover cuentas de portafolio, no publicar, no enviar, no pedir contraseñas ni pegar tokens. Actualizar la sección de hallazgos con tabla: en Meta / WABA / tipo / estado / método seguro de vinculación / bloqueos de autorización. Nunca incluir números completos de terceros en el reporte.
+
+## Actualización de inventario de Meta — 05/11/2026
+
+Claude Chrome revisó portafolios ConCasa, Asesores y Asesores 3 (reporte del usuario). Observó tres categorías distintas:
+
+- **ConCasa**: número oficial de prueba Meta +1 555-138-2966, Phone Number ID `1374640222406439`, mensajería de prueba `1624750772211418`.
+- **Asesores**: cuenta real "ConCasa" (probable Vendedor, sin verificar), una prueba Meta y Luisa Acosta (+52 ...3585) vinculada solo mediante la app WhatsApp Business, **sin Cloud API confirmada**.
+- **Asesores 3**: Nataly Salazar (+52 ...0850) ya figura como cuenta Cloud API, y "Mejora Plus" (+52 ...8882) ya dispone de un partner. Ninguna de esas observaciones prueba si su WhatsApp Business móvil mantiene Coexistence.
+
+**Advertencia sobre la evolución de cuentas Meta (septiembre-octubre 2026):** la interfaz ahora distingue WhatsApp Account (WAAC, número/canal) de Messaging Account (PMA, facturación/plantillas). Un WAAC puede compartirse con distintos socios bajo reglas de enrutamiento; no deducir que cada número pertenece permanentemente a una sola aplicación. Verificar cuál activo se comparte, qué empresa puede autorizarlo y qué enrutamiento se aplicaría. Referencia pública: https://help.salesforce.com/s/articleView?id=005461876&language=en_US&type=1
+
+### Instrucción actualizada y acotada
+
+1. Comprueba por **solo lectura** el tipo WAAC/PMA, empresa titular, permisos de administración, proveedor que atiende actualmente, app de origen y `phone_number_id` de **cada candidato**; evita divulgar números de teléfono completos de terceros.
+2. **Luisa (app WhatsApp Business):** investigar elegibilidad Coexistence y consentimiento. No hacer migración tradicional ni abrir Embedded Signup hasta contar con conexión y sincronización de historial seguras.
+3. **Nataly (Cloud API):** investigar si es viable compartir acceso autorizado con la app ConCasa, **sin reconectar ni desconectar el número**, y si eso afectaría facturación, recepción o encaminamiento del proveedor actual. No suponer que Embedded Signup es obligatorio o que Coexistence está activa.
+4. **Mejora Plus/Vendedor:** prohibido modificar, compartir, remapear o suscribirse sin autorización específica; solo inventario de metadatos visibles.
+5. Para **probar primero** usar el test number de ConCasa. El usuario ya confirmó que recibió el mensaje de prueba en su celular y respondió; esa respuesta NO llega aún a la bandeja hasta que exista webhook registrado y base preparada.
+6. La pantalla `/asesor/whatsapp/conectar` de la rama de GitHub es **solo una preparación autenticada**. No tiene `FB.login()`, `featureType`, OAuth server-side code exchange ni importación real de historial. No es una conexión funcional.
+7. Entregar tres rutas claramente diferenciadas: (A) ensayo con Meta test, (B) asesor que solo usa WhatsApp Business móvil, (C) asesor ya conectado por Cloud API. Por ruta, requisitos exactos, riesgos de perder historial/conversaciones, quien debe dar consentimiento y cuál aprobación Meta falta.
+
+No tomar acciones sobre números, suscripciones o socios. No activar flags ni publicar la rama de ConCasa. No sugerir que una prueba de Meta Cloud API confirma Coexistence.
